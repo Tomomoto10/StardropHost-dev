@@ -1,3 +1,5 @@
+**THIS IS A WORK IN PROGRESS. DO NOT DOWNLOAD UNLESS YOU ARE WILLING TO BUG FIX OR FOR IT TO JUST NOT WORK***
+
 <div align="center">
 
 ![StardropHost](https://github.com/Tomomoto10/StardropHost/blob/main/banner.png)
@@ -115,7 +117,7 @@ The web panel guides you through setup:
 Open Stardew Valley → **Co-op → Join LAN Game**
 
 - Your server will appear automatically in the list  
-- Or connect manually by entering the server’s IP address  
+- Or connect manually by entering the server’s IP address (*Available in the Web Dashboard*)
 
 ### Over the internet
 Sign into Steam once in the **Config** tab to generate a shareable invite code.  
