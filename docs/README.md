@@ -6,10 +6,6 @@
 
 ### Self-hosted Stardew Valley server, managed entirely from your browser
 
-
-[![Docker](https://img.shields.io/badge/docker-tomomotto%2Fstardrophost-a78bfa?style=flat-square)](https://hub.docker.com/r/tomomotto/stardrophost)
-[![GitHub](https://img.shields.io/badge/github-StardropHost-a78bfa?style=flat-square)](https://github.com/Tomomoto10/StardropHost)
-
 --------------
 
 *Run a 24/7 cross-platform Stardew Valley farm for you and your friends.*
@@ -141,16 +137,19 @@ StardropHost comes with pre-installed and pre-configured server mods:
 
 ## 🖥️ Requirements
 
-- Linux machine, VPS, or home server  
+- Linux Device (Virtual Machine or Hardware) 
 - 2GB RAM minimum (4GB recommended for 4+ players)  
-- A copy of Stardew Valley (Steam, GOG, or otherwise)
+- A copy of Stardew Valley (Steam, GOG, or otherwise... aahrrr)
 
 ---
 
 <div align="center">
 
-Built on [puppy-stardew-server](https://github.com/truman-world/puppy-stardew-server)  
-Powered by [SMAPI](https://smapi.io/)
+Project Built on [puppy-stardew-server](https://github.com/truman-world/puppy-stardew-server)  
+
+Mods Powered by [SMAPI](https://smapi.io/)
+
+Everything Run on [Docker](https://hub.docker.com/r/tomomotto/stardrophost)
 
 </div>
 
@@ -162,3 +161,4 @@ MIT — see [LICENSE](LICENSE)
 
 Stardew Valley is © ConcernedApe.  
 This project is not affiliated with or endorsed by ConcernedApe.
+
