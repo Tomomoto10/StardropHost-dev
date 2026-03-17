@@ -120,4 +120,14 @@ main() {
 
 trap 'log_info "VNC monitor shutting down..."; exit 0' SIGTERM SIGINT
 
-main
+case "${1:-}" in
+  stop)
+    log_info "Stopping VNC..."
+    pkill -f "x11vnc.*$VNC_PORT" 2>/dev/null || true
+    pkill -f "vnc-monitor.sh" 2>/dev/null || true
+    exit 0
+    ;;
+  *)
+    main
+    ;;
+esac

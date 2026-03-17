@@ -4,7 +4,7 @@
  */
 
 const fs = require('fs');
-const { execSync, spawnSync } = require('child_process');
+const { execSync } = require('child_process');
 const http = require('http');
 const config = require('../server');
 
@@ -144,12 +144,16 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // -- Send SMAPI console command --
+// Writes directly to SMAPI's stdin via procfs (same approach as terminal.js).
+// The web panel runs inside the game container, so no docker exec needed.
 function sendConsoleCommand(command) {
   try {
-    spawnSync('sh', ['-lc', `echo "${command}" | docker exec -i stardrop /home/steam/scripts/send-command.sh 2>/dev/null || true`], {
-      encoding: 'utf-8',
-      timeout: 5000,
-    });
+    const pids = execSync('pgrep -f StardewModdingAPI', { encoding: 'utf-8' })
+      .trim().split('\n').filter(Boolean);
+    const pid = pids[0];
+    if (!pid) return false;
+    const input = command.endsWith('\n') ? command : `${command}\n`;
+    fs.writeFileSync(`/proc/${pid}/fd/0`, input);
     return true;
   } catch {
     return false;
