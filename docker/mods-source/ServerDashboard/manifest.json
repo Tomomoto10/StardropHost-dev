@@ -1,0 +1,10 @@
+{
+  "Name": "ServerDashboard",
+  "Author": "StardropHost",
+  "Version": "1.0.0",
+  "Description": "Writes live game state to live-status.json every 10 seconds for the StardropHost web panel.",
+  "UniqueID": "stardrop.ServerDashboard",
+  "EntryDll": "ServerDashboard.dll",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": []
+}

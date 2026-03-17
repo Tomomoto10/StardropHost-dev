@@ -1,0 +1,100 @@
+# ===========================================
+# StardropHost | docker-compose.yml
+# ===========================================
+# Just run:
+#   docker compose up -d
+# ===========================================
+
+services:
+
+  # --- Manager ---
+  # Sidecar container, gives web panel the
+  # ability to start/stop/restart the server
+  stardrop-manager:
+    build: ./docker/manager
+    image: stardrop-manager:local
+    container_name: stardrop-manager
+    restart: unless-stopped
+    environment:
+      - PROJECT_DIR=${PWD}
+      - COMPOSE_FILE=${PWD}/docker-compose.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${PWD}:${PWD}:ro
+
+  # --- Init ---
+  # Runs once on startup as root to create
+  # data directories and fix file permissions
+  # (UID 1000:1000) then exits. This prevents
+  # disk write errors on first run.
+  stardrop-init:
+    build: ./docker
+    image: stardrop-server:local
+    container_name: stardrop-init
+    user: root
+    entrypoint: ["/home/steam/scripts/init-container.sh"]
+    environment:
+      - USE_GPU=${USE_GPU:-false}
+    volumes:
+      - ./data/saves:/home/steam/.config/StardewValley:rw
+      - ./data/game:/home/steam/stardewvalley:rw
+      - ./data/logs:/home/steam/.local/share/stardrop/logs:rw
+      - ./data/backups:/home/steam/.local/share/stardrop/backups:rw
+      - ./data/panel:/home/steam/web-panel/data:rw
+
+  # --- Server ---
+  # Main container, runs Stardew Valley + SMAPI
+  # + web panel + all background services
+  stardrop-server:
+    build: ./docker
+    image: stardrop-server:local
+    container_name: stardrop
+    restart: unless-stopped
+    depends_on:
+      stardrop-manager:
+        condition: service_started
+      stardrop-init:
+        condition: service_completed_successfully
+    environment:
+      - USE_GPU=${USE_GPU:-false}
+      - LOW_PERF_MODE=${LOW_PERF_MODE:-false}
+      - ENABLE_VNC=${ENABLE_VNC:-false}
+      - VNC_PASSWORD=${VNC_PASSWORD:-stardew1}
+      - ENABLE_AUTO_BACKUP=${ENABLE_AUTO_BACKUP:-false}
+      - ENABLE_CRASH_RESTART=${ENABLE_CRASH_RESTART:-false}
+      - ENABLE_LOG_MONITOR=${ENABLE_LOG_MONITOR:-false}
+      - METRICS_PORT=${METRICS_PORT:-9090}
+      - PUBLIC_IP=${PUBLIC_IP:-}
+      - SERVER_PASSWORD=${SERVER_PASSWORD:-}
+      - SAVE_NAME=${SAVE_NAME:-}
+      - PANEL_PORT=18642
+    ports:
+      - "${GAME_PORT:-24642}:24642/udp"
+      - "${VNC_PORT:-5900}:5900"
+      - "${METRICS_PORT:-9090}:9090"
+      - "${PANEL_PORT:-18642}:18642"
+    volumes:
+      - ./data/saves:/home/steam/.config/StardewValley:rw
+      - ./data/game:/home/steam/stardewvalley:rw
+      - ./data/logs:/home/steam/.local/share/stardrop/logs:rw
+      - ./data/backups:/home/steam/.local/share/stardrop/backups:rw
+      - ./data/panel:/home/steam/web-panel/data:rw
+      - ./data/custom-mods:/home/steam/custom-mods:ro
+
+  # --- Steam Auth - optional, for invite codes only---
+  # -- Credentials never touch the game container ---
+  stardrop-steam-auth:
+    build: ./docker/steam-auth
+    image: stardrop-steam-auth:local
+    container_name: stardrop-steam-auth
+    restart: unless-stopped
+    environment:
+      - STEAM_AUTH_PORT=18700
+      - SMAPI_LOG=/game-logs/SMAPI-latest.txt
+    volumes:
+      # Refresh token storage — never shared with game container
+      - ./data/steam-session:/data
+      # Read-only access to SMAPI log for invite code extraction
+      - ./data/logs:/game-logs:ro
+    # Port 18700 is intentionally NOT exposed to host.
+    # The web panel proxies to it via Docker's internal network.

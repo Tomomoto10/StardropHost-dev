@@ -1,0 +1,57 @@
+# ===========================================
+# StardropHost | .gitignore
+# ===========================================
+
+
+# -- Environment --
+# .env contains no secrets but kept local
+# to allow personal customisation
+.env
+
+
+# -- Data --
+# All runtime data stays local
+data/
+
+
+# -- Backups --
+backups/
+backup-*/
+*.tar.gz
+*.zip
+*.backup
+
+
+# -- Logs --
+*.log
+logs/
+
+
+# -- Screenshots --
+# Keep only what's used in README
+screenshots/*
+!screenshots/game/
+!screenshots/game/instant-sleep-demo.gif
+!screenshots/panel/
+!screenshots/panel/Dashboard.png
+!screenshots/panel/Saves.png
+
+
+# -- C# Build Artifacts --
+bin/
+obj/
+*.dll
+!docker/mods/**/*.dll
+
+
+# -- IDE --
+.vscode/
+.idea/
+*.swp
+.*.swo
+*~
+
+
+# -- OS --
+.DS_Store
+Thumbs.db

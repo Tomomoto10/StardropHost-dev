@@ -1,0 +1,246 @@
+/**
+ * StardropHost | web-panel/api/players.js
+ * Player information, management and history
+ */
+
+const fs = require('fs');
+const { execSync, spawnSync } = require('child_process');
+const http = require('http');
+const config = require('../server');
+
+// -- Player history (24h at 5min intervals) --
+const playerHistory = [];
+const MAX_PLAYER_HISTORY = 288;
+
+// -- Connected players cache --
+let connectedPlayers = [];
+let lastLogParse = 0;
+
+// -- Ban list --
+const BAN_LIST_FILE = require('path').join(config.DATA_DIR, 'bans.json');
+
+function loadBans() {
+  try {
+    if (fs.existsSync(BAN_LIST_FILE)) {
+      return JSON.parse(fs.readFileSync(BAN_LIST_FILE, 'utf-8'));
+    }
+  } catch {}
+  return [];
+}
+
+function saveBans(bans) {
+  try {
+    fs.writeFileSync(BAN_LIST_FILE, JSON.stringify(bans, null, 2), 'utf-8');
+  } catch {}
+}
+
+// -- Parse players from SMAPI log --
+// BUG FIX: Player IDs are large negative numbers (e.g. -3472295406447050512)
+// Updated regex from \w+ to [-0-9]+ to match actual numeric IDs
+function parsePlayersFromLogs() {
+  const now = Date.now();
+  if (now - lastLogParse < 10000) return connectedPlayers;
+
+  try {
+    if (!fs.existsSync(config.SMAPI_LOG)) return connectedPlayers;
+
+    const content = fs.readFileSync(config.SMAPI_LOG, 'utf-8');
+    const lines   = content.split('\n');
+    const players = new Map();
+
+    for (const line of lines) {
+      // Join patterns - IDs are numeric
+      const joinMatch =
+        line.match(/Received connection for vanilla player ([-0-9]+)/i) ||
+        line.match(/Approved request for farmhand ([-0-9]+)/i) ||
+        line.match(/farmhand ([-0-9]+) connected/i) ||
+        line.match(/client ([-0-9]+) connected/i) ||
+        line.match(/peer ([-0-9]+) joined/i);
+
+      if (joinMatch) {
+        const id = joinMatch[1];
+        players.set(id, {
+          id,
+          name: formatPlayerId(id),
+          joinedAt: new Date().toISOString(),
+          isOnline: true,
+        });
+        continue;
+      }
+
+      // Leave patterns
+      const leaveMatch =
+        line.match(/farmhand ([-0-9]+) disconnected/i) ||
+        line.match(/client ([-0-9]+) disconnected/i) ||
+        line.match(/peer ([-0-9]+) left/i) ||
+        line.match(/connection ([-0-9]+) disconnected/i) ||
+        line.match(/player ([-0-9]+) disconnected/i);
+
+      if (leaveMatch) {
+        players.delete(leaveMatch[1]);
+      }
+    }
+
+    connectedPlayers = Array.from(players.values());
+    lastLogParse = now;
+  } catch {
+    // Keep last known state
+  }
+
+  return connectedPlayers;
+}
+
+// -- Try to get richer player data from live-status.json --
+function getPlayersFromLiveStatus() {
+  try {
+    if (fs.existsSync(config.LIVE_FILE)) {
+      const live = JSON.parse(fs.readFileSync(config.LIVE_FILE, 'utf-8'));
+      if (live.players?.length > 0) {
+        return live.players
+          .filter(p => p.isOnline && !p.isHost)
+          .map(p => ({
+            id:        p.uniqueId,
+            name:      p.name || formatPlayerId(p.uniqueId),
+            joinedAt:  null,
+            isOnline:  true,
+            health:    p.health,
+            maxHealth: p.maxHealth,
+            stamina:   p.stamina,
+            money:     p.money,
+            location:  p.locationName,
+          }));
+      }
+    }
+  } catch {}
+  return null;
+}
+
+// -- Format a numeric player ID for display --
+function formatPlayerId(id) {
+  if (!id) return 'Player';
+  // Show last 6 digits of the numeric ID as a short identifier
+  const str = String(id).replace('-', '');
+  return `Farmhand #${str.slice(-6)}`;
+}
+
+function getOnlineCount() {
+  try {
+    if (fs.existsSync(config.STATUS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(config.STATUS_FILE, 'utf-8'));
+      if (data.game?.players_online !== undefined) return data.game.players_online || 0;
+      return data.players_online || 0;
+    }
+  } catch {}
+  return connectedPlayers.length;
+}
+
+// -- Record player count history every 5 minutes --
+setInterval(() => {
+  playerHistory.push({
+    timestamp: new Date().toISOString(),
+    count: getOnlineCount(),
+  });
+  if (playerHistory.length > MAX_PLAYER_HISTORY) playerHistory.shift();
+}, 5 * 60 * 1000);
+
+// -- Send SMAPI console command --
+function sendConsoleCommand(command) {
+  try {
+    spawnSync('sh', ['-lc', `echo "${command}" | docker exec -i stardrop /home/steam/scripts/send-command.sh 2>/dev/null || true`], {
+      encoding: 'utf-8',
+      timeout: 5000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// -- Route Handlers --
+
+function getPlayers(req, res) {
+  // Prefer live-status.json data (richer, from ServerDashboard mod)
+  const livePlayers = getPlayersFromLiveStatus();
+  const logPlayers  = parsePlayersFromLogs();
+  const players     = livePlayers || logPlayers;
+  const online      = getOnlineCount();
+
+  res.json({
+    online: Math.max(online, players.length),
+    max: 8,
+    players,
+    history: playerHistory,
+  });
+}
+
+function kickPlayer(req, res) {
+  const { id, name } = req.body;
+  if (!id && !name) {
+    return res.status(400).json({ error: 'Player id or name is required' });
+  }
+
+  const target = name || id;
+  const success = sendConsoleCommand(`kick ${target}`);
+
+  if (success) {
+    res.json({ success: true, message: `Kick command sent for ${target}` });
+  } else {
+    res.status(500).json({ error: 'Failed to send kick command' });
+  }
+}
+
+function banPlayer(req, res) {
+  const { id, name } = req.body;
+  if (!id && !name) {
+    return res.status(400).json({ error: 'Player id or name is required' });
+  }
+
+  const target = name || id;
+  const bans = loadBans();
+
+  if (!bans.find(b => b.id === id || b.name === name)) {
+    bans.push({ id, name, bannedAt: new Date().toISOString() });
+    saveBans(bans);
+  }
+
+  // Also kick them immediately
+  sendConsoleCommand(`kick ${target}`);
+
+  res.json({ success: true, message: `${target} banned` });
+}
+
+function unbanPlayer(req, res) {
+  const { id, name } = req.body;
+  if (!id && !name) {
+    return res.status(400).json({ error: 'Player id or name is required' });
+  }
+
+  const bans = loadBans().filter(b => b.id !== id && b.name !== name);
+  saveBans(bans);
+
+  res.json({ success: true, message: 'Player unbanned' });
+}
+
+function grantAdmin(req, res) {
+  const { id, name } = req.body;
+  if (!id && !name) {
+    return res.status(400).json({ error: 'Player id or name is required' });
+  }
+
+  const target = name || id;
+  const success = sendConsoleCommand(`admin ${target}`);
+
+  if (success) {
+    res.json({ success: true, message: `Admin granted to ${target}` });
+  } else {
+    res.status(500).json({ error: 'Failed to send admin command' });
+  }
+}
+
+module.exports = {
+  getPlayers,
+  kickPlayer,
+  banPlayer,
+  unbanPlayer,
+  grantAdmin,
+};
