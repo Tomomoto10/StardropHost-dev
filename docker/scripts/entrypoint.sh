@@ -294,6 +294,17 @@ if [ "$(id -u)" != "1000" ]; then
     exit 1
 fi
 
+# -- Step 0: Start web panel early --
+# Must start before game file setup so the setup wizard is reachable
+# even when no game files are present (the while-loop in setup_game_files
+# would otherwise block the panel from ever starting).
+log_step "Step 0: Starting web panel..."
+cd /home/steam/web-panel
+node server.js &
+WEB_PANEL_PID=$!
+log_info "✅ Web panel started (PID: $WEB_PANEL_PID, port: ${PANEL_PORT:-18642})"
+cd /home/steam
+
 # -- Step 1: Validate configuration --
 log_step "Step 1: Validating configuration..."
 
@@ -534,15 +545,6 @@ fi
 # Start status reporter
 log_info "Starting status reporter (port: ${METRICS_PORT:-9090})..."
 /home/steam/scripts/status-reporter.sh &
-
-# Start web panel
-log_info "Starting web panel (port: 18642)..."
-cd /home/steam/web-panel
-node server.js &
-WEB_PANEL_PID=$!
-log_info "✅ Web panel started (PID: $WEB_PANEL_PID)"
-log_info "  http://localhost:18642"
-cd /home/steam/stardewvalley
 
 # Start with or without crash monitor
 if [ "$ENABLE_CRASH_RESTART" = "true" ]; then
