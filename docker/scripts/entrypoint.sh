@@ -198,8 +198,23 @@ download_game_via_steam() {
         +app_update 413150 validate \
         +quit
 
+    local result=$?
+
+    # Always clear credentials from env file after attempt — never persist them
+    ENV_FILE="${ENV_FILE:-/home/steam/web-panel/data/runtime.env}"
+    if [ -f "$ENV_FILE" ]; then
+        sed -i '/^STEAM_USERNAME=/d' "$ENV_FILE" 2>/dev/null || true
+        sed -i '/^STEAM_PASSWORD=/d' "$ENV_FILE" 2>/dev/null || true
+        sed -i '/^STEAM_GUARD_CODE=/d' "$ENV_FILE" 2>/dev/null || true
+        log_info "Steam credentials cleared from env file"
+    fi
+
     if [ -f "/home/steam/stardewvalley/StardewValley" ]; then
         log_info "✅ Game downloaded successfully"
+        # Also clear STEAM_DOWNLOAD flag so it doesn't re-download on next start
+        if [ -f "$ENV_FILE" ]; then
+            sed -i '/^STEAM_DOWNLOAD=/d' "$ENV_FILE" 2>/dev/null || true
+        fi
         return 0
     else
         log_error "❌ Game download failed"
@@ -535,6 +550,19 @@ cd /home/steam/stardewvalley
 # Start event handler
 log_info "Starting event handler..."
 /home/steam/scripts/event-handler.sh &
+
+# Auto-create new farm if wizard configured one and no save exists yet
+NEW_FARM_CONFIG="/home/steam/web-panel/data/new-farm.json"
+SAVES_DIR="/home/steam/.config/StardewValley/Saves"
+if [ -f "$NEW_FARM_CONFIG" ]; then
+    if [ ! "$(ls -A "$SAVES_DIR" 2>/dev/null)" ]; then
+        log_info "New farm config detected — will create farm after SMAPI loads..."
+        /home/steam/scripts/create-farm.sh &
+    else
+        log_info "Save files already exist — skipping new farm creation"
+        rm -f "$NEW_FARM_CONFIG"
+    fi
+fi
 
 # Start auto-backup if enabled
 if [ "$ENABLE_AUTO_BACKUP" = "true" ]; then

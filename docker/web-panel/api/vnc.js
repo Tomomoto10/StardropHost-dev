@@ -71,8 +71,50 @@ function setVncPassword(password) {
   } catch {}
 }
 
+function isXvfbRunning() {
+  try {
+    const xvfb = spawnSync('pgrep', ['-x', 'Xvfb'], { encoding: 'utf-8' });
+    if (xvfb.status === 0) return true;
+    const xorg = spawnSync('pgrep', ['-x', 'Xorg'], { encoding: 'utf-8' });
+    return xorg.status === 0;
+  } catch { return false; }
+}
+
+function ensureDisplayRunning() {
+  if (isXvfbRunning()) return true;
+
+  const width  = process.env.RESOLUTION_WIDTH  || '1280';
+  const height = process.env.RESOLUTION_HEIGHT || '720';
+
+  // Remove stale lock files
+  spawnSync('rm', ['-f', '/tmp/.X99-lock', '/tmp/.X11-unix/X99'], { encoding: 'utf-8' });
+
+  // Start Xvfb detached
+  const { spawn } = require('child_process');
+  const xvfb = spawn('Xvfb', [
+    ':99', '-screen', '0', `${width}x${height}x24`,
+    '-ac', '+extension', 'GLX', '+render', '-noreset',
+  ], { detached: true, stdio: 'ignore' });
+  xvfb.unref();
+
+  // Wait up to 5 s for it to appear
+  for (let i = 0; i < 10; i++) {
+    spawnSync('sleep', ['0.5']);
+    if (isXvfbRunning()) {
+      process.env.DISPLAY = ':99';
+      return true;
+    }
+  }
+  return false;
+}
+
 function startVnc(password) {
   try {
+    // Ensure a display is available before x11vnc tries to attach
+    if (!ensureDisplayRunning()) {
+      console.error('[vnc] Could not start Xvfb — x11vnc will likely fail');
+    }
+
     setVncPassword(password || DEFAULT_PASSWORD);
     spawnSync('sh', ['-c', '/home/steam/scripts/vnc-monitor.sh start 2>/dev/null &'], {
       encoding: 'utf-8',

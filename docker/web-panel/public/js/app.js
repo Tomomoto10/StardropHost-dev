@@ -203,40 +203,142 @@ async function wizSubmitStep3(skip) {
 }
 
 async function wizSubmitStep4(skip) {
-  const pw       = skip ? '' : (document.getElementById('wiz-srv-pw').value.trim());
-  const saveName = skip ? '' : (document.getElementById('wiz-save-name').value.trim());
+  const pw = skip ? '' : (document.getElementById('wiz-srv-pw').value.trim());
   try {
-    await API.post('/api/wizard/step/4', { serverPassword: pw, saveName });
+    await API.post('/api/wizard/step/4', { serverPassword: pw });
     _wizState._srvPw = pw;
-    _wizState._saveName = saveName;
-    // Populate confirm screen
+    // Populate confirm lines for step 6
     const gm = _wizState._gameMethod;
     document.getElementById('wiz-confirm-game').textContent =
       `✅ Game files: ${gm === 'steam' ? 'Steam download configured' : 'Copied manually'}`;
     const cpu = _wizState._cpu, mem = _wizState._mem;
     document.getElementById('wiz-confirm-resources').textContent =
       cpu || mem ? `✅ Resources: CPU=${cpu||'unlimited'}, RAM=${mem||'unlimited'}` : '✅ Resources: no limits set';
-    const sn = _wizState._saveName;
     document.getElementById('wiz-confirm-server').textContent =
       pw ? '✅ Server password set' : '✅ Server: open (no password)';
-    document.getElementById('wiz-confirm-save').textContent =
-      sn ? `✅ Auto-load save: ${sn}` : '⚠️  No save selected — upload one from the Saves tab after setup';
+    // Load farm step (step 5)
     wizGoToStep(5);
+    wizLoadFarmStep();
   } catch (e) {
     showToast(e.message || 'Failed to save — try again', 'error');
   }
 }
 
-async function wizComplete() {
+// ─── Farm Setup (Step 5) ─────────────────────────────────────────
+function wizFarmTab(tab) {
+  document.getElementById('wiz-farm-new').style.display      = tab === 'new'      ? '' : 'none';
+  document.getElementById('wiz-farm-existing').style.display = tab === 'existing' ? '' : 'none';
+  document.getElementById('farm-tab-new').classList.toggle('active',      tab === 'new');
+  document.getElementById('farm-tab-existing').classList.toggle('active', tab === 'existing');
+}
+
+async function wizLoadFarmStep() {
+  wizFarmTab('new');
+  // Load existing saves for the existing-save tab
+  try {
+    const data = await API.get('/api/wizard/saves');
+    const sel  = document.getElementById('wiz-existing-save');
+    if (data?.saves?.length) {
+      sel.innerHTML = data.saves.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    } else {
+      sel.innerHTML = '<option value="">No saves found — upload via Saves tab first</option>';
+    }
+  } catch {}
+}
+
+async function wizCreateNewFarm() {
+  const statusEl  = document.getElementById('wiz-farm-status');
+  const farmName  = document.getElementById('wiz-farm-name')?.value?.trim()   || 'Stardrop Farm';
+  const farmerName= document.getElementById('wiz-farmer-name')?.value?.trim() || 'Host';
+  const farmType  = document.getElementById('wiz-farm-type')?.value   || '0';
+  const cabinCount= document.getElementById('wiz-cabin-count')?.value || '1';
+  const petType   = document.getElementById('wiz-pet-type')?.value    || 'cat';
+
+  statusEl.style.color = 'var(--text-secondary)';
+  statusEl.textContent = 'Saving farm configuration…';
+  try {
+    await API.post('/api/wizard/new-farm', { farmName, farmerName, farmType, cabinCount, petType });
+    statusEl.style.color = 'var(--accent)';
+    statusEl.textContent = '✅ Farm config saved';
+    _wizState._farmMode = 'new';
+    _wizState._farmName = farmName;
+    document.getElementById('wiz-confirm-save').textContent = `✅ New farm: "${farmName}" (${['Standard','Riverland','Forest','Hill-top','Wilderness','Four Corners','Beach'][farmType]})`;
+    setTimeout(() => wizLaunchServer(), 800);
+  } catch (e) {
+    statusEl.style.color = 'var(--accent-error)';
+    statusEl.textContent = e.message || 'Failed to save farm config.';
+  }
+}
+
+async function wizSelectExistingSave() {
+  const statusEl = document.getElementById('wiz-existing-status');
+  const saveName = document.getElementById('wiz-existing-save')?.value?.trim();
+  if (!saveName) { statusEl.textContent = 'No save selected.'; return; }
+
+  statusEl.style.color = 'var(--text-secondary)';
+  statusEl.textContent = 'Selecting save…';
+  try {
+    await API.post('/api/wizard/select-save', { saveName });
+    statusEl.style.color = 'var(--accent)';
+    statusEl.textContent = `✅ Will load: ${saveName}`;
+    _wizState._farmMode = 'existing';
+    _wizState._farmName = saveName;
+    document.getElementById('wiz-confirm-save').textContent = `✅ Load save: ${saveName}`;
+    setTimeout(() => wizLaunchServer(), 800);
+  } catch (e) {
+    statusEl.style.color = 'var(--accent-error)';
+    statusEl.textContent = e.message || 'Failed to select save.';
+  }
+}
+
+let _gameReadyTimer = null;
+
+async function wizLaunchServer() {
+  // Advance to step 6 and trigger server start
+  wizGoToStep(6);
   try {
     await API.post('/api/wizard/step/5', {});
-    document.getElementById('wizard-overlay').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-    init();
-    showToast('Setup complete! Server is starting…', 'success');
-  } catch (e) {
-    showToast(e.message || 'Failed to complete setup', 'error');
-  }
+  } catch {}
+  wizPollGameReady(0);
+}
+
+function wizPollGameReady(pct) {
+  const bar    = document.getElementById('wiz-launch-bar');
+  const lbl    = document.getElementById('wiz-launch-status');
+  const btn    = document.getElementById('wiz-complete-btn');
+
+  // Animate progress bar slowly until game is ready
+  const nextPct = Math.min(pct + 2, 90);
+  if (bar) bar.style.width = nextPct + '%';
+
+  _gameReadyTimer = setTimeout(async () => {
+    try {
+      const data = await API.get('/api/wizard/game-ready');
+      if (data?.ready) {
+        if (bar) bar.style.width = '100%';
+        if (lbl) { lbl.style.color = 'var(--accent)'; lbl.textContent = '✅ Server is live — players can join!'; }
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Go to Dashboard'; }
+      } else {
+        // Update label based on partial progress
+        if (lbl) {
+          if (data?.gameRunning && !data?.saveLoaded) lbl.textContent = 'Game running, loading save…';
+          else if (!data?.gameRunning) lbl.textContent = 'Waiting for game to start…';
+          else if (data?.saveLoaded && !data?.hosting) lbl.textContent = 'Save loaded, enabling hosting…';
+        }
+        wizPollGameReady(nextPct);
+      }
+    } catch {
+      wizPollGameReady(nextPct);
+    }
+  }, 5000);
+}
+
+async function wizComplete() {
+  if (_gameReadyTimer) { clearTimeout(_gameReadyTimer); _gameReadyTimer = null; }
+  document.getElementById('wizard-overlay').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  init();
+  showToast('Setup complete! Server is running.', 'success');
 }
 
 // ─── Global State ────────────────────────────────────────────────

@@ -135,6 +135,10 @@ app.post('/api/wizard/step/2',       wizardAPI.submitStep2);
 app.post('/api/wizard/step/3',       wizardAPI.submitStep3);
 app.post('/api/wizard/step/4',       wizardAPI.submitStep4);
 app.post('/api/wizard/step/5',       wizardAPI.submitStep5);
+app.post('/api/wizard/new-farm',     wizardAPI.submitNewFarm);
+app.post('/api/wizard/select-save',  wizardAPI.selectExistingSave);
+app.get( '/api/wizard/saves',        wizardAPI.listSaves);
+app.get( '/api/wizard/game-ready',   wizardAPI.getGameReadyStatus);
 app.post('/api/wizard/reset',        auth.verifyMiddleware, wizardAPI.resetWizard);
 
 // -- Static files --

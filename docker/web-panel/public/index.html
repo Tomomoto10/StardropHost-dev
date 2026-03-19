@@ -612,6 +612,7 @@
         <div class="wiz-dot" data-step="3"></div>
         <div class="wiz-dot" data-step="4"></div>
         <div class="wiz-dot" data-step="5"></div>
+        <div class="wiz-dot" data-step="6"></div>
       </div>
 
       <!-- Step 2: Game files -->
@@ -723,18 +724,97 @@
         </div>
       </div>
 
-      <!-- Step 5: Confirm -->
+      <!-- Step 5: Farm Setup -->
       <div id="wiz-step-5" class="wiz-step card" style="display:none">
-        <h3 style="margin-bottom:4px">Ready to Launch!</h3>
-        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:20px">Setup is complete. The server will start automatically.</p>
-        <div style="background:var(--bg-tertiary);border-radius:8px;padding:14px;margin-bottom:20px;font-size:13px;color:var(--text-secondary);line-height:1.7">
+        <h3 style="margin-bottom:4px">Farm Setup</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">Create a new co-op farm, or load an existing save.</p>
+
+        <!-- Mode tabs -->
+        <div style="display:flex;gap:8px;margin-bottom:18px">
+          <button class="btn btn-secondary wiz-method-btn" id="farm-tab-new" onclick="wizFarmTab('new')" style="flex:1">Create New Farm</button>
+          <button class="btn btn-secondary wiz-method-btn" id="farm-tab-existing" onclick="wizFarmTab('existing')" style="flex:1">Load Existing Save</button>
+        </div>
+
+        <!-- New farm fields -->
+        <div id="wiz-farm-new" style="display:none">
+          <div style="display:grid;gap:12px">
+            <div>
+              <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:5px">Farm Name</label>
+              <input id="wiz-farm-name" class="input" type="text" value="Stardrop Farm" style="width:100%">
+            </div>
+            <div>
+              <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:5px">Farmer Name <span style="color:var(--text-muted)">(host — not visible to players)</span></label>
+              <input id="wiz-farmer-name" class="input" type="text" value="Host" style="width:100%">
+            </div>
+            <div>
+              <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:5px">Farm Type</label>
+              <select id="wiz-farm-type" class="input" style="width:100%">
+                <option value="0">Standard — balanced, good for beginners</option>
+                <option value="1">Riverland — lots of water, great for fishing</option>
+                <option value="2">Forest — foraging focus, stumps regrow</option>
+                <option value="3">Hill-top — mining resources on the farm</option>
+                <option value="4">Wilderness — monsters spawn at night</option>
+                <option value="5">Four Corners — one of each area</option>
+                <option value="6">Beach — sandy, hard to irrigate but unique</option>
+              </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div>
+                <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:5px">Cabins (max players - 1)</label>
+                <select id="wiz-cabin-count" class="input" style="width:100%">
+                  <option value="0">0 — solo only</option>
+                  <option value="1" selected>1 cabin</option>
+                  <option value="2">2 cabins</option>
+                  <option value="3">3 cabins</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:5px">Pet</label>
+                <select id="wiz-pet-type" class="input" style="width:100%">
+                  <option value="cat">Cat</option>
+                  <option value="dog">Dog</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-success" style="width:100%;margin-top:16px" onclick="wizCreateNewFarm()">Save Farm Config →</button>
+          <div id="wiz-farm-status" style="font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px;min-height:16px"></div>
+        </div>
+
+        <!-- Existing save -->
+        <div id="wiz-farm-existing" style="display:none">
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">Select a save to auto-load on startup:</p>
+          <select id="wiz-existing-save" class="input" style="width:100%;margin-bottom:12px">
+            <option value="">Loading saves...</option>
+          </select>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">No saves listed? Upload one via the <strong>Saves</strong> tab, then return here and refresh.</p>
+          <button class="btn btn-success" style="width:100%" onclick="wizSelectExistingSave()">Use This Save →</button>
+          <div id="wiz-existing-status" style="font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px;min-height:16px"></div>
+        </div>
+      </div>
+
+      <!-- Step 6: Launch & Wait -->
+      <div id="wiz-step-6" class="wiz-step card" style="display:none">
+        <h3 style="margin-bottom:4px">Starting Server</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">The server is starting. Please wait while the game loads and sets up your farm.</p>
+        <div style="background:var(--bg-tertiary);border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--text-secondary);line-height:1.7">
           <div>✅ Admin password set</div>
           <div id="wiz-confirm-game"></div>
           <div id="wiz-confirm-resources"></div>
           <div id="wiz-confirm-server"></div>
           <div id="wiz-confirm-save"></div>
         </div>
-        <button class="btn btn-success" style="width:100%;font-size:15px;padding:12px" onclick="wizComplete()">Launch Server</button>
+        <!-- Progress bar -->
+        <div style="margin-bottom:16px">
+          <div class="progress-bar" style="height:8px;border-radius:4px">
+            <div class="progress-fill" id="wiz-launch-bar" style="width:0%;transition:width 0.5s"></div>
+          </div>
+          <div id="wiz-launch-status" style="font-size:12px;color:var(--text-muted);text-align:center;margin-top:6px">Waiting for server to start…</div>
+        </div>
+        <button class="btn btn-success" id="wiz-complete-btn" style="width:100%;font-size:15px;padding:12px;opacity:0.4" disabled onclick="wizComplete()">
+          Waiting for server…
+        </button>
+        <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:8px">If this takes more than 5 minutes, check the Logs tab or connect via VNC.</p>
       </div>
 
     </div>

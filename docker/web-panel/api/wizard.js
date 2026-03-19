@@ -304,6 +304,82 @@ function submitStep5(req, res) {
   });
 }
 
+// New farm setup — stores params for create-farm.sh
+function submitNewFarm(req, res) {
+  const { farmName, farmerName, farmType, cabinCount, petType } = req.body || {};
+  const FARM_TYPES = ['Standard', 'Riverland', 'Forest', 'Hill-top', 'Wilderness', 'Four Corners', 'Beach'];
+  const ft = parseInt(farmType ?? '0', 10);
+  if (isNaN(ft) || ft < 0 || ft > 6) {
+    return res.status(400).json({ error: 'farmType must be 0–6' });
+  }
+  const cc = parseInt(cabinCount ?? '1', 10);
+  if (isNaN(cc) || cc < 0 || cc > 3) {
+    return res.status(400).json({ error: 'cabinCount must be 0–3' });
+  }
+  const farmConfig = {
+    farmName:    (farmName   || 'Stardrop Farm').trim(),
+    farmerName:  (farmerName || 'Host').trim(),
+    farmType:    ft,
+    farmTypeName: FARM_TYPES[ft],
+    cabinCount:  cc,
+    petType:     petType === 'dog' ? 'dog' : 'cat',
+    createdAt:   new Date().toISOString(),
+  };
+  try {
+    const configPath = path.join(config.DATA_DIR, 'new-farm.json');
+    const dir = path.dirname(configPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify(farmConfig, null, 2));
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to save farm config', details: e.message });
+  }
+  res.json({ success: true, message: 'Farm configuration saved', farmConfig });
+}
+
+// Select existing save
+function selectExistingSave(req, res) {
+  const { saveName } = req.body || {};
+  if (!saveName || typeof saveName !== 'string') {
+    return res.status(400).json({ error: 'saveName is required' });
+  }
+  const savesDir = config.SAVES_DIR || '/home/steam/.config/StardewValley/Saves';
+  if (!fs.existsSync(path.join(savesDir, saveName))) {
+    return res.status(400).json({ error: `Save not found: ${saveName}` });
+  }
+  writeEnvValues({ SAVE_NAME: saveName });
+  res.json({ success: true, message: `Save '${saveName}' selected`, saveName });
+}
+
+// List existing saves
+function listSaves(req, res) {
+  const savesDir = config.SAVES_DIR || '/home/steam/.config/StardewValley/Saves';
+  try {
+    if (!fs.existsSync(savesDir)) return res.json({ saves: [] });
+    const saves = fs.readdirSync(savesDir, { withFileTypes: true })
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .map(e => e.name);
+    res.json({ saves });
+  } catch { res.json({ saves: [] }); }
+}
+
+// Poll whether the game is loaded and hosting (wizard step 5)
+function getGameReadyStatus(req, res) {
+  const smapi = config.SMAPI_LOG || '/home/steam/.config/StardewValley/ErrorLogs/SMAPI-latest.txt';
+  let loaded = false;
+  let hosting = false;
+  try {
+    if (fs.existsSync(smapi)) {
+      const content = fs.readFileSync(smapi, 'utf-8');
+      loaded  = /SAVE LOADED SUCCESSFULLY|Context: loaded save/i.test(content);
+      hosting = /Starting LAN server|Auto [Mm]ode [Oo]n/i.test(content);
+    }
+  } catch {}
+  const { spawnSync } = require('child_process');
+  let gameRunning = false;
+  try { gameRunning = spawnSync('pgrep', ['-f', 'StardewModdingAPI'], { encoding: 'utf-8' }).status === 0; } catch {}
+  res.json({ gameRunning, saveLoaded: loaded, hosting, ready: loaded && hosting });
+}
+
 // Reset wizard (dev/recovery use)
 function resetWizard(req, res) {
   writeState(defaultState());
@@ -317,5 +393,9 @@ module.exports = {
   submitStep3,
   submitStep4,
   submitStep5,
+  submitNewFarm,
+  selectExistingSave,
+  listSaves,
+  getGameReadyStatus,
   resetWizard,
 };
