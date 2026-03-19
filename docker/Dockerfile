@@ -71,7 +71,9 @@ USER steam
 # -- Download SteamCMD + SMAPI --
 RUN wget -qO- 'https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz' | \
         tar zxf - -C /home/steam/steamcmd && \
-    wget -qO smapi.zip 'https://github.com/Pathoschild/SMAPI/releases/download/4.5.2/SMAPI-4.5.2-installer.zip' && \
+    SMAPI_URL=$(curl -s https://api.github.com/repos/Pathoschild/SMAPI/releases/latest \
+        | grep -o '"browser_download_url": "[^"]*installer\.zip"' | head -1 | cut -d'"' -f4) && \
+    wget -qO smapi.zip "$SMAPI_URL" && \
     unzip -q smapi.zip -d smapi && \
     rm smapi.zip
 
