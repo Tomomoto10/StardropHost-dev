@@ -281,9 +281,10 @@ function _wizStreamLogs(lines, logEl, cntEl) {
 
   newLines.forEach(l => {
     const div = document.createElement('div');
-    div.style.color = l.level === 'error' ? 'var(--accent-error,#ef4444)' :
-                      l.level === 'warn'  ? 'var(--accent-warning,#f59e0b)' :
-                      l.text.includes('[STEP]') ? 'var(--accent)' : '';
+    div.style.color = l.level === 'error'            ? 'var(--accent-error,#ef4444)' :
+                      l.level === 'warn'             ? 'var(--accent-warning,#f59e0b)' :
+                      l.text.includes('[STEP]')      ? 'var(--accent)' :
+                      l.text.includes('[STEAM]')     ? 'var(--text-secondary)' : '';
     if (l.text.includes('[STEP]')) div.style.fontWeight = '600';
     div.textContent = l.text;
     logEl.appendChild(div);

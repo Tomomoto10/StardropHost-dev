@@ -204,9 +204,15 @@ download_game_via_steam() {
         +quit
     )
 
-    # Tee steamcmd output so it appears in container logs AND in a temp file
-    # we can grep for specific error conditions
-    /home/steam/steamcmd/steamcmd.sh "${STEAMCMD_ARGS[@]}" 2>&1 | tee "$STEAMCMD_LOG"
+    # Pipe steamcmd output to: container stdout, temp file (for error detection),
+    # and setup.log (so the web panel can show live progress in step 3).
+    # ANSI escape codes are stripped before writing to setup.log.
+    /home/steam/steamcmd/steamcmd.sh "${STEAMCMD_ARGS[@]}" 2>&1 | \
+        tee "$STEAMCMD_LOG" | \
+        while IFS= read -r line; do
+            clean=$(printf '%s' "$line" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\r')
+            [ -n "$clean" ] && _log_to_file "[STEAM] $clean"
+        done
 
     # Always clear credentials from env file after attempt — never persist them
     ENV_FILE="${ENV_FILE:-/home/steam/web-panel/data/runtime.env}"
