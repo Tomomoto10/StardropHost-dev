@@ -75,6 +75,7 @@ app.get('/api/logs/errors',          auth.verifyMiddleware, logsAPI.getErrors);
 app.get('/api/logs/server',          auth.verifyMiddleware, logsAPI.getServerLogs);
 app.get('/api/logs/mods',            auth.verifyMiddleware, logsAPI.getModLogs);
 app.get('/api/logs/game',            auth.verifyMiddleware, logsAPI.getGameLogs);
+app.get('/api/logs/setup',           logsAPI.getSetupLog);  // no auth — needed during wizard
 
 // -- Players --
 const playersAPI = require('./api/players');

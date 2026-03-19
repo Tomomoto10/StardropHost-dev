@@ -299,6 +299,21 @@ fi
 # Phase 2 - Steam User Operations
 # ===========================================
 
+# -- Setup log for web panel visibility --
+# Written to a file the web panel can serve so the wizard can show
+# live progress even before SMAPI (and its log file) exists.
+SETUP_LOG_FILE="/home/steam/.local/share/stardrop/logs/setup.log"
+mkdir -p "$(dirname "$SETUP_LOG_FILE")" 2>/dev/null || true
+> "$SETUP_LOG_FILE" 2>/dev/null || true   # clear on fresh start
+
+_log_to_file() { printf '%s %s\n' "$(date '+%H:%M:%S')" "$1" >> "$SETUP_LOG_FILE" 2>/dev/null || true; }
+
+# Re-declare log helpers so every message also goes to the file
+log_info()  { echo -e "${GREEN}[StardropHost]${NC} $1"; _log_to_file "[INFO]  $1"; }
+log_warn()  { echo -e "${YELLOW}[StardropHost]${NC} $1"; _log_to_file "[WARN]  $1"; }
+log_error() { echo -e "${RED}[StardropHost]${NC} $1";    _log_to_file "[ERROR] $1"; }
+log_step()  { echo -e "${BLUE}${1}${NC}";                _log_to_file "[STEP]  $1"; }
+
 log_step "================================================"
 log_step "  StardropHost v1.0.0 Starting..."
 log_step "================================================"

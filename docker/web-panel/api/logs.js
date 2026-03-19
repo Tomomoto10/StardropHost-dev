@@ -178,6 +178,35 @@ function subscribeLogs(ws, filter) {
   }));
 }
 
+// -- Setup log (entrypoint.sh progress, visible during wizard) --
+
+const SETUP_LOG_FILE = '/home/steam/.local/share/stardrop/logs/setup.log';
+
+function getSetupLog(req, res) {
+  const lines = Math.min(parseInt(req.query.lines || '120', 10), 500);
+
+  if (!fs.existsSync(SETUP_LOG_FILE)) {
+    return res.json({ lines: [], exists: false });
+  }
+
+  try {
+    const content  = fs.readFileSync(SETUP_LOG_FILE, 'utf-8');
+    const allLines = content.split('\n').filter(l => l.trim());
+
+    const result = allLines.slice(-lines).map(line => ({
+      text:  line,
+      level: /\[ERROR\]/i.test(line) ? 'error'
+           : /\[WARN\]/i.test(line)  ? 'warn'
+           : /\[STEP\]/i.test(line)  ? 'info'
+           : 'info',
+    }));
+
+    res.json({ lines: result, total: allLines.length, exists: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to read setup log', details: e.message });
+  }
+}
+
 module.exports = {
   getLogs,
   getErrors,
@@ -185,4 +214,5 @@ module.exports = {
   getModLogs,
   getGameLogs,
   subscribeLogs,
+  getSetupLog,
 };

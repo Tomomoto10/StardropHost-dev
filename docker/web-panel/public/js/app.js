@@ -292,14 +292,42 @@ async function wizSelectExistingSave() {
 }
 
 let _gameReadyTimer = null;
+let _setupLogTimer  = null;
+let _setupLogLines  = 0;
 
 async function wizLaunchServer() {
-  // Advance to step 6 and trigger server start
   wizGoToStep(6);
-  try {
-    await API.post('/api/wizard/step/5', {});
-  } catch {}
+  try { await API.post('/api/wizard/step/5', {}); } catch {}
   wizPollGameReady(0);
+  wizPollSetupLog();
+}
+
+async function wizPollSetupLog() {
+  const box   = document.getElementById('wiz-setup-log');
+  const count = document.getElementById('wiz-log-count');
+  if (!box) return;
+
+  try {
+    const data = await fetch('/api/logs/setup?lines=120').then(r => r.json());
+    if (data?.lines?.length && data.lines.length !== _setupLogLines) {
+      _setupLogLines = data.lines.length;
+      const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+      box.innerHTML = data.lines.map(l => {
+        const cls = l.level === 'error' ? 'color:#ef4444'
+                  : l.level === 'warn'  ? 'color:#f59e0b'
+                  : l.text.includes('[STEP]') ? 'color:var(--accent);font-weight:600'
+                  : '';
+        return `<div style="${cls}">${escapeHtml(l.text)}</div>`;
+      }).join('');
+      if (count) count.textContent = `${data.lines.length} lines`;
+      if (atBottom) box.scrollTop = box.scrollHeight;
+    }
+  } catch {}
+
+  // Keep polling while wizard overlay is visible
+  if (document.getElementById('wizard-overlay')?.style.display !== 'none') {
+    _setupLogTimer = setTimeout(wizPollSetupLog, 3000);
+  }
 }
 
 const _STAGE_PCT = { waiting: 5, downloading: 20, installing: 40, starting: 55, loading: 65, running: 75, hosting: 90, ready: 100 };
