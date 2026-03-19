@@ -420,6 +420,31 @@ function getGameReadyStatus(req, res) {
   res.json({ gameRunning, saveLoaded: loaded, hosting, ready: loaded && hosting, stage, smapiInstalled, gameFilesExist });
 }
 
+// SMAPI log tail for wizard step 7 — no auth required (runs before dashboard login)
+function getWizardSmapiLog(req, res) {
+  const smapi = config.SMAPI_LOG || '/home/steam/.config/StardewValley/ErrorLogs/SMAPI-latest.txt';
+  const lines = Math.min(parseInt(req.query.lines || '150', 10), 400);
+
+  if (!fs.existsSync(smapi)) {
+    return res.json({ lines: [], exists: false });
+  }
+
+  try {
+    const content  = fs.readFileSync(smapi, 'utf-8');
+    const allLines = content.split('\n').filter(l => l.trim());
+    const result   = allLines.slice(-lines).map(line => ({
+      text:  line,
+      level: /\bERROR\b/i.test(line) ? 'error'
+           : /\bWARN\b/i.test(line)  ? 'warn'
+           : /\bTRACE\b/i.test(line) ? 'trace'
+           : 'info',
+    }));
+    res.json({ lines: result, total: allLines.length, exists: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to read SMAPI log', details: e.message });
+  }
+}
+
 // Reset wizard (dev/recovery use)
 function resetWizard(req, res) {
   writeState(defaultState());
@@ -437,5 +462,6 @@ module.exports = {
   selectExistingSave,
   listSaves,
   getGameReadyStatus,
+  getWizardSmapiLog,
   resetWizard,
 };

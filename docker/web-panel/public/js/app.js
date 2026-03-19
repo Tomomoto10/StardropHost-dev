@@ -453,6 +453,26 @@ async function wizPollDownloadProgress() {
         return;
       }
 
+      // Update progress bar from steamcmd download percentage.
+      // Scan the current attempt's lines for the latest:
+      //   "Update state (0x61) downloading, progress: 23.34"
+      // and map that 0–100 value onto 5–90% of the bar (leaving room for
+      // the preallocating/installing phases at either end).
+      const attemptLines = log.lines.slice(attemptStart);
+      let dlPct = null;
+      for (let i = attemptLines.length - 1; i >= 0; i--) {
+        const m = attemptLines[i].text.match(/downloading,\s*progress:\s*([\d.]+)/i);
+        if (m) { dlPct = parseFloat(m[1]); break; }
+      }
+      if (dlPct !== null && bar) {
+        const mapped = 5 + (dlPct / 100) * 85;
+        bar.style.width = Math.min(Math.round(mapped), 90) + '%';
+        if (lbl && dlPct > 0) {
+          lbl.style.color = '';
+          lbl.textContent = `Downloading Stardew Valley… ${dlPct.toFixed(1)}%`;
+        }
+      }
+
       // Stream new log lines (filtered to start from "Steam credentials detected")
       _wizStreamLogs(log.lines, logEl, cntEl);
     }
@@ -602,9 +622,14 @@ async function wizSelectExistingSave() {
 let _gameReadyTimer = null;
 let _setupLogTimer  = null;
 let _setupLogLines  = 0;
+let _smapiLogTimer  = null;
+let _smapiLogLines  = 0;
+let _smapiLogActive = false;
 
 async function wizLaunchServer() {
   wizGoToStep(7);
+  _smapiLogLines  = 0;
+  _smapiLogActive = false;
   try { await API.post('/api/wizard/step/5', {}); } catch {}
   wizPollGameReady(0);
   wizPollSetupLog();
@@ -638,6 +663,39 @@ async function wizPollSetupLog() {
   }
 }
 
+async function wizPollSmapiLog() {
+  const section = document.getElementById('wiz-smapi-log-section');
+  const box     = document.getElementById('wiz-smapi-log');
+  const count   = document.getElementById('wiz-smapi-log-count');
+  if (!box) return;
+
+  try {
+    const data = await fetch('/api/wizard/smapi-log?lines=150').then(r => r.json());
+    if (data?.exists && data.lines?.length) {
+      if (section) section.style.display = '';
+      if (data.lines.length !== _smapiLogLines) {
+        _smapiLogLines = data.lines.length;
+        const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+        box.innerHTML = data.lines.map(l => {
+          const cls = l.level === 'error' ? 'color:#ef4444'
+                    : l.level === 'warn'  ? 'color:#f59e0b'
+                    : l.level === 'trace' ? 'color:var(--text-muted);opacity:0.7'
+                    : l.text.includes('[FarmAutoCreate]') || l.text.includes('[StardropGameManager]')
+                      ? 'color:var(--accent);font-weight:600'
+                    : '';
+          return `<div style="${cls}">${escapeHtml(l.text)}</div>`;
+        }).join('');
+        if (count) count.textContent = `${data.lines.length} lines`;
+        if (atBottom) box.scrollTop = box.scrollHeight;
+      }
+    }
+  } catch {}
+
+  if (document.getElementById('wizard-overlay')?.style.display !== 'none') {
+    _smapiLogTimer = setTimeout(wizPollSmapiLog, 3000);
+  }
+}
+
 const _STAGE_PCT = { waiting: 5, no_game_files: 8, downloading: 20, installing: 45, starting: 60, loading: 70, running: 80, hosting: 92, ready: 100 };
 const _STAGE_TXT = {
   waiting:       'Waiting for server to start…',
@@ -666,6 +724,12 @@ function wizPollGameReady(prevPct) {
       if (lbl) {
         lbl.textContent  = _STAGE_TXT[stage] || lbl.textContent;
         lbl.style.color  = stage === 'ready' ? 'var(--accent)' : '';
+      }
+
+      // Start SMAPI log polling as soon as the game process is running
+      if (!_smapiLogActive && data?.gameRunning) {
+        _smapiLogActive = true;
+        wizPollSmapiLog();
       }
 
       if (data?.ready) {
