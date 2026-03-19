@@ -330,16 +330,17 @@ async function wizPollSetupLog() {
   }
 }
 
-const _STAGE_PCT = { waiting: 5, downloading: 20, installing: 40, starting: 55, loading: 65, running: 75, hosting: 90, ready: 100 };
+const _STAGE_PCT = { waiting: 5, no_game_files: 8, downloading: 20, installing: 45, starting: 60, loading: 70, running: 80, hosting: 92, ready: 100 };
 const _STAGE_TXT = {
-  waiting:     'Waiting for server to start…',
-  downloading: 'Downloading game files via Steam… (may take 5–15 min)',
-  installing:  'Installing SMAPI and building mods… (first run only)',
-  starting:    'Starting game server…',
-  loading:     'Game is loading…',
-  running:     'Creating your farm… (FarmAutoCreate mod is running)',
-  hosting:     'Farm loaded, enabling multiplayer hosting…',
-  ready:       '✅ Server is live — players can join!',
+  waiting:       'Waiting for server to start…',
+  no_game_files: '⚠️ Game files not found — go back to step 2 to provide them',
+  downloading:   'Downloading game files via Steam… (may take 5–15 min)',
+  installing:    'Installing SMAPI and building mods… (first run only, may take a few minutes)',
+  starting:      'Starting game server…',
+  loading:       'Game is loading…',
+  running:       'Creating your farm automatically…',
+  hosting:       'Farm loaded, enabling multiplayer hosting…',
+  ready:         '✅ Server is live — players can join!',
 };
 
 function wizPollGameReady(prevPct) {
@@ -363,6 +364,16 @@ function wizPollGameReady(prevPct) {
         if (bar) bar.style.width = '100%';
         if (lbl) { lbl.style.color = 'var(--accent)'; lbl.textContent = _STAGE_TXT.ready; }
         if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Go to Dashboard'; }
+      } else if (data?.stage === 'no_game_files') {
+        // Game files never arrived — send user back to step 2
+        if (lbl) { lbl.style.color = 'var(--accent-error, #ef4444)'; lbl.textContent = _STAGE_TXT.no_game_files; }
+        if (btn) {
+          btn.disabled = false; btn.style.opacity = '1';
+          btn.textContent = '← Back to Game Files';
+          btn.className = 'btn btn-warning';
+          btn.onclick = () => wizGoToStep(2);
+        }
+        wizPollGameReady(pct); // keep polling — container will retry once creds re-appear
       } else {
         wizPollGameReady(pct);
       }

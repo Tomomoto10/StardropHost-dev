@@ -160,20 +160,24 @@ setup_game_files() {
     fi
 
     # No game files found and no setup method configured
-    log_error "❌ No game files found!"
-    log_error ""
-    log_error "Complete setup via the web panel:"
-    log_error "  http://your-server-ip:18642"
-    log_error ""
-    log_error "The setup wizard will guide you through:"
-    log_error "  - Providing local game files"
-    log_error "  - Or downloading via Steam"
-    log_error ""
-    log_warn "Server will wait for game files to be provided..."
+    log_warn "❌ No game files found — waiting for setup wizard to provide them."
+    log_warn "   Open the web panel and complete the Game Files step."
 
-    # Wait for game files to appear (web UI will handle this)
+    # Wait loop: re-reads env every 30s and retries Steam download when
+    # credentials appear (wizard may have written them while we loop).
     while [ ! -f "/home/steam/stardewvalley/StardewValley" ]; do
-        sleep 10
+        sleep 30
+        load_panel_env_overrides
+
+        if [ "$STEAM_DOWNLOAD" = "true" ] && [ -n "${STEAM_USERNAME:-}" ]; then
+            log_info "Steam credentials detected — attempting download..."
+            if download_game_via_steam; then
+                break
+            fi
+            # Reset so we don't retry immediately on the same bad credentials
+            unset STEAM_DOWNLOAD STEAM_USERNAME STEAM_PASSWORD STEAM_GUARD_CODE
+            log_warn "Download failed — waiting for new credentials via the web panel..."
+        fi
     done
     log_info "✅ Game files detected, continuing startup..."
     return 0

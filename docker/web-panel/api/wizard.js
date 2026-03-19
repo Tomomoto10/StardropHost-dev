@@ -111,20 +111,21 @@ function getWizardStatus(req, res) {
   const gamePresent = detectGameFiles();
   const hasPassword = auth.isSetupComplete();
 
-  // Wizard is needed if it was never completed OR if game files have gone missing.
-  // This handles the case where the wizard was completed in a previous session
-  // but the data/game/ directory was wiped (fresh install, clean setup, etc.).
+  // Wizard is needed if it was never completed OR if game files are missing.
   const needsWizard = !state.completed || !gamePresent;
 
   if (!needsWizard) {
     return res.json({ completed: true, needsWizard: false });
   }
 
-  // If game files disappeared after a previous completion, reset the step
-  // back to 2 (game files) so the user can re-provide them.
-  if (state.completed && !gamePresent) {
+  // If game files are missing (regardless of completion state or current step),
+  // reset to step 2 so the user can re-provide them. This handles:
+  //   - Completed wizard but game volume was cleared
+  //   - Previous run reached step 6 but game never fully downloaded
+  if (!gamePresent && state.currentStep !== 2) {
     state.completed   = false;
     state.currentStep = 2;
+    state.steps[2]    = { complete: false };
     writeState(state);
   }
 
@@ -383,21 +384,23 @@ function getGameReadyStatus(req, res) {
     }
   } catch {}
 
-  const gameRunning   = pgrepRunning('StardewModdingAPI');
-  const steamRunning  = pgrepRunning('steamcmd');
+  const gameRunning    = pgrepRunning('StardewModdingAPI');
+  const steamRunning   = pgrepRunning('steamcmd');
+  const gameFilesExist = fs.existsSync('/home/steam/stardewvalley/StardewValley');
   const smapiInstalled = fs.existsSync('/home/steam/stardewvalley/StardewModdingAPI');
 
   // Determine stage
   let stage = 'waiting';
-  if      (steamRunning)                            stage = 'downloading';
-  else if (!smapiInstalled)                         stage = 'installing';
-  else if (!gameRunning)                            stage = 'starting';
-  else if (gameRunning && !smapiLogExists)          stage = 'loading';
-  else if (gameRunning && !loaded)                  stage = 'running';
-  else if (gameRunning && loaded && !hosting)       stage = 'hosting';
-  else if (hosting)                                 stage = 'ready';
+  if      (steamRunning)                             stage = 'downloading';
+  else if (!gameFilesExist)                          stage = 'no_game_files';
+  else if (!smapiInstalled)                          stage = 'installing';
+  else if (!gameRunning)                             stage = 'starting';
+  else if (gameRunning && !smapiLogExists)           stage = 'loading';
+  else if (gameRunning && !loaded)                   stage = 'running';
+  else if (gameRunning && loaded && !hosting)        stage = 'hosting';
+  else if (hosting)                                  stage = 'ready';
 
-  res.json({ gameRunning, saveLoaded: loaded, hosting, ready: loaded && hosting, stage, smapiInstalled });
+  res.json({ gameRunning, saveLoaded: loaded, hosting, ready: loaded && hosting, stage, smapiInstalled, gameFilesExist });
 }
 
 // Reset wizard (dev/recovery use)
