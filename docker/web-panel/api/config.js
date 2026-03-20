@@ -81,7 +81,7 @@ const CONFIG_SCHEMA = {
     { key: 'METRICS_PORT',       label: 'Metrics Port',  type: 'number',  default: '9090' },
   ],
   'Other': [
-    { key: 'TZ', label: 'Timezone', type: 'text', default: 'UTC' },
+    { key: 'TZ', label: 'Timezone', type: 'timezone', default: 'UTC' },
   ],
 };
 

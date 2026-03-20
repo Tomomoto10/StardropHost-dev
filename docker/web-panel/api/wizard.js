@@ -506,6 +506,27 @@ function resetWizard(req, res) {
   res.json({ success: true, message: 'Wizard reset' });
 }
 
+function factoryReset(_req, res) {
+  try {
+    const savesDir = config.SAVES_DIR;
+
+    // Delete all save folders
+    if (fs.existsSync(savesDir)) {
+      for (const entry of fs.readdirSync(savesDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        fs.rmSync(path.join(savesDir, entry.name), { recursive: true, force: true });
+      }
+    }
+
+    // Reset wizard state so setup wizard shows on next load
+    writeState(defaultState());
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: `Failed to reset: ${err.message}` });
+  }
+}
+
 module.exports = {
   getWizardStatus,
   submitStep1,
@@ -519,4 +540,5 @@ module.exports = {
   getGameReadyStatus,
   getWizardSmapiLog,
   resetWizard,
+  factoryReset,
 };

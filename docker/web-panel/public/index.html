@@ -248,13 +248,13 @@
           <span class="nav-icon"><svg class="icon"><use href="#icon-mods"></use></svg></span>
           <span class="nav-label">Mods</span>
         </li>
+        <li class="nav-item" data-page="terminal">
+          <span class="nav-icon"><svg class="icon"><use href="#icon-terminal"></use></svg></span>
+          <span class="nav-label">Console</span>
+        </li>
         <li class="nav-item" data-page="logs">
           <span class="nav-icon"><svg class="icon"><use href="#icon-logs"></use></svg></span>
           <span class="nav-label">Logs</span>
-        </li>
-        <li class="nav-item" data-page="terminal">
-          <span class="nav-icon"><svg class="icon"><use href="#icon-terminal"></use></svg></span>
-          <span class="nav-label">Terminal</span>
         </li>
         <li class="nav-item" data-page="config">
           <span class="nav-icon"><svg class="icon"><use href="#icon-config"></use></svg></span>
@@ -281,8 +281,8 @@
       <button class="mob-nav-item" type="button" data-page="players"><svg class="icon"><use href="#icon-players"></use></svg></button>
       <button class="mob-nav-item" type="button" data-page="saves"><svg class="icon"><use href="#icon-saves"></use></svg></button>
       <button class="mob-nav-item" type="button" data-page="mods"><svg class="icon"><use href="#icon-mods"></use></svg></button>
-      <button class="mob-nav-item" type="button" data-page="logs"><svg class="icon"><use href="#icon-logs"></use></svg></button>
       <button class="mob-nav-item" type="button" data-page="terminal"><svg class="icon"><use href="#icon-terminal"></use></svg></button>
+      <button class="mob-nav-item" type="button" data-page="logs"><svg class="icon"><use href="#icon-logs"></use></svg></button>
       <button class="mob-nav-item" type="button" data-page="config"><svg class="icon"><use href="#icon-config"></use></svg></button>
     </nav>
 
@@ -382,16 +382,13 @@
                 <div class="detail-note">Forward this port if connecting over the internet.</div>
               </div>
               <div class="detail-item">
-                <div class="detail-label">Container IPs</div>
+                <div class="detail-label">Container IP</div>
                 <div class="detail-value" id="detail-local-ips">--</div>
+                <div class="detail-note">Use this IP if Stardew Valley is running on the same machine as StardropHost.</div>
               </div>
               <div class="detail-item">
                 <div class="detail-label">VNC</div>
                 <div class="detail-value" id="detail-vnc">--</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-label">Metrics Port</div>
-                <div class="detail-value" id="detail-metrics-port">--</div>
               </div>
             </div>
           </div>
@@ -576,6 +573,18 @@
               <div class="empty-state">Loading VNC status...</div>
             </div>
           </div>
+          <div class="card" style="margin-top:16px;border-color:#ef444433">
+            <h3 style="color:#ef4444">Danger Zone</h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+              <div>
+                <div style="font-weight:500;margin-bottom:4px">Delete Farm &amp; Restart Setup</div>
+                <div style="font-size:13px;color:var(--text-secondary)">Permanently deletes all save data and relaunches the setup wizard. Game files and mods are kept.</div>
+              </div>
+              <button class="btn" style="color:#ef4444;border-color:#ef4444;white-space:nowrap;flex-shrink:0"
+                type="button" onclick="openFactoryResetModal()">Delete Farm &amp; Restart Setup</button>
+            </div>
+          </div>
+
           <div class="card" style="margin-top:16px">
             <h3>Steam Invite Codes
               <span style="font-size:12px;color:var(--text-muted);font-weight:400">
@@ -749,6 +758,10 @@
           <div>
             <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:6px">Server Password <span style="color:var(--text-muted)">(leave blank for open server)</span></label>
             <input id="wiz-srv-pw" class="input" type="password" placeholder="No password" style="width:100%">
+          </div>
+          <div>
+            <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:6px">Timezone <span style="color:var(--text-muted)">(for accurate in-game time and logs)</span></label>
+            <div id="wiz-tz-picker" class="tz-picker"></div>
           </div>
           <div>
             <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:4px">Save File to Auto-Load <span style="color:var(--text-muted)">(required for LAN play)</span></label>
@@ -1040,6 +1053,41 @@
       <div class="modal-actions">
         <button class="btn btn-sm btn-secondary" type="button" onclick="closeRestartModal()">Later</button>
         <button class="btn btn-sm btn-warning" id="restartNowBtn" type="button" onclick="confirmRestart()">Restart Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Factory Reset Modal ───────────────────────────────────── -->
+  <div id="factoryResetModal" class="modal-overlay" style="display:none">
+    <div class="modal-dialog">
+      <!-- Step 1: Warning -->
+      <div id="frStep1">
+        <div class="modal-icon">
+          <svg class="icon" style="width:32px;height:32px;color:#ef4444"><use href="#icon-alert-triangle"></use></svg>
+        </div>
+        <h3 style="color:#ef4444">Delete Farm &amp; Restart Setup?</h3>
+        <p style="margin-bottom:8px">This will <strong>permanently delete all save data</strong> from this server, including your farm, player progress, and in-game history.</p>
+        <p style="font-size:13px;color:var(--text-secondary)">Game files, mods, and panel settings are not affected. This cannot be undone.</p>
+        <div class="modal-actions" style="margin-top:20px">
+          <button class="btn btn-sm btn-secondary" type="button" onclick="closeFactoryResetModal()">Cancel</button>
+          <button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444" type="button" onclick="frNextStep()">I understand, continue</button>
+        </div>
+      </div>
+      <!-- Step 2: Type confirmation -->
+      <div id="frStep2" style="display:none">
+        <div class="modal-icon">
+          <svg class="icon" style="width:32px;height:32px;color:#ef4444"><use href="#icon-alert-triangle"></use></svg>
+        </div>
+        <h3 style="color:#ef4444">Confirm Deletion</h3>
+        <p style="margin-bottom:16px">Type <strong>DELETE</strong> to confirm you want to permanently erase all farm saves.</p>
+        <input type="text" id="frConfirmInput" class="input" placeholder="Type DELETE to confirm"
+          style="width:100%;margin-bottom:4px" oninput="frCheckInput()">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Case-sensitive</div>
+        <div class="modal-actions">
+          <button class="btn btn-sm btn-secondary" type="button" onclick="closeFactoryResetModal()">Cancel</button>
+          <button class="btn btn-sm" id="frConfirmBtn" style="color:#ef4444;border-color:#ef4444;opacity:0.4;pointer-events:none"
+            type="button" onclick="confirmFactoryReset()">Delete Everything</button>
+        </div>
       </div>
     </div>
   </div>

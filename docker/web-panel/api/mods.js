@@ -84,8 +84,12 @@ function findManifestDirectories(rootDir, maxDepth = 3, depth = 0) {
 // -- Bundled mod detection --
 // Mods in BUNDLED_MODS_DIR are baked into the image and cannot be deleted via the panel.
 
+// SMAPI built-in mods that are installed into Mods/ by SMAPI itself,
+// not via BUNDLED_MODS_DIR — always protect these from deletion.
+const SMAPI_BUILTIN_MODS = new Set(['ConsoleCommands', 'SaveBackup']);
+
 function getBundledModFolders() {
-  const folders = new Set();
+  const folders = new Set(SMAPI_BUILTIN_MODS);
   if (!fs.existsSync(BUNDLED_MODS_DIR)) return folders;
   for (const entry of fs.readdirSync(BUNDLED_MODS_DIR, { withFileTypes: true })) {
     if (entry.isDirectory()) folders.add(entry.name);

@@ -597,6 +597,33 @@ body {
   color: var(--text-secondary);
 }
 
+/* ─── Timezone picker ────────────────────────────────────────── */
+
+.tz-picker { position: relative; }
+.tz-picker input { width: 100%; }
+.tz-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 200;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.tz-option {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+}
+.tz-option:last-child { border-bottom: none; }
+.tz-option:hover, .tz-option.active { background: var(--surface-hover, rgba(167,139,250,0.08)); }
+.tz-option-tz   { font-weight: 500; }
+.tz-option-off  { color: var(--text-muted); font-size: 12px; margin-left: 6px; }
+
 /* ─── Backup status ───────────────────────────────────────────── */
 
 .backup-status {

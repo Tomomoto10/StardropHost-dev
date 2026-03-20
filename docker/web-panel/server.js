@@ -142,7 +142,8 @@ app.post('/api/wizard/select-save',  wizardAPI.selectExistingSave);
 app.get( '/api/wizard/saves',        wizardAPI.listSaves);
 app.get( '/api/wizard/game-ready',   wizardAPI.getGameReadyStatus);
 app.get( '/api/wizard/smapi-log',    wizardAPI.getWizardSmapiLog);  // no auth — needed during wizard step 7
-app.post('/api/wizard/reset',        auth.verifyMiddleware, wizardAPI.resetWizard);
+app.post('/api/wizard/reset',         auth.verifyMiddleware, wizardAPI.resetWizard);
+app.post('/api/wizard/factory-reset', auth.verifyMiddleware, wizardAPI.factoryReset);
 
 // -- Static files --
 app.use(express.static(path.join(__dirname, 'public')));

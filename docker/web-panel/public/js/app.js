@@ -25,6 +25,127 @@
   }).catch(() => { window.location.href = '/login.html'; });
 })();
 
+// ─── Timezone Picker ─────────────────────────────────────────────
+// Builds a search-as-you-type timezone picker inside `containerId`.
+// The selected IANA timezone value is readable via tzPickerValue(containerId).
+
+function tzPickerValue(containerId) {
+  const el = document.getElementById(containerId);
+  return el?.querySelector('input[data-tz-value]')?.dataset.tzValue || '';
+}
+
+function buildTzPicker(containerId, initialValue) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  // Get all IANA timezone IDs available in this browser
+  const zones = (() => {
+    try { return Intl.supportedValuesOf('timeZone'); } catch { return []; }
+  })();
+
+  // Compute UTC offset string for a timezone
+  function getOffset(tz) {
+    try {
+      const parts = new Intl.DateTimeFormat('en', { timeZone: tz, timeZoneName: 'shortOffset' })
+        .formatToParts(new Date());
+      return parts.find(p => p.type === 'timeZoneName')?.value || 'UTC';
+    } catch { return ''; }
+  }
+
+  // Build options array once (lazy, on first search)
+  let _opts = null;
+  function getOpts() {
+    if (_opts) return _opts;
+    _opts = zones.map(tz => {
+      const off = getOffset(tz);
+      return { value: tz, off, search: (tz + ' ' + off).toLowerCase().replace(/[/_]/g, ' ') };
+    });
+    return _opts;
+  }
+
+  const inputId  = `${containerId}-search`;
+  const dropId   = `${containerId}-drop`;
+  const hiddenId = `${containerId}-val`;
+
+  const displayValue = initialValue
+    ? `${initialValue} (${getOffset(initialValue)})`
+    : '';
+
+  container.innerHTML = `
+    <input class="input" id="${inputId}" type="text" autocomplete="off"
+      placeholder="Search timezone (e.g. Melbourne, UTC+10)"
+      value="${escapeHtml(displayValue)}" style="width:100%">
+    <input type="hidden" id="${hiddenId}" data-tz-value="${escapeHtml(initialValue || '')}"
+      value="${escapeHtml(initialValue || '')}">
+    <div class="tz-dropdown" id="${dropId}" style="display:none"></div>
+  `;
+
+  const searchEl  = document.getElementById(inputId);
+  const hiddenEl  = document.getElementById(hiddenId);
+  const dropEl    = document.getElementById(dropId);
+  let activeIdx   = -1;
+
+  function showDropdown(results) {
+    if (!results.length) { dropEl.style.display = 'none'; return; }
+    dropEl.innerHTML = results.slice(0, 50).map((r, i) =>
+      `<div class="tz-option" data-i="${i}" data-val="${escapeHtml(r.value)}">
+         <span class="tz-option-tz">${escapeHtml(r.value)}</span>
+         <span class="tz-option-off">${escapeHtml(r.off)}</span>
+       </div>`
+    ).join('');
+    dropEl.style.display = '';
+    activeIdx = -1;
+    dropEl.querySelectorAll('.tz-option').forEach(opt => {
+      opt.onmousedown = e => { e.preventDefault(); selectTz(opt.dataset.val); };
+    });
+  }
+
+  function selectTz(val) {
+    const off = getOffset(val);
+    searchEl.value        = val ? `${val} (${off})` : '';
+    hiddenEl.value        = val;
+    hiddenEl.dataset.tzValue = val;
+    dropEl.style.display  = 'none';
+    activeIdx             = -1;
+  }
+
+  searchEl.addEventListener('input', () => {
+    const q = searchEl.value.trim().toLowerCase();
+    hiddenEl.value = '';
+    hiddenEl.dataset.tzValue = '';
+    if (!q) { dropEl.style.display = 'none'; return; }
+    const results = getOpts().filter(o => o.search.includes(q));
+    showDropdown(results);
+  });
+
+  searchEl.addEventListener('keydown', e => {
+    const opts = dropEl.querySelectorAll('.tz-option');
+    if (!opts.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, opts.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      selectTz(opts[activeIdx].dataset.val);
+      return;
+    } else if (e.key === 'Escape') {
+      dropEl.style.display = 'none'; return;
+    }
+    opts.forEach((o, i) => o.classList.toggle('active', i === activeIdx));
+    if (activeIdx >= 0) opts[activeIdx].scrollIntoView({ block: 'nearest' });
+  });
+
+  searchEl.addEventListener('blur', () => {
+    setTimeout(() => { dropEl.style.display = 'none'; }, 150);
+  });
+
+  // If initial value passed, pre-select it
+  if (initialValue) selectTz(initialValue);
+}
+
 // ─── Setup Wizard ────────────────────────────────────────────────
 let _wizState = {};
 
@@ -543,6 +664,7 @@ async function wizSubmitStep3(skip) {
     await API.post('/api/wizard/step/3', { cpuLimit: cpu, memoryLimit: mem });
     _wizState._cpu = cpu; _wizState._mem = mem;
     wizGoToStep(5);
+    buildTzPicker('wiz-tz-picker', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   } catch (e) {
     showToast(e.message || 'Failed to save — try again', 'error');
   }
@@ -550,8 +672,9 @@ async function wizSubmitStep3(skip) {
 
 async function wizSubmitStep4(skip) {
   const pw = skip ? '' : (document.getElementById('wiz-srv-pw').value.trim());
+  const tz = tzPickerValue('wiz-tz-picker');
   try {
-    await API.post('/api/wizard/step/4', { serverPassword: pw });
+    await API.post('/api/wizard/step/4', { serverPassword: pw, timezone: tz || undefined });
     _wizState._srvPw = pw;
     // Populate confirm lines for step 6
     const gm = _wizState._gameMethod;
@@ -954,7 +1077,7 @@ function init() {
 // ─── Navigation ──────────────────────────────────────────────────
 const PAGE_TITLES = {
   dashboard: 'Dashboard', farm: 'Farm', players: 'Players',
-  saves: 'Saves', mods: 'Mods', logs: 'Logs', terminal: 'Terminal', config: 'Config',
+  saves: 'Saves', mods: 'Mods', terminal: 'Console', logs: 'Logs', config: 'Config',
 };
 
 function setupNavigation() {
@@ -1051,7 +1174,7 @@ function updateDashboardUI(data) {
   document.getElementById('serverStatus').innerHTML =
     `<span class="status-dot ${statusClass}"></span><span id="serverStatusText">${statusText}</span>`;
 
-  setText('stat-players', `${data.players?.online ?? 0}/8`);
+  setText('stat-players', `${data.players?.online ?? 0}/4`);
   setText('stat-uptime',  formatUptime(data.uptime || 0));
   setText('stat-day',     data.paused ? 'Paused' : (data.day || '--'));
   setText('stat-backups', data.backupCount ?? 0);
@@ -1075,10 +1198,9 @@ function updateDashboardUI(data) {
 
   // Details
   const net = data.network || {};
-  setText('detail-join-ip',      net.joinIp || '--');
-  setText('detail-local-ips',    net.localIps?.join(', ') || '--');
-  setText('detail-metrics-port', net.metricsPort || '--');
-  setText('detail-vnc',          data.vncEnabled ? `Enabled — port ${net.vncPort || 5900}` : 'Disabled');
+  setText('detail-join-ip',   net.joinIp || '--');
+  setText('detail-local-ips', net.localIps?.[0] || '--');
+  setText('detail-vnc',       data.vncEnabled ? `Enabled — port ${net.vncPort || 5900}` : 'Disabled');
 
   // If Steam is online and has an invite code, show it as the join IP
   if (data.live?.inviteCode) {
@@ -1555,6 +1677,9 @@ async function loadConfig() {
             style="width:150px" oninput="configChanged()">
           <button type="button" class="password-toggle" onclick="togglePasswordVisibility(this)" title="Show password">
             ${icon('eye', 'icon')}</button></div>`;
+      } else if (item.type === 'timezone') {
+        const pickerId = `cfg-tz-${item.key}`;
+        valueHtml = `<div class="tz-picker" id="${pickerId}" style="width:260px"></div>`;
       } else if (item.sensitive) {
         valueHtml = `<input type="password" class="input" data-key="${item.key}" placeholder="••••••••" style="width:150px" onchange="configChanged()">`;
       } else {
@@ -1570,6 +1695,21 @@ async function loadConfig() {
           ${item.description ? `<div class="config-help">${escapeHtml(item.description)}</div>` : ''}
         </div>
         <div class="config-value">${valueHtml}</div>`;
+
+      if (item.type === 'timezone') {
+        // Build picker after the row is in the DOM; hidden input gets data-key for saveConfig
+        const pickerId = `cfg-tz-${item.key}`;
+        card.appendChild(row);
+        buildTzPicker(pickerId, item.value || item.default || 'UTC');
+        // Patch the hidden input to carry data-key so saveConfig collects it
+        const hidden = document.getElementById(`${pickerId}-val`);
+        if (hidden) { hidden.dataset.key = item.key; hidden.addEventListener('change', configChanged); }
+        // Fire configChanged when a tz is picked
+        const searchInput = document.getElementById(`${pickerId}-search`);
+        if (searchInput) searchInput.addEventListener('input', configChanged);
+        continue;
+      }
+
       card.appendChild(row);
     }
 
@@ -2024,6 +2164,52 @@ function showRestartModal(message) {
 
 function closeRestartModal() {
   document.getElementById('restartModal').style.display = 'none';
+}
+
+// ─── Factory Reset Modal ──────────────────────────────────────────
+function openFactoryResetModal() {
+  document.getElementById('frStep1').style.display = '';
+  document.getElementById('frStep2').style.display = 'none';
+  document.getElementById('frConfirmInput').value = '';
+  const btn = document.getElementById('frConfirmBtn');
+  btn.style.opacity = '0.4';
+  btn.style.pointerEvents = 'none';
+  document.getElementById('factoryResetModal').style.display = 'flex';
+}
+
+function closeFactoryResetModal() {
+  document.getElementById('factoryResetModal').style.display = 'none';
+}
+
+function frNextStep() {
+  document.getElementById('frStep1').style.display = 'none';
+  document.getElementById('frStep2').style.display = '';
+  document.getElementById('frConfirmInput').focus();
+}
+
+function frCheckInput() {
+  const val = document.getElementById('frConfirmInput').value;
+  const btn = document.getElementById('frConfirmBtn');
+  const ok  = val === 'DELETE';
+  btn.style.opacity      = ok ? '1' : '0.4';
+  btn.style.pointerEvents = ok ? '' : 'none';
+}
+
+async function confirmFactoryReset() {
+  const btn = document.getElementById('frConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Deleting...';
+
+  const data = await API.post('/api/wizard/factory-reset');
+  if (data?.success) {
+    closeFactoryResetModal();
+    showToast('Farm deleted. Reloading setup wizard…', 'success');
+    setTimeout(() => window.location.reload(), 1500);
+  } else {
+    showToast(data?.error || 'Reset failed', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Delete Everything';
+  }
 }
 
 async function confirmRestart() {
