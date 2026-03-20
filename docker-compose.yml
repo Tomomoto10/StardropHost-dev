@@ -68,6 +68,7 @@ services:
       - SERVER_PASSWORD=${SERVER_PASSWORD:-}
       - SAVE_NAME=${SAVE_NAME:-}
       - PANEL_PORT=${PANEL_PORT:-18642}
+      - SERVER_MODE=${SERVER_MODE:-lan}
     ports:
       - "${GAME_PORT:-24642}:24642/udp"
       - "${VNC_PORT:-5900}:5900"

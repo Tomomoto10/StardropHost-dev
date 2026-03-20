@@ -129,4 +129,102 @@ async function getInviteCode(req, res) {
   res.json({ inviteCode: null });
 }
 
-module.exports = { getStatus, login, submitGuardCode, logout, getInviteCode };
+// ── Server-side Steam auth (steamcmd, for invite codes) ───────────────────────
+// Separate from the steam-auth proxy above (which is only for the download wizard).
+// Credentials are never written to disk — the ~/.steam/ session lives in the
+// container's ephemeral filesystem and is cleared on logout.
+
+let _pendingAuth = null; // { username, password } held between guard_required and code submit
+
+function serverAuthStatus(req, res) {
+  const steamMode = (process.env.SERVER_MODE || 'lan') === 'steam';
+  const ready     = fs.existsSync('/tmp/steam-ready');
+  const skipped   = fs.existsSync('/tmp/steam-skip');
+  res.json({
+    steamMode,
+    state: _pendingAuth  ? 'guard_required'
+         : ready         ? 'authenticated'
+         : skipped       ? 'skipped'
+         :                 'unauthenticated',
+  });
+}
+
+function _runSteamcmd(args) {
+  return new Promise((resolve) => {
+    let output = '';
+    const proc = require('child_process').spawn(
+      '/home/steam/steamcmd/steamcmd.sh', args,
+      { env: { ...process.env, HOME: '/home/steam' }, timeout: 90000 }
+    );
+    proc.stdout.on('data', d => { output += d.toString(); });
+    proc.stderr.on('data', d => { output += d.toString(); });
+    proc.on('close', code => {
+      const lc = output.toLowerCase();
+      resolve({
+        success:      /logged in ok|login successful/i.test(output),
+        guardRequired: /two.factor|steam.guard|invalid.*auth.*code|enter.*code|steamguard/i.test(lc),
+        wrongPassword: /invalid password|incorrect password|invalid login/i.test(lc),
+        rateLimit:    /rate.limit|too many.*attempt/i.test(lc),
+        output,
+      });
+    });
+    proc.on('error', err => resolve({ success: false, error: err.message, output }));
+  });
+}
+
+async function serverAuth(req, res) {
+  const { username, password, guardCode } = req.body || {};
+
+  let user, pass;
+  if (guardCode && _pendingAuth) {
+    ({ username: user, password: pass } = _pendingAuth);
+  } else {
+    user = username;
+    pass = password;
+    _pendingAuth = null;
+  }
+
+  if (!user || !pass) return res.status(400).json({ error: 'username and password are required' });
+
+  const args = [];
+  if (guardCode) args.push('+set_steam_guard_code', guardCode.trim());
+  args.push('+login', user, pass, '+quit');
+
+  const result = await _runSteamcmd(args);
+
+  if (result.guardRequired) {
+    _pendingAuth = { username: user, password: pass };
+    return res.json({ state: 'guard_required' });
+  }
+  _pendingAuth = null;
+
+  if (result.success) {
+    try { fs.writeFileSync('/tmp/steam-ready', 'ok'); } catch {}
+    try { fs.unlinkSync('/tmp/steam-skip'); } catch {}
+    return res.json({ success: true, state: 'authenticated' });
+  }
+  if (result.wrongPassword) return res.status(401).json({ error: 'Invalid Steam credentials' });
+  if (result.rateLimit)     return res.status(429).json({ error: 'Steam rate limited — wait a few minutes and try again' });
+  return res.status(500).json({ error: 'Steam authentication failed', details: result.output?.slice(-300) });
+}
+
+async function serverLogout(req, res) {
+  _pendingAuth = null;
+  try { fs.unlinkSync('/tmp/steam-ready'); } catch {}
+  try { fs.unlinkSync('/tmp/invite-code.txt'); } catch {}
+  // Clear Steam session files — these live in the container's ephemeral fs, not on any volume
+  const { execSync } = require('child_process');
+  try { execSync('rm -f /home/steam/.steam/steam/config/loginusers.vdf', { timeout: 3000 }); } catch {}
+  try { execSync('find /home/steam/.steam -name "ssfn*" -delete 2>/dev/null', { timeout: 3000 }); } catch {}
+  // Kill the game so it restarts without the authenticated session
+  try { execSync('pkill -f StardewModdingAPI', { timeout: 3000 }); } catch {}
+  res.json({ success: true, state: 'unauthenticated' });
+}
+
+function serverSkip(req, res) {
+  _pendingAuth = null;
+  try { fs.writeFileSync('/tmp/steam-skip', 'ok'); } catch {}
+  res.json({ success: true, state: 'skipped' });
+}
+
+module.exports = { getStatus, login, submitGuardCode, logout, getInviteCode, serverAuthStatus, serverAuth, serverLogout, serverSkip };
