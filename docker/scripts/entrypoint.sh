@@ -472,14 +472,9 @@ rm -rf /home/steam/stardewvalley/Mods/FarmAutoCreate  2>/dev/null || true
 rm -rf /home/steam/stardewvalley/Mods/ServerAutoLoad   2>/dev/null || true
 
 if [ -d "/home/steam/preinstalled-mods" ]; then
-    if [ -d "/home/steam/stardewvalley/Mods/AutoHideHost" ] && \
-       [ -d "/home/steam/stardewvalley/Mods/StardropGameManager" ]; then
-        log_info "✅ Mods already installed"
-    else
-        log_info "Installing mods..."
-        cp -r /home/steam/preinstalled-mods/* /home/steam/stardewvalley/Mods/
-        log_info "✅ Mods installed"
-    fi
+    log_info "Installing mods..."
+    cp -r /home/steam/preinstalled-mods/* /home/steam/stardewvalley/Mods/
+    log_info "✅ Mods installed"
 
     log_info "Installed mods:"
     ls -1 /home/steam/stardewvalley/Mods/ | while read mod; do

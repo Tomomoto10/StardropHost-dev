@@ -312,7 +312,25 @@ function _wizStreamLogs(lines, logEl, cntEl) {
   const newLines = lines.slice(_steamDlLogLines);
   if (!newLines.length) return;
 
+  // Lines that are pure container-startup noise — not useful during the wizard
+  const _wizNoisePatterns = [
+    /StardropHost v[\d.]+ Starting/,
+    /Phase \d+:/,
+    /Step 0:/,
+    /Step 1:/,
+    /Starting web panel/,
+    /Web panel started/,
+    /Validating configuration/,
+    /Configuration loaded/,
+    /Setting up game files/,
+    /No game files found/,
+    /waiting for setup wizard/,
+    /Open the web panel/,
+    /={4,}/,           // === dividers
+  ];
+
   newLines.forEach(l => {
+    if (_wizNoisePatterns.some(p => p.test(l.text))) return;
     const div = document.createElement('div');
     div.style.color = l.level === 'error'            ? 'var(--accent-error,#ef4444)' :
                       l.level === 'warn'             ? 'var(--accent-warning,#f59e0b)' :
@@ -469,7 +487,7 @@ async function wizPollDownloadProgress() {
         bar.style.width = Math.min(Math.round(mapped), 90) + '%';
         if (lbl && dlPct > 0) {
           lbl.style.color = '';
-          lbl.textContent = `Downloading Stardew Valley… ${dlPct.toFixed(1)}%`;
+          lbl.textContent = `Downloading Stardew Valley… ${Math.round(dlPct)}%`;
         }
       }
 
