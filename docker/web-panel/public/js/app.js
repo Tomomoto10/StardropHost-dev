@@ -1089,18 +1089,21 @@ async function startupSteamLogin() {
   btn.disabled      = true;
   btn.textContent   = 'Connecting…';
   status.style.color = 'var(--text-secondary)';
-  status.textContent = 'Connecting to Steam — this may take up to 60 seconds…';
+  status.textContent = 'Connecting to Steam…';
+
+  // Show guard input immediately — the email may arrive before the API responds
+  document.getElementById('sa-guard-row').style.display = '';
+  document.getElementById('sa-guard-hint').style.display = '';
 
   const data = await API.post('/api/steam/server-auth', { username, password }).catch(() => null);
 
   if (data?.state === 'guard_required') {
-    document.getElementById('sa-guard-row').style.display = '';
-    document.getElementById('sa-guard').focus();
     btn.textContent  = 'Submit Guard Code';
     btn.onclick      = startupSteamGuard;
     btn.disabled     = false;
     status.style.color = 'var(--accent-warn,#f59e0b)';
-    status.textContent = 'Steam Guard code required — check your email or authenticator app.';
+    status.textContent = 'Steam Guard code required — enter it below.';
+    document.getElementById('sa-guard').focus();
   } else if (data?.success) {
     status.style.color = 'var(--accent)';
     status.textContent = '✅ Authenticated — loading dashboard…';
