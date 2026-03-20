@@ -128,10 +128,11 @@ function startVnc(password) {
 
 function stopVnc() {
   try {
-    spawnSync('sh', ['-c', '/home/steam/scripts/vnc-monitor.sh stop 2>/dev/null'], {
-      encoding: 'utf-8',
-      timeout: 5000,
-    });
+    // Kill the monitor first so it can't restart x11vnc after we stop it
+    spawnSync('pkill', ['-f', 'vnc-monitor'], { encoding: 'utf-8' });
+    spawnSync('sleep', ['1']);
+    // Then kill x11vnc itself
+    spawnSync('pkill', ['-f', 'x11vnc'], { encoding: 'utf-8' });
     return true;
   } catch {
     return false;

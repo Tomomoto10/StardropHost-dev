@@ -1894,16 +1894,8 @@ async function loadVnc() {
     </div>
     <div class="action-buttons" style="margin-bottom:16px">
       ${vnc?.running
-        ? `<button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444" onclick="vncDisable()">Stop VNC</button>
-           <button class="btn btn-sm btn-primary" onclick="showVncPasswordForm()">One-Time Password</button>`
+        ? `<button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444" onclick="vncDisable()">Stop VNC</button>`
         : `<button class="btn btn-sm btn-success" onclick="vncEnable()">Start VNC Now</button>`}
-    </div>
-    <div id="vncPasswordForm" style="display:none;margin-bottom:16px">
-      <div class="form-row">
-        <input type="password" id="vncOtpInput" class="input" placeholder="One-time password (4–8 chars)" maxlength="8">
-        <button class="btn btn-primary btn-sm" onclick="setVncOneTimePassword()">Set</button>
-        <button class="btn btn-sm" onclick="document.getElementById('vncPasswordForm').style.display='none'">Cancel</button>
-      </div>
     </div>
     <div class="config-group" style="margin-top:8px">${cfgRows}</div>
     <div style="text-align:right;margin-top:10px">
@@ -1945,13 +1937,13 @@ async function setVncOneTimePassword() {
 // ─── Steam Auth ───────────────────────────────────────────────────
 function startSteamPolling() {
   if (steamPollInterval) return;
-  // Poll every 4s while Guard is pending or logging in
   steamPollInterval = setInterval(async () => {
     const data = await API.get('/api/steam/status');
     if (!data) return;
     renderSteamPanel(data);
-    // Stop polling once we've settled into online or offline/error
-    if (data.state === 'online' || data.state === 'offline' || data.state === 'unavailable') {
+    // Stop polling once settled: offline/error, or online with invite code in hand
+    if (data.state === 'offline' || data.state === 'unavailable' || data.state === 'error' ||
+        (data.state === 'online' && data.inviteCode)) {
       stopSteamPolling();
     }
   }, 4000);
@@ -1962,11 +1954,19 @@ function stopSteamPolling() {
 }
 
 async function loadSteam() {
-  const data = await API.get('/api/steam/status');
+  let data = await API.get('/api/steam/status');
+
+  // If already online but no invite code, force a refresh from the SMAPI log now
+  if (data?.state === 'online' && !data?.inviteCode) {
+    const refreshed = await API.get('/api/steam/invitecode').catch(() => null);
+    if (refreshed?.inviteCode) data = { ...data, inviteCode: refreshed.inviteCode };
+  }
+
   renderSteamPanel(data);
 
-  // Auto-poll if we're mid-login or waiting for Guard
-  if (data?.state === 'logging_in' || data?.state === 'guard_required') {
+  // Auto-poll if mid-login, waiting for Guard, or online but code not yet available
+  if (data?.state === 'logging_in' || data?.state === 'guard_required' ||
+      (data?.state === 'online' && !data?.inviteCode)) {
     startSteamPolling();
   }
 }

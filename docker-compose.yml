@@ -95,6 +95,7 @@ services:
       # Refresh token storage — never shared with game container
       - ./data/steam-session:/data
       # Read-only access to SMAPI log for invite code extraction
-      - ./data/logs:/game-logs:ro
+      # SMAPI writes to StardewValley/ErrorLogs, not the stardrop logs dir
+      - ./data/saves/ErrorLogs:/game-logs:ro
     # Port 18700 is intentionally NOT exposed to host.
     # The web panel proxies to it via Docker's internal network.
