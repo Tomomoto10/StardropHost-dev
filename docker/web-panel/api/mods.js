@@ -19,6 +19,18 @@ const GAME_MODS_DIR    = path.join(config.GAME_DIR, 'Mods');
 const BUNDLED_MODS_DIR = '/home/steam/preinstalled-mods';
 const METADATA_SUFFIX  = '.panel-meta.json';
 
+// -- Read actual SMAPI version from SMAPI log --
+function getSmapiVersion() {
+  try {
+    if (!fs.existsSync(config.SMAPI_LOG)) return null;
+    const content = fs.readFileSync(config.SMAPI_LOG, 'utf-8');
+    const match = content.match(/SMAPI\s+([0-9]+\.[0-9]+\.[0-9]+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 // -- Helpers --
 
 function ensureDir(dirPath) {
@@ -219,7 +231,7 @@ function getMods(req, res) {
     }
   } catch {}
 
-  res.json({ mods, total: mods.length });
+  res.json({ mods, total: mods.length, smapiVersion: getSmapiVersion() });
 }
 
 function uploadMod(req, res) {

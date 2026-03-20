@@ -106,13 +106,24 @@ function detectGameFiles(gamePath) {
 
 // -- Route Handlers --
 
+function detectSaves() {
+  try {
+    const savesDir = config.SAVES_DIR;
+    return fs.existsSync(savesDir) &&
+      fs.readdirSync(savesDir).some(f =>
+        fs.statSync(path.join(savesDir, f)).isDirectory());
+  } catch { return false; }
+}
+
 function getWizardStatus(req, res) {
   const state       = readState();
   const gamePresent = detectGameFiles();
   const hasPassword = auth.isSetupComplete();
+  const savesExist  = detectSaves();
 
-  // Wizard is needed if it was never completed OR if game files are missing.
-  const needsWizard = !state.completed || !gamePresent;
+  // Wizard is needed if: never completed (and no saves to prove setup already ran), or game missing.
+  // Saves existing is treated as proof the wizard ran, even if state file is missing/reset.
+  const needsWizard = (!state.completed && !savesExist) || !gamePresent;
 
   if (!needsWizard) {
     return res.json({ completed: true, needsWizard: false });

@@ -171,7 +171,7 @@ function getPlayers(req, res) {
 
   res.json({
     online: Math.max(online, players.length),
-    max: 8,
+    max: 4,
     players,
     history: playerHistory,
   });

@@ -1077,7 +1077,6 @@ function updateDashboardUI(data) {
   const net = data.network || {};
   setText('detail-join-ip',      net.joinIp || '--');
   setText('detail-local-ips',    net.localIps?.join(', ') || '--');
-  setText('detail-version',      data.version    || '--');
   setText('detail-metrics-port', net.metricsPort || '--');
   setText('detail-vnc',          data.vncEnabled ? `Enabled — port ${net.vncPort || 5900}` : 'Disabled');
 
@@ -1903,6 +1902,9 @@ async function refreshInviteCode() {
 async function loadMods() {
   const data = await API.get('/api/mods');
   if (!data) return;
+
+  const badge = document.getElementById('smapi-version-badge');
+  if (badge) badge.textContent = data.smapiVersion ? `SMAPI v${data.smapiVersion}` : '';
 
   const list = document.getElementById('modsList');
   setText('modUploadStatus', '');

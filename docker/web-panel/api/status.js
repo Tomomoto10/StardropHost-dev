@@ -149,14 +149,13 @@ function collectStatus(req = null) {
     timestamp: new Date().toISOString(),
     gameRunning: false,
     uptime: 0,
-    players: { online: 0, max: 8 },
+    players: { online: 0, max: 4 },
     cpu: 0,
     memory: { used: 0, limit: 2048 },
     day: 'Unknown',
     season: 'Unknown',
     backupCount: 0,
     modCount: 0,
-    version: 'v1.0.0',
     scriptsHealthy: false,
     paused: false,
     events: { passout: 0, readycheck: 0, offline: 0 },
@@ -204,7 +203,10 @@ function collectStatus(req = null) {
         status.players.online = live.players.filter(p => p.isOnline && !p.isHost).length;
       }
       if (live.season) status.season = live.season;
-      if (live.day) status.day = `${live.season} ${live.day}, Year ${live.year}`;
+      if (live.day) {
+        const season = live.season ? live.season.charAt(0).toUpperCase() + live.season.slice(1).toLowerCase() : live.season;
+        status.day = `${season} ${live.day}, Year ${live.year}`;
+      }
       if (live.serverState === 'running') status.gameRunning = true;
     }
   } catch {}

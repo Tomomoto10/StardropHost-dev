@@ -143,23 +143,18 @@ if [ -f "$SCRIPT_DIR/data/game/StardewValley" ]; then
     fi
     [ -n "$_CURRENT_SDV" ] && print_info "Installed: Stardew Valley v$_CURRENT_SDV"
 
-    # Check Steam for the latest public build ID (anonymous, no credentials needed)
+    # Check Steam for the latest build ID via public API (no credentials, no Docker needed)
     _SDV_BUILD_FILE="$SCRIPT_DIR/data/game/.steam_build_id"
     _STORED_BUILD=$(cat "$_SDV_BUILD_FILE" 2>/dev/null || true)
     _LATEST_BUILD=""
 
-    if docker image inspect stardrop-server:local >/dev/null 2>&1; then
-        print_info "Checking Steam for Stardew Valley updates..."
-        _LATEST_BUILD=$(timeout 30 docker run --rm stardrop-server:local \
-            bash -c "/home/steam/steamcmd/steamcmd.sh \
-                +login anonymous \
-                +app_info_update 1 \
-                +app_info_print 413150 \
-                +quit 2>/dev/null" 2>/dev/null \
-            | grep -A3 '"public"' | grep '"buildid"' | head -1 | grep -oE '[0-9]+' || true)
-    fi
+    print_info "Checking Steam for Stardew Valley updates..."
+    _LATEST_BUILD=$(curl -s --max-time 10 \
+        "https://api.steampowered.com/ISteamApps/UpToDateCheck/v0001/?appid=413150&version=0" \
+        2>/dev/null \
+        | grep -o '"required_version":[0-9]*' | grep -o '[0-9]*$' || true)
 
-    # Seed the stored build ID on first run so future runs skip automatically
+    # Seed stored build ID on first run
     if [ -n "$_LATEST_BUILD" ] && [ -z "$_STORED_BUILD" ]; then
         echo "$_LATEST_BUILD" > "$_SDV_BUILD_FILE"
         _STORED_BUILD="$_LATEST_BUILD"
