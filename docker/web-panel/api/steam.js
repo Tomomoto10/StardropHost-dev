@@ -147,9 +147,15 @@ function _readServerMode() {
     if (!p || !fs.existsSync(p)) continue;
     const line = fs.readFileSync(p, 'utf-8').split('\n')
       .find(l => /^SERVER_MODE=/.test(l));
-    if (line) return line.replace(/^SERVER_MODE=/, '').replace(/['"]/g, '').trim();
+    if (line) {
+      const val = line.replace(/^SERVER_MODE=/, '').replace(/['"]/g, '').trim();
+      if (val) return val;
+    }
   }
-  return process.env.SERVER_MODE || 'lan';
+  // Default to lan — runtime.env is authoritative after wizard runs.
+  // process.env.SERVER_MODE from host .env is only for the entrypoint's
+  // Step 8.5 wait; the panel always defaults to lan if not explicitly set.
+  return 'lan';
 }
 
 function serverAuthStatus(req, res) {

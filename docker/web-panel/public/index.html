@@ -1083,7 +1083,8 @@
           <div id="sa-guard-row" style="display:none">
             <p id="sa-guard-hint" style="display:none;font-size:12px;color:var(--text-muted);margin:0 0 6px">If Steam sends a Guard code to your email or authenticator, enter it here.</p>
             <input type="text" id="sa-guard" class="input" placeholder="Steam Guard code (if required)" maxlength="10" style="width:100%"
-                   onkeydown="if(event.key==='Enter') startupSteamGuard()">
+                   oninput="onGuardInput()"
+                   onkeydown="if(event.key==='Enter'&&!document.getElementById('sa-btn').disabled) startupSteamGuard()">
           </div>
           <p id="sa-status" style="font-size:13px;margin:0;min-height:18px"></p>
           <button class="btn btn-success" id="sa-btn" onclick="startupSteamLogin()">Sign In to Steam</button>

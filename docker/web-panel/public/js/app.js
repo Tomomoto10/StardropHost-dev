@@ -1058,11 +1058,17 @@ function _checkSteamAuthOrInit() {
 function showSteamAuthOverlay(toastMsg, guardPending) {
   document.getElementById('steam-auth-overlay').style.display = 'block';
   if (guardPending) {
+    _guardReady = true;
     document.getElementById('sa-guard-row').style.display = '';
+    document.getElementById('sa-guard-hint').style.display = '';
     const btn    = document.getElementById('sa-btn');
     const status = document.getElementById('sa-status');
-    if (btn)    { btn.textContent = 'Submit Guard Code'; btn.onclick = startupSteamGuard; }
-    if (status) { status.style.color = 'var(--accent-warn,#f59e0b)'; status.textContent = 'Steam Guard code required — check your email or authenticator app.'; }
+    if (btn) {
+      btn.textContent = 'Submit Guard Code';
+      btn.onclick     = startupSteamGuard;
+      btn.disabled    = true; // enabled by oninput once code is typed
+    }
+    if (status) { status.style.color = 'var(--accent-warn,#f59e0b)'; status.textContent = 'Steam Guard code required — enter it below.'; }
     document.getElementById('sa-guard')?.focus();
   }
   if (toastMsg) showToast(toastMsg, 'success');
@@ -1072,6 +1078,15 @@ function hideSteamAuthOverlay() {
   document.getElementById('steam-auth-overlay').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   init();
+}
+
+let _guardReady = false;
+
+function onGuardInput() {
+  if (!_guardReady) return;
+  const btn  = document.getElementById('sa-btn');
+  const code = document.getElementById('sa-guard')?.value?.trim();
+  if (btn) btn.disabled = !code;
 }
 
 async function startupSteamLogin() {
@@ -1086,21 +1101,26 @@ async function startupSteamLogin() {
     return;
   }
 
+  _guardReady = false;
   btn.disabled      = true;
   btn.textContent   = 'Connecting…';
   status.style.color = 'var(--text-secondary)';
   status.textContent = 'Connecting to Steam…';
 
-  // Show guard input immediately — the email may arrive before the API responds
+  // Show guard input immediately so the user can type the code as soon as email arrives.
+  // Submission is blocked (_guardReady=false) until server confirms guard_required.
   document.getElementById('sa-guard-row').style.display = '';
   document.getElementById('sa-guard-hint').style.display = '';
 
   const data = await API.post('/api/steam/server-auth', { username, password }).catch(() => null);
 
   if (data?.state === 'guard_required') {
-    btn.textContent  = 'Submit Guard Code';
-    btn.onclick      = startupSteamGuard;
-    btn.disabled     = false;
+    _guardReady = true;
+    btn.textContent = 'Submit Guard Code';
+    btn.onclick     = startupSteamGuard;
+    // Enable immediately if the user already typed their code while waiting
+    const alreadyEntered = document.getElementById('sa-guard')?.value?.trim();
+    btn.disabled = !alreadyEntered;
     status.style.color = 'var(--accent-warn,#f59e0b)';
     status.textContent = 'Steam Guard code required — enter it below.';
     document.getElementById('sa-guard').focus();
