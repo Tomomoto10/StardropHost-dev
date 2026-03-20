@@ -111,7 +111,7 @@ namespace StardropGameManager
             if (Context.IsWorldReady)
             {
                 Game1.player.health  = Game1.player.maxHealth;
-                Game1.player.stamina = (float)(int)Game1.player.maxStamina;
+                Game1.player.stamina = Game1.player.maxStamina.Value;
             }
 
             // Once world is ready, handle any blocking runtime dialogues

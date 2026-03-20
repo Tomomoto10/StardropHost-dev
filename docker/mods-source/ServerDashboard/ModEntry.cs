@@ -135,7 +135,7 @@ namespace ServerDashboard
                         Health       = farmer.health,
                         MaxHealth    = farmer.maxHealth,
                         Stamina      = farmer.stamina,
-                        MaxStamina   = (float)(int)farmer.maxStamina,
+                        MaxStamina   = farmer.maxStamina.Value,
                         Money        = farmer.Money,
                         TotalEarned  = (long)farmer.totalMoneyEarned,
                         LocationName = farmer.currentLocation?.Name ?? "",
