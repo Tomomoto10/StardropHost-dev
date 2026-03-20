@@ -10,18 +10,14 @@
     if (!data || !data.valid) { window.location.href = '/login.html'; return; }
     const loader = document.getElementById('app-loader');
     if (loader) loader.classList.add('hidden');
-    // Check wizard before showing main app
+    // Check wizard, then Steam auth, before showing main app
     API.get('/api/wizard/status').then(wiz => {
       if (wiz && wiz.needsWizard) {
         showWizard(wiz);
       } else {
-        document.getElementById('app').style.display = 'flex';
-        init();
+        _checkSteamAuthOrInit();
       }
-    }).catch(() => {
-      document.getElementById('app').style.display = 'flex';
-      init();
-    });
+    }).catch(() => { _checkSteamAuthOrInit(); });
   }).catch(() => { window.location.href = '/login.html'; });
 })();
 
@@ -1031,9 +1027,111 @@ async function wizComplete() {
   }
 
   document.getElementById('wizard-overlay').style.display = 'none';
+
+  // If Steam mode was selected, show auth screen before dashboard
+  const steamStatus = await API.get('/api/steam/server-status').catch(() => null);
+  if (steamStatus?.steamMode && steamStatus?.state === 'unauthenticated') {
+    showSteamAuthOverlay('Setup complete! Sign in to Steam to get an invite code.');
+  } else {
+    document.getElementById('app').style.display = 'flex';
+    init();
+    showToast('Setup complete! Server is running.', 'success');
+  }
+}
+
+// ─── Steam Auth Overlay ──────────────────────────────────────────
+
+function _checkSteamAuthOrInit() {
+  API.get('/api/steam/server-status').then(steam => {
+    if (steam?.steamMode && steam?.state === 'unauthenticated') {
+      showSteamAuthOverlay();
+    } else {
+      document.getElementById('app').style.display = 'flex';
+      init();
+    }
+  }).catch(() => {
+    document.getElementById('app').style.display = 'flex';
+    init();
+  });
+}
+
+function showSteamAuthOverlay(toastMsg) {
+  document.getElementById('steam-auth-overlay').style.display = 'block';
+  if (toastMsg) showToast(toastMsg, 'success');
+}
+
+function hideSteamAuthOverlay() {
+  document.getElementById('steam-auth-overlay').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   init();
-  showToast('Setup complete! Server is running.', 'success');
+}
+
+async function startupSteamLogin() {
+  const username = document.getElementById('sa-username')?.value?.trim();
+  const password = document.getElementById('sa-password')?.value?.trim();
+  const btn      = document.getElementById('sa-btn');
+  const status   = document.getElementById('sa-status');
+
+  if (!username || !password) {
+    status.style.color = 'var(--accent-error,#ef4444)';
+    status.textContent = 'Enter both username and password.';
+    return;
+  }
+
+  btn.disabled      = true;
+  btn.textContent   = 'Connecting…';
+  status.style.color = 'var(--text-secondary)';
+  status.textContent = 'Connecting to Steam — this may take up to 60 seconds…';
+
+  const data = await API.post('/api/steam/server-auth', { username, password }).catch(() => null);
+
+  if (data?.state === 'guard_required') {
+    document.getElementById('sa-guard-row').style.display = '';
+    document.getElementById('sa-guard').focus();
+    btn.textContent  = 'Submit Guard Code';
+    btn.onclick      = startupSteamGuard;
+    btn.disabled     = false;
+    status.style.color = 'var(--accent-warn,#f59e0b)';
+    status.textContent = 'Steam Guard code required — check your email or authenticator app.';
+  } else if (data?.success) {
+    status.style.color = 'var(--accent)';
+    status.textContent = '✅ Authenticated — loading dashboard…';
+    setTimeout(hideSteamAuthOverlay, 800);
+  } else {
+    status.style.color = 'var(--accent-error,#ef4444)';
+    status.textContent = data?.error || 'Login failed — check credentials and try again.';
+    btn.disabled     = false;
+    btn.textContent  = 'Sign In to Steam';
+  }
+}
+
+async function startupSteamGuard() {
+  const code   = document.getElementById('sa-guard')?.value?.trim();
+  const btn    = document.getElementById('sa-btn');
+  const status = document.getElementById('sa-status');
+
+  if (!code) { status.textContent = 'Enter your Steam Guard code.'; return; }
+
+  btn.disabled       = true;
+  status.style.color = 'var(--text-secondary)';
+  status.textContent = 'Verifying code…';
+
+  const data = await API.post('/api/steam/server-auth', { guardCode: code }).catch(() => null);
+
+  if (data?.success) {
+    status.style.color = 'var(--accent)';
+    status.textContent = '✅ Authenticated — loading dashboard…';
+    setTimeout(hideSteamAuthOverlay, 800);
+  } else {
+    status.style.color = 'var(--accent-error,#ef4444)';
+    status.textContent = data?.error || 'Invalid code — try again.';
+    btn.disabled = false;
+  }
+}
+
+async function startupSteamSkip() {
+  await API.post('/api/steam/server-skip').catch(() => {});
+  hideSteamAuthOverlay();
 }
 
 // ─── Global State ────────────────────────────────────────────────
@@ -1339,6 +1437,9 @@ function renderSteamPanel(serverStatus, inviteCode) {
   if (titleEl) titleEl.textContent = 'Steam Invite Code';
 
   const state = serverStatus?.state || 'unauthenticated';
+
+  // Don't wipe login form while user is typing credentials
+  if (steamLoginVisible && document.getElementById('steamUsername')) return;
 
   // Don't wipe guard input while it's active
   if (state === 'guard_required' && document.getElementById('steamGuardInput')) {

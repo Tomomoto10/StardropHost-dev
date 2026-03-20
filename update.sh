@@ -151,7 +151,19 @@ if [ -f "$SCRIPT_DIR/data/game/StardewValley" ]; then
     [ -n "$_STORED_BUILD" ] && print_info "Installed build ID: $_STORED_BUILD"
 
     print_info "Checking Steam for latest build..."
-    _LATEST_BUILD=$(python3 - 2>/dev/null <<'PYEOF'
+    _LATEST_BUILD=""
+
+    # Method 1: curl — fast, no extra deps
+    if command -v curl &>/dev/null; then
+        _LATEST_BUILD=$(curl -sSL --max-time 10 \
+            "https://api.steamcmd.net/v1/info/413150" 2>/dev/null \
+            | grep -oE '"buildid"[[:space:]]*:[[:space:]]*"[0-9]+"' \
+            | grep -oE '[0-9]+' | head -1 || true)
+    fi
+
+    # Method 2: Python3 fallback — handles any JSON spacing variations
+    if [ -z "$_LATEST_BUILD" ] && command -v python3 &>/dev/null; then
+        _LATEST_BUILD=$(python3 - 2>/dev/null <<'PYEOF'
 import urllib.request, json, sys
 try:
     req = urllib.request.Request(
@@ -164,7 +176,8 @@ try:
 except Exception:
     sys.exit(1)
 PYEOF
-    )
+        )
+    fi
 
     _SDV_UPDATE_AVAILABLE=false
     if [ -z "$_LATEST_BUILD" ]; then
