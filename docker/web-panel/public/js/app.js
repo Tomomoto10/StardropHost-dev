@@ -1044,6 +1044,8 @@ let lastStatusData         = null;
 let backupStatusPoll       = null;
 let lastBackupStatus       = null;
 let containerReconnectPoll = null;
+let steamPollInterval      = null;
+let steamLoginVisible      = false;
 
 // ─── Theme ───────────────────────────────────────────────────────
 let currentTheme = (() => {
@@ -1177,6 +1179,8 @@ function navigateTo(page) {
   setText('pageTitle', PAGE_TITLES[page] || page);
   document.getElementById('sidebar').classList.remove('open');
 
+  if (page !== 'dashboard') stopSteamPolling();
+
   switch (page) {
     case 'dashboard': loadDashboard();                         break;
     case 'farm':      loadFarm();                              break;
@@ -1231,11 +1235,9 @@ function handleWsMessage(msg) {
 
 // ─── Dashboard ───────────────────────────────────────────────────
 async function loadDashboard() {
-  const [data] = await Promise.all([
-    API.get('/api/status'),
-    loadDashboardInviteCode(),
-  ]);
+  const data = await API.get('/api/status');
   if (data) updateDashboardUI(data);
+  loadSteam();
 }
 
 function updateDashboardUI(data) {
@@ -1282,19 +1284,152 @@ function updateDashboardUI(data) {
 
 }
 
-async function loadDashboardInviteCode() {
-  const data = await API.get('/api/steam/invitecode').catch(() => null);
-  const code = data?.inviteCode || null;
-  const el   = document.getElementById('detail-invite-code');
-  const note = document.getElementById('detail-invite-note');
-  if (!el) return;
-  if (code) {
-    el.textContent   = code;
-    if (note) note.textContent = 'Stardew Valley → Co-op → Enter Invite Code';
-  } else {
-    el.textContent   = 'Waiting for server...';
-    if (note) note.textContent = '';
+// ─── Steam Invite ─────────────────────────────────────────────────
+
+function startSteamPolling() {
+  if (steamPollInterval) return;
+  steamPollInterval = setInterval(async () => {
+    const [authData, codeData] = await Promise.all([
+      API.get('/api/steam/status').catch(() => null),
+      API.get('/api/steam/invitecode').catch(() => null),
+    ]);
+    renderSteamPanel(authData, codeData?.inviteCode || null);
+    const settled = !authData || ['offline','unavailable','error','online'].includes(authData.state);
+    if (settled && codeData?.inviteCode) stopSteamPolling();
+  }, 4000);
+}
+
+function stopSteamPolling() {
+  if (steamPollInterval) { clearInterval(steamPollInterval); steamPollInterval = null; }
+}
+
+async function loadSteam() {
+  const [authData, codeData] = await Promise.all([
+    API.get('/api/steam/status').catch(() => null),
+    API.get('/api/steam/invitecode').catch(() => null),
+  ]);
+  renderSteamPanel(authData, codeData?.inviteCode || null);
+  if (authData?.state === 'logging_in' || authData?.state === 'guard_required' || !codeData?.inviteCode) {
+    startSteamPolling();
   }
+}
+
+function renderSteamPanel(data, inviteCode) {
+  const panel = document.getElementById('steamPanel');
+  if (!panel) return;
+
+  // Don't wipe active inputs — update in-place
+  if (data?.state === 'guard_required' && document.getElementById('steamGuardInput')) {
+    const errEl  = panel.querySelector('.steam-guard-error');
+    if (errEl) errEl.textContent = data.lastError || '';
+    const codeEl = panel.querySelector('.steam-invite-code-value');
+    if (codeEl && inviteCode) codeEl.textContent = inviteCode;
+    startSteamPolling();
+    return;
+  }
+  if ((data?.state === 'offline' || data?.state === 'error') && document.getElementById('steamUsername')) {
+    const errEl  = panel.querySelector('.steam-login-error');
+    if (errEl) errEl.textContent = data.lastError || '';
+    startSteamPolling();
+    return;
+  }
+
+  let html = '';
+
+  if (data?.state === 'online') {
+    const code = inviteCode
+      ? `<div class="detail-value steam-invite-code-value" style="font-family:monospace;letter-spacing:1px;font-size:15px;margin:4px 0">${escapeHtml(inviteCode)}</div>
+         <div class="detail-note">Stardew Valley → Co-op → Enter Invite Code</div>`
+      : `<div style="color:var(--text-muted);font-size:13px">Waiting for game to start...</div>`;
+    html = `
+      <div style="margin-bottom:12px">${code}</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="color:var(--accent);font-size:13px">● Signed in to Steam</span>
+        <button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444" onclick="steamLogout()">Sign Out</button>
+      </div>`;
+  } else if (data?.state === 'guard_required') {
+    html = `
+      <div style="margin-bottom:8px;font-size:13px;color:var(--text-secondary)">
+        Steam Guard code required — check your email or authenticator app.
+        <div class="steam-guard-error" style="color:var(--accent-error);margin-top:4px">${escapeHtml(data?.lastError || '')}</div>
+      </div>
+      <div class="form-row">
+        <input type="text" id="steamGuardInput" class="input" placeholder="Steam Guard code"
+               maxlength="10" style="width:180px" onkeydown="if(event.key==='Enter') submitSteamGuard()">
+        <button class="btn btn-primary btn-sm" onclick="submitSteamGuard()">Submit</button>
+        <button class="btn btn-sm" onclick="steamCancelLogin()">Cancel</button>
+      </div>`;
+  } else if (data?.state === 'logging_in') {
+    html = `<div style="color:var(--accent-info);font-size:13px">${icon('loader', 'icon icon-spin')} Logging in to Steam...</div>`;
+  } else {
+    // offline / error / unavailable
+    if (steamLoginVisible) {
+      const err = data?.lastError ? `<div class="steam-login-error" style="color:var(--accent-error);margin-top:4px">${escapeHtml(data.lastError)}</div>` : '<div class="steam-login-error"></div>';
+      html = `
+        <div style="margin-bottom:8px;font-size:13px;color:var(--text-secondary)">
+          Sign in to Steam to get a share code. Credentials are never stored — session is memory-only.
+          ${err}
+        </div>
+        <div class="form-row">
+          <input type="text"     id="steamUsername" class="input" placeholder="Steam username" style="width:160px"
+                 onkeydown="if(event.key==='Enter') steamLogin()">
+          <input type="password" id="steamPassword" class="input" placeholder="Steam password" style="width:160px"
+                 onkeydown="if(event.key==='Enter') steamLogin()">
+          <button class="btn btn-success btn-sm" onclick="steamLogin()">Sign In</button>
+          <button class="btn btn-sm" onclick="steamLoginVisible=false;loadSteam()">Cancel</button>
+        </div>`;
+    } else {
+      html = `<button class="btn btn-primary" onclick="showSteamLoginForm()">Get Share Code</button>`;
+    }
+  }
+
+  panel.innerHTML = html;
+  if (data?.state === 'logging_in' || data?.state === 'guard_required') startSteamPolling();
+}
+
+function showSteamLoginForm() {
+  steamLoginVisible = true;
+  loadSteam();
+}
+
+async function steamLogin() {
+  const username = document.getElementById('steamUsername')?.value?.trim();
+  const password = document.getElementById('steamPassword')?.value;
+  if (!username || !password) { showToast('Enter your Steam username and password', 'error'); return; }
+  const data = await API.post('/api/steam/login', { username, password });
+  if (data?.success) {
+    renderSteamPanel({ state: 'logging_in' }, null);
+    startSteamPolling();
+  } else {
+    showToast(data?.error || 'Login failed', 'error');
+  }
+}
+
+async function submitSteamGuard() {
+  const code = document.getElementById('steamGuardInput')?.value?.trim();
+  if (!code) { showToast('Enter your Steam Guard code', 'error'); return; }
+  const data = await API.post('/api/steam/guard', { code });
+  if (data?.success) {
+    renderSteamPanel({ state: 'logging_in' }, null);
+    startSteamPolling();
+  } else {
+    showToast(data?.error || 'Failed to submit code', 'error');
+  }
+}
+
+async function steamCancelLogin() {
+  await API.post('/api/steam/logout');
+  steamLoginVisible = false;
+  stopSteamPolling();
+  loadSteam();
+}
+
+async function steamLogout() {
+  if (!confirm('Sign out of Steam? The invite code will stop working.')) return;
+  await API.post('/api/steam/logout');
+  steamLoginVisible = false;
+  stopSteamPolling();
+  loadSteam();
 }
 
 // ─── Farm ────────────────────────────────────────────────────────
