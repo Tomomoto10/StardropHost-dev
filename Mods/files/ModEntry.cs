@@ -147,6 +147,8 @@ namespace ServerDashboard
                 FestivalName      = GetFestivalName(),
                 // ── Farm ──
                 SharedMoney       = Game1.player.Money,    // host money (shared wallet shows same for all)
+                // ── Invite code (Steam share code from Game1.server) ──
+                InviteCode        = TryGetInviteCode(),
                 // ── Players ──
                 Players           = GetPlayersData(),
                 // ── Cabins ──
@@ -154,6 +156,14 @@ namespace ServerDashboard
             };
 
             return status;
+        }
+
+        // ─── Invite code ──────────────────────────────────────────────────────
+
+        private string? TryGetInviteCode()
+        {
+            try { return Game1.server?.getInviteCode(); }
+            catch { return null; }
         }
 
         // ─── Players ──────────────────────────────────────────────────────────

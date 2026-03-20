@@ -1935,17 +1935,19 @@ async function setVncOneTimePassword() {
 }
 
 // ─── Steam Auth ───────────────────────────────────────────────────
+// Invite code comes from Game1.server.getInviteCode() via ServerDashboard mod → live-status.json.
+// Steam login (optional) is a separate auth flow in the same panel.
+
 function startSteamPolling() {
   if (steamPollInterval) return;
   steamPollInterval = setInterval(async () => {
-    const data = await API.get('/api/steam/status');
-    if (!data) return;
-    renderSteamPanel(data);
-    // Stop polling once settled: offline/error, or online with invite code in hand
-    if (data.state === 'offline' || data.state === 'unavailable' || data.state === 'error' ||
-        (data.state === 'online' && data.inviteCode)) {
-      stopSteamPolling();
-    }
+    const [authData, codeData] = await Promise.all([
+      API.get('/api/steam/status').catch(() => null),
+      API.get('/api/steam/invitecode').catch(() => null),
+    ]);
+    renderSteamPanel(authData, codeData?.inviteCode || null);
+    const authSettled = !authData || ['offline','unavailable','error','online'].includes(authData.state);
+    if (authSettled && codeData?.inviteCode) stopSteamPolling();
   }, 4000);
 }
 
@@ -1954,113 +1956,83 @@ function stopSteamPolling() {
 }
 
 async function loadSteam() {
-  let data = await API.get('/api/steam/status');
-
-  // If already online but no invite code, force a refresh from the SMAPI log now
-  if (data?.state === 'online' && !data?.inviteCode) {
-    const refreshed = await API.get('/api/steam/invitecode').catch(() => null);
-    if (refreshed?.inviteCode) data = { ...data, inviteCode: refreshed.inviteCode };
-  }
-
-  renderSteamPanel(data);
-
-  // Auto-poll if mid-login, waiting for Guard, or online but code not yet available
-  if (data?.state === 'logging_in' || data?.state === 'guard_required' ||
-      (data?.state === 'online' && !data?.inviteCode)) {
-    startSteamPolling();
-  }
+  const [authData, codeData] = await Promise.all([
+    API.get('/api/steam/status').catch(() => null),
+    API.get('/api/steam/invitecode').catch(() => null),
+  ]);
+  renderSteamPanel(authData, codeData?.inviteCode || null);
+  const needsPoll = authData?.state === 'logging_in' || authData?.state === 'guard_required' || !codeData?.inviteCode;
+  if (needsPoll) startSteamPolling();
 }
 
-function renderSteamPanel(data) {
+function renderSteamPanel(data, inviteCode) {
   const panel = document.getElementById('steamPanel');
   if (!panel) return;
 
-  // Container not running — it's optional
-  if (!data || data.state === 'unavailable') {
-    panel.innerHTML = `
-      <div style="color:var(--text-muted);font-size:13px;line-height:1.5">
-        Steam auth service is not running.<br>
-        It starts automatically when you launch the server.<br>
-        <span style="color:var(--text-secondary)">LAN play works without it — Steam is only needed for invite codes.</span>
-      </div>`;
+  // Guard input check — don't wipe what the user typed during guard_required
+  if (data?.state === 'guard_required' && document.getElementById('steamGuardInput')) {
+    const errEl = panel.querySelector('.steam-guard-error');
+    if (errEl) errEl.textContent = data.lastError || '';
+    startSteamPolling();
     return;
   }
 
-  if (data.state === 'online') {
-    panel.innerHTML = `
-      <div class="details-grid" style="margin-bottom:12px">
-        <div class="detail-item">
-          <div class="detail-label">Status</div>
-          <div class="detail-value" style="color:var(--accent)">● Connected</div>
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Invite Code</div>
-          <div class="detail-value" style="font-size:14px;font-family:monospace">
-            ${escapeHtml(data.inviteCode || 'Waiting for server...')}
-          </div>
-          ${data.inviteCode ? `<div class="detail-note">Players paste this in Stardew Valley → Co-op → Enter Invite Code</div>` : ''}
-        </div>
+  // --- Invite code (always shown, from game mod) ---
+  const codeHtml = `
+    <div style="margin-bottom:12px">
+      <div class="detail-label">Steam Invite Code</div>
+      <div class="detail-value" style="font-size:15px;font-family:monospace;letter-spacing:1px;margin:4px 0">
+        ${inviteCode ? escapeHtml(inviteCode) : '<span style="color:var(--text-muted)">Waiting for server...</span>'}
       </div>
-      <div class="action-buttons">
-        <button class="btn btn-sm btn-primary" onclick="refreshInviteCode()">
-          ${icon('refresh', 'icon')} Refresh Code
-        </button>
-        <button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444" onclick="steamLogout()">
-          Sign Out
-        </button>
-      </div>`;
-    return;
-  }
+      ${inviteCode ? `<div class="detail-note">Players: Stardew Valley → Co-op → Enter Invite Code</div>` : ''}
+      <button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="refreshInviteCode()">
+        ${icon('refresh', 'icon')} Refresh
+      </button>
+    </div>
+    <hr style="border-color:var(--border);margin:12px 0">`;
 
-  if (data.state === 'guard_required') {
-    // If input already exists, only update the error message — don't wipe what user typed
-    if (document.getElementById('steamGuardInput')) {
-      const errEl = panel.querySelector('.steam-guard-error');
-      if (errEl) errEl.textContent = data.lastError || '';
-      startSteamPolling();
-      return;
-    }
-    panel.innerHTML = `
-      <div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary)">
-        Steam Guard code required. Check your email or mobile authenticator app.
+  // --- Steam auth section ---
+  let authHtml = '';
+  if (!data || data.state === 'unavailable') {
+    authHtml = `<div style="color:var(--text-muted);font-size:12px">Steam auth service unavailable.</div>`;
+  } else if (data.state === 'online') {
+    authHtml = `
+      <div style="color:var(--accent);font-size:13px;margin-bottom:8px">● Steam: Signed in</div>
+      <button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444" onclick="steamLogout()">Sign Out</button>`;
+  } else if (data.state === 'guard_required') {
+    authHtml = `
+      <div style="margin-bottom:8px;font-size:13px;color:var(--text-secondary)">
+        Steam Guard code required. Check your email or authenticator app.
         <div class="steam-guard-error" style="color:var(--accent-error);margin-top:4px">${escapeHtml(data.lastError || '')}</div>
       </div>
       <div class="form-row">
-        <input type="text" id="steamGuardInput" class="input" placeholder="Enter Steam Guard code"
+        <input type="text" id="steamGuardInput" class="input" placeholder="Steam Guard code"
                maxlength="10" style="width:180px" onkeydown="if(event.key==='Enter') submitSteamGuard()">
         <button class="btn btn-primary btn-sm" onclick="submitSteamGuard()">Submit</button>
         <button class="btn btn-sm" onclick="steamCancelLogin()">Cancel</button>
       </div>`;
-    startSteamPolling();
-    return;
-  }
-
-  if (data.state === 'logging_in') {
-    panel.innerHTML = `
-      <div style="color:var(--accent-info);font-size:13px">
-        ${icon('loader', 'icon icon-spin')} Logging in to Steam...
+  } else if (data.state === 'logging_in') {
+    authHtml = `<div style="color:var(--accent-info);font-size:13px">${icon('loader', 'icon icon-spin')} Logging in to Steam...</div>`;
+  } else {
+    authHtml = `
+      <div style="margin-bottom:8px;font-size:13px;color:var(--text-secondary)">
+        Sign in to Steam (optional — only required if your server needs it).
+        ${data.lastError ? `<div style="color:var(--accent-error);margin-top:4px">${escapeHtml(data.lastError)}</div>` : ''}
+      </div>
+      <div class="form-row">
+        <input type="text"     id="steamUsername" class="input" placeholder="Steam username" style="width:160px"
+               onkeydown="if(event.key==='Enter') steamLogin()">
+        <input type="password" id="steamPassword" class="input" placeholder="Steam password" style="width:160px"
+               onkeydown="if(event.key==='Enter') steamLogin()">
+        <button class="btn btn-success btn-sm" onclick="steamLogin()">Sign In</button>
+      </div>
+      <div style="margin-top:6px;color:var(--text-muted);font-size:12px">
+        Credentials are never stored — session is memory-only.
       </div>`;
-    startSteamPolling();
-    return;
   }
 
-  // offline / error — show login form
-  panel.innerHTML = `
-    <div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary);line-height:1.5">
-      Sign in to generate Steam invite codes so players can join without port forwarding.
-      ${data.lastError ? `<div style="color:var(--accent-error);margin-top:4px">${escapeHtml(data.lastError)}</div>` : ''}
-      ${data.hasToken ? `<div style="color:var(--accent-warn);margin-top:4px">⚠️ Previous session expired — please sign in again.</div>` : ''}
-    </div>
-    <div class="form-row">
-      <input type="text"     id="steamUsername" class="input" placeholder="Steam username" style="width:160px"
-             onkeydown="if(event.key==='Enter') steamLogin()">
-      <input type="password" id="steamPassword" class="input" placeholder="Steam password" style="width:160px"
-             onkeydown="if(event.key==='Enter') steamLogin()">
-      <button class="btn btn-success btn-sm" onclick="steamLogin()">Sign In</button>
-    </div>
-    <div style="margin-top:8px;color:var(--text-muted);font-size:12px">
-      Credentials pass directly to the steam-auth container and are never stored by the web panel.
-    </div>`;
+  panel.innerHTML = codeHtml + authHtml;
+  if (data?.state === 'logging_in' || data?.state === 'guard_required') startSteamPolling();
 }
 
 async function steamLogin() {
@@ -2075,9 +2047,8 @@ async function steamLogin() {
   const data = await API.post('/api/steam/login', { username, password });
   if (data?.success) {
     showToast('Logging in...', 'success');
+    renderSteamPanel({ state: 'logging_in' }, null);
     startSteamPolling();
-    // Immediately show the logging_in state
-    renderSteamPanel({ state: 'logging_in' });
   } else {
     showToast(data?.error || 'Login failed', 'error');
   }
@@ -2090,7 +2061,7 @@ async function submitSteamGuard() {
   const data = await API.post('/api/steam/guard', { code });
   if (data?.success) {
     showToast('Code submitted — logging in...', 'success');
-    renderSteamPanel({ state: 'logging_in' });
+    renderSteamPanel({ state: 'logging_in' }, null);
     startSteamPolling();
   } else {
     showToast(data?.error || 'Failed to submit code', 'error');
@@ -2119,10 +2090,10 @@ async function refreshInviteCode() {
   const data = await API.get('/api/steam/invitecode');
   if (data?.inviteCode) {
     showToast('Invite code refreshed', 'success');
-    loadSteam();
   } else {
-    showToast('No invite code available yet — is the server running?', 'warn');
+    showToast('No invite code yet — is the server running?', 'warn');
   }
+  loadSteam();
 }
 
 // ─── Mods ────────────────────────────────────────────────────────

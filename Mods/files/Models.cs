@@ -39,6 +39,10 @@ namespace ServerDashboard
         /// <summary>Host player's current gold (= shared wallet total when wallets are shared).</summary>
         public int SharedMoney { get; set; }
 
+        // ── Invite code ───────────────────────────────────────────────────────
+        /// <summary>Steam invite code from Game1.server.getInviteCode(). Null if server not yet running.</summary>
+        public string? InviteCode { get; set; }
+
         // ── Players ───────────────────────────────────────────────────────────
         public List<PlayerData> Players { get; set; } = new();
 

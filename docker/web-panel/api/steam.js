@@ -106,12 +106,19 @@ async function logout(req, res) {
 }
 
 async function getInviteCode(req, res) {
+  // Invite code comes from the game via Game1.server.getInviteCode(),
+  // written to live-status.json by the ServerDashboard mod.
+  // No Steam auth required for this.
   try {
-    const { status, body } = await callSteamAuth('GET', '/invitecode');
-    res.status(status).json(body);
-  } catch (e) {
-    res.json({ inviteCode: null, loggedIn: false });
-  }
+    const fs   = require('fs');
+    const path = require('path');
+    const liveFile = process.env.LIVE_FILE || '/home/steam/.local/share/stardrop/live-status.json';
+    if (fs.existsSync(liveFile)) {
+      const live = JSON.parse(fs.readFileSync(liveFile, 'utf-8'));
+      return res.json({ inviteCode: live.inviteCode || null });
+    }
+  } catch {}
+  res.json({ inviteCode: null });
 }
 
 module.exports = { getStatus, login, submitGuardCode, logout, getInviteCode };

@@ -2,64 +2,24 @@
 /**
  * StardropHost | steam-auth/server.js
  * Lightweight Steam authentication service.
- * Handles login, Steam Guard, session tokens,
- * and invite code generation for the game server.
- * Credentials never touch the game container.
+ * Handles login and Steam Guard only.
+ * Session is memory-only — no credentials or tokens are written to disk.
+ * Invite codes come from the game mod (live-status.json), not this service.
  */
 
-const express    = require('express');
-const SteamUser  = require('steam-user');
-const fs         = require('fs');
-const path       = require('path');
+const express   = require('express');
+const SteamUser = require('steam-user');
 
 const app  = express();
 const PORT = parseInt(process.env.STEAM_AUTH_PORT || '18700', 10);
 
-const SESSION_FILE = '/data/session.json';
-const STATUS_FILE  = '/data/status.json';
-
 app.use(express.json());
 
-// -- Session state --
-let client       = null;
-let sessionData  = null;
-let inviteCode   = null;
-let authState    = 'offline'; // offline | logging_in | guard_required | online | error
-let lastError    = '';
+// -- Session state (in-memory only) --
+let client        = null;
+let authState     = 'offline'; // offline | logging_in | guard_required | online | error
+let lastError     = '';
 let guardResolver = null;
-
-// -- Persist/load session --
-function loadSession() {
-  try {
-    if (fs.existsSync(SESSION_FILE)) {
-      return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
-    }
-  } catch {}
-  return null;
-}
-
-function saveSession(data) {
-  try {
-    fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(data, null, 2));
-  } catch {}
-}
-
-function clearSession() {
-  try { fs.unlinkSync(SESSION_FILE); } catch {}
-}
-
-function writeStatus() {
-  try {
-    fs.writeFileSync(STATUS_FILE, JSON.stringify({
-      state:       authState,
-      loggedIn:    authState === 'online',
-      inviteCode,
-      lastError,
-      updatedAt:   new Date().toISOString(),
-    }, null, 2));
-  } catch {}
-}
 
 // -- Create a fresh SteamUser client --
 function createClient() {
@@ -74,22 +34,6 @@ function createClient() {
     console.log('[steam-auth] Logged in to Steam');
     authState = 'online';
     lastError = '';
-    _inviteCodePollFast = true; // restart fast-poll on each login
-
-    // Save refresh token for future logins
-    if (client.steamID) {
-      const existing = loadSession() || {};
-      saveSession({ ...existing, steamID: client.steamID.toString() });
-    }
-
-    writeStatus();
-    generateInviteCode();
-  });
-
-  client.on('refreshToken', (token) => {
-    console.log('[steam-auth] Received refresh token');
-    const existing = loadSession() || {};
-    saveSession({ ...existing, refreshToken: token });
   });
 
   client.on('steamGuard', (domain, callback, lastCodeWrong) => {
@@ -97,81 +41,20 @@ function createClient() {
     authState     = 'guard_required';
     lastError     = lastCodeWrong ? 'Incorrect Steam Guard code' : '';
     guardResolver = callback;
-    writeStatus();
   });
 
   client.on('error', (err) => {
     console.error('[steam-auth] Error:', err.message);
     authState = 'error';
     lastError = err.message;
-    writeStatus();
   });
 
   client.on('disconnected', (eresult, msg) => {
     console.log(`[steam-auth] Disconnected: ${msg}`);
-    if (authState === 'online') {
-      authState  = 'offline';
-      inviteCode = null;
-      writeStatus();
-    }
+    if (authState === 'online') authState = 'offline';
   });
 
   return client;
-}
-
-// -- Generate invite code --
-// The game server (SMAPI) exposes its invite code in the SMAPI log.
-// We read it from the shared log volume.
-function generateInviteCode() {
-  try {
-    const logPath = process.env.SMAPI_LOG
-      || '/game-logs/SMAPI-latest.txt';
-
-    if (!fs.existsSync(logPath)) {
-      inviteCode = null;
-      writeStatus();
-      return;
-    }
-
-    const content = fs.readFileSync(logPath, 'utf-8');
-    // SMAPI logs the Steam invite code as:
-    //   Invite code: S-XXXXXXXX
-    const match = content.match(/[Ii]nvite\s+code[:\s]+([A-Za-z0-9\-_]+)/);
-    if (match) {
-      inviteCode = match[1];
-      console.log(`[steam-auth] Invite code found: ${inviteCode}`);
-    } else {
-      inviteCode = null;
-    }
-  } catch {
-    inviteCode = null;
-  }
-  writeStatus();
-}
-
-// Poll for invite code: every 5s until we find one, then every 30s
-let _inviteCodePollFast = true;
-setInterval(() => {
-  if (authState === 'online' && _inviteCodePollFast) {
-    generateInviteCode();
-    if (inviteCode) _inviteCodePollFast = false;
-  }
-}, 5000);
-setInterval(() => {
-  if (authState === 'online' && !_inviteCodePollFast) generateInviteCode();
-}, 30000);
-
-// -- Auto-login with refresh token on startup --
-function tryAutoLogin() {
-  const session = loadSession();
-  if (!session?.refreshToken) return;
-
-  console.log('[steam-auth] Attempting auto-login with refresh token...');
-  authState = 'logging_in';
-  writeStatus();
-
-  createClient();
-  client.logOn({ refreshToken: session.refreshToken });
 }
 
 // ===========================================
@@ -180,12 +63,10 @@ function tryAutoLogin() {
 
 // GET /status
 app.get('/status', (req, res) => {
-  const session = loadSession();
   res.json({
-    state:       authState,
-    loggedIn:    authState === 'online',
-    hasToken:    !!(session?.refreshToken),
-    inviteCode,
+    state:    authState,
+    loggedIn: authState === 'online',
+    hasToken: false, // no token storage
     lastError,
   });
 });
@@ -203,10 +84,8 @@ app.post('/login', (req, res) => {
   }
 
   console.log(`[steam-auth] Login attempt for: ${username}`);
-  authState  = 'logging_in';
-  lastError  = '';
-  inviteCode = null;
-  writeStatus();
+  authState = 'logging_in';
+  lastError = '';
 
   createClient();
   client.logOn({ accountName: username, password });
@@ -229,10 +108,9 @@ app.post('/guard', (req, res) => {
   console.log('[steam-auth] Submitting Steam Guard code...');
   authState = 'logging_in';
   lastError = '';
-  writeStatus();
 
-  const resolver  = guardResolver;
-  guardResolver   = null;
+  const resolver = guardResolver;
+  guardResolver  = null;
   resolver(code);
 
   res.json({ success: true, message: 'Steam Guard code submitted' });
@@ -245,23 +123,14 @@ app.post('/logout', (req, res) => {
     client = null;
   }
 
-  clearSession();
-  authState  = 'offline';
-  inviteCode = null;
-  lastError  = '';
-  writeStatus();
+  authState = 'offline';
+  lastError = '';
 
-  console.log('[steam-auth] Logged out and session cleared');
+  console.log('[steam-auth] Logged out');
   res.json({ success: true, message: 'Logged out' });
 });
 
-// GET /invitecode  — force refresh
-app.get('/invitecode', (req, res) => {
-  generateInviteCode();
-  res.json({ inviteCode, loggedIn: authState === 'online' });
-});
-
-// GET /health  — no auth, used by docker healthcheck
+// GET /health  — used by docker healthcheck
 app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
@@ -270,7 +139,5 @@ app.get('/health', (req, res) => {
 // Start
 // ===========================================
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[steam-auth] ✅ Running on port ${PORT}`);
-  writeStatus();
-  tryAutoLogin();
+  console.log(`[steam-auth] ✅ Running on port ${PORT} (session is memory-only)`);
 });

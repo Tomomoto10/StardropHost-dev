@@ -202,10 +202,14 @@ namespace ServerDashboard
             int   hours12  = hours > 12 ? hours - 12 : hours == 0 ? 12 : hours;
             string timeStr = $"{hours12}:{minutes:D2} {(isPm ? "PM" : "AM")}";
 
+            string? inviteCode = null;
+            try { inviteCode = Game1.server?.getInviteCode(); } catch {}
+
             return new LiveStatus
             {
                 Timestamp        = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                 ServerState      = "running",
+                InviteCode       = inviteCode,
                 FarmName         = Game1.player.farmName.Value ?? "",
                 Season           = Game1.currentSeason ?? "",
                 Day              = Game1.dayOfMonth,
