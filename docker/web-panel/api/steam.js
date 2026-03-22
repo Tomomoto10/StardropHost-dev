@@ -217,7 +217,7 @@ async function serverAuth(req, res) {
 
   const result = await _runSteamcmd(args);
 
-  if (result.guardRequired && !guardCode) {
+  if (result.guardRequired) {
     _pendingAuth = { username: user, password: pass };
     return res.json({ state: 'guard_required' });
   }
