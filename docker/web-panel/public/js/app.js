@@ -235,7 +235,8 @@ async function wizScanInstalls() {
           <div style="font-size:11px;color:var(--text-muted);font-family:monospace">${escapeHtml(i.displayPath)}</div>
         </div>
         <button id="wiz-use-btn-${idx}" class="btn btn-secondary" style="font-size:12px;padding:4px 12px"
-          onclick="wizUseGamePath(${escapeHtml(JSON.stringify(i.gamePath))}, ${idx})">Use This</button>
+          data-path="${escapeHtml(i.gamePath)}"
+          onclick="wizUseGamePath(this.dataset.path, ${idx})">Use This</button>
       </div>
     `).join('')}
   `;
@@ -301,7 +302,7 @@ async function wizBrowseDirLoad(p) {
 
   const rows = [];
   if (data.parent) {
-    rows.push(`<div onclick="wizBrowseDirLoad(${escapeHtml(JSON.stringify(data.parent))})"
+    rows.push(`<div data-path="${escapeHtml(data.parent)}" onclick="wizBrowseDirLoad(this.dataset.path)"
       style="padding:8px 12px;cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary)"
       onmouseover="this.style.background='var(--bg-overlay)'" onmouseout="this.style.background=''">
       <span>↑</span><span>.. (parent directory)</span>
@@ -309,7 +310,7 @@ async function wizBrowseDirLoad(p) {
   }
   for (const e of data.entries) {
     const full = data.path + '/' + e.name;
-    rows.push(`<div onclick="wizBrowseDirLoad(${escapeHtml(JSON.stringify(full))})"
+    rows.push(`<div data-path="${escapeHtml(full)}" onclick="wizBrowseDirLoad(this.dataset.path)"
       style="padding:8px 12px;cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:8px;font-size:13px"
       onmouseover="this.style.background='var(--bg-overlay)'" onmouseout="this.style.background=''">
       <span>📁</span><span>${escapeHtml(e.name)}</span>

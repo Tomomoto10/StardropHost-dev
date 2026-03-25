@@ -600,16 +600,24 @@ function scanInstalls(req, res) {
   const results = [];
   if (!fs.existsSync(hostParent)) return res.json({ installs: [], available: false });
 
+  // Get the inode of the current instance's game dir so we can skip it
+  let currentGameIno = null;
+  try { currentGameIno = fs.statSync('/home/steam/stardewvalley').ino; } catch {}
+
   try {
     for (const entry of fs.readdirSync(hostParent, { withFileTypes: true })) {
       if (!entry.isDirectory() || !entry.name.startsWith('stardrophost')) continue;
       const installDir = path.join(hostParent, entry.name);
       const gameDir    = findGameDir(installDir);
-      const hasGame    = !!gameDir;
-      const displayPath = gameDir
-        ? path.join('~', entry.name, path.relative(installDir, gameDir))
-        : path.join('~', entry.name);
-      results.push({ name: entry.name, gamePath: gameDir || installDir, displayPath, hasGame });
+      if (!gameDir) continue;
+
+      // Skip the current instance (same mount as /home/steam/stardewvalley)
+      if (currentGameIno) {
+        try { if (fs.statSync(gameDir).ino === currentGameIno) continue; } catch {}
+      }
+
+      const displayPath = path.join('~', entry.name, path.relative(installDir, gameDir));
+      results.push({ name: entry.name, gamePath: gameDir, displayPath, hasGame: true });
     }
   } catch {}
 
