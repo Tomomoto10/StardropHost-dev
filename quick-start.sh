@@ -727,8 +727,36 @@ _copy_log_on_exit() {
 }
 trap _copy_log_on_exit EXIT
 
+confirm() {
+    local answer
+    echo -ne "${YELLOW}${BOLD}$1 [y/N]: ${NC}"
+    read -r answer
+    case "$answer" in
+        y|Y|yes|YES) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 main() {
     print_header
+
+    # If an instance already exists, confirm before adding another
+    if [ "$INSTANCE_NUM" -gt 1 ]; then
+        echo -e "${YELLOW}${BOLD}  StardropHost is already installed (instance 1 at $REAL_HOME/stardrophost).${NC}"
+        echo ""
+        echo -e "  This will install a second independent instance (instance $INSTANCE_NUM):"
+        echo -e "    Directory:  ${CYAN}$INSTALL_DIR${NC}"
+        echo -e "    Web panel:  port ${PANEL_PORT}"
+        echo -e "    Game:       port ${GAME_PORT}"
+        echo ""
+        if ! confirm "Install StardropHost instance $INSTANCE_NUM?"; then
+            echo ""
+            print_info "Installation cancelled."
+            exit 0
+        fi
+        echo ""
+    fi
+
     print_info "Instance:     $INSTANCE_NUM"
     print_info "Directory:    $INSTALL_DIR"
     print_info "Install log:  $INSTALL_DIR/logs/$(basename "$LOG_FILE")  (written on exit)"
