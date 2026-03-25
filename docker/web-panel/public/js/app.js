@@ -251,10 +251,13 @@ async function wizUseGamePath(gamePath) {
       _wizState._filesFound = true;
       _wizState._method = 'path';
       document.getElementById('wiz-step2-next').disabled = false;
+    } else {
+      statusEl.style.color = 'var(--accent-error)';
+      statusEl.textContent = '❌ ' + (data?.error || 'Game files not found at that path.');
     }
   } catch (e) {
     statusEl.style.color = 'var(--accent-error)';
-    statusEl.textContent = e.message || '❌ Path not found or missing game files.';
+    statusEl.textContent = '❌ ' + (e.message || 'Request failed.');
   }
 }
 
@@ -297,7 +300,7 @@ async function wizBrowseDirLoad(p) {
 
   const rows = [];
   if (data.parent) {
-    rows.push(`<div onclick="wizBrowseDirLoad(${JSON.stringify(data.parent)})"
+    rows.push(`<div onclick="wizBrowseDirLoad(${escapeHtml(JSON.stringify(data.parent))})"
       style="padding:8px 12px;cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary)"
       onmouseover="this.style.background='var(--bg-overlay)'" onmouseout="this.style.background=''">
       <span>↑</span><span>.. (parent directory)</span>
@@ -305,7 +308,7 @@ async function wizBrowseDirLoad(p) {
   }
   for (const e of data.entries) {
     const full = data.path + '/' + e.name;
-    rows.push(`<div onclick="wizBrowseDirLoad(${JSON.stringify(full)})"
+    rows.push(`<div onclick="wizBrowseDirLoad(${escapeHtml(JSON.stringify(full))})"
       style="padding:8px 12px;cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:8px;font-size:13px"
       onmouseover="this.style.background='var(--bg-overlay)'" onmouseout="this.style.background=''">
       <span>📁</span><span>${escapeHtml(e.name)}</span>
@@ -751,6 +754,7 @@ async function wizCheckGameFiles() {
       statusEl.style.color = 'var(--accent-error)';
       statusEl.textContent = '❌ Game files not found. Choose a method below to provide them.';
       if (choiceDiv) choiceDiv.style.display = 'block';
+      wizSetMethod('local');
     }
   } catch {
     statusEl.style.color = 'var(--accent-error)';

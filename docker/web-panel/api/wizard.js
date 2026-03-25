@@ -100,9 +100,23 @@ function writeEnvValues(envData) {
 
 // -- Game file detection --
 
+// Recursively find the directory containing the StardewValley binary (depth-limited).
+function findGameDir(dir, depth = 0) {
+  if (depth > 4) return null;
+  try {
+    if (fs.existsSync(path.join(dir, 'StardewValley'))) return dir;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!e.isDirectory() || e.name.startsWith('.')) continue;
+      const found = findGameDir(path.join(dir, e.name), depth + 1);
+      if (found) return found;
+    }
+  } catch {}
+  return null;
+}
+
 function detectGameFiles(gamePath) {
   const checkPath = gamePath || '/home/steam/stardewvalley';
-  return fs.existsSync(path.join(checkPath, 'StardewValley'));
+  return !!findGameDir(checkPath);
 }
 
 // -- Route Handlers --
@@ -204,13 +218,13 @@ function submitStep2(req, res) {
     if (!fs.existsSync(gamePath)) {
       return res.status(400).json({ error: `Path not found: ${gamePath}` });
     }
-    if (!fs.existsSync(path.join(gamePath, 'StardewValley'))) {
+    const actualGameDir = findGameDir(gamePath);
+    if (!actualGameDir) {
       return res.status(400).json({
-        error: 'StardewValley binary not found at that path',
-        hint:  'Make sure you are pointing to the root of your Stardew Valley installation',
+        error: 'StardewValley binary not found at that path or in its subdirectories',
       });
     }
-    writeEnvValues({ GAME_PATH: gamePath });
+    writeEnvValues({ GAME_PATH: actualGameDir });
   }
 
   if (method === 'steam') {
@@ -589,10 +603,13 @@ function scanInstalls(req, res) {
   try {
     for (const entry of fs.readdirSync(hostParent, { withFileTypes: true })) {
       if (!entry.isDirectory() || !entry.name.startsWith('stardrophost')) continue;
-      const gamePath   = path.join(hostParent, entry.name, 'data', 'game');
-      const hasGame    = fs.existsSync(path.join(gamePath, 'StardewValley'));
-      const displayPath = path.join('~', entry.name, 'data', 'game');
-      results.push({ name: entry.name, gamePath, displayPath, hasGame });
+      const installDir = path.join(hostParent, entry.name);
+      const gameDir    = findGameDir(installDir);
+      const hasGame    = !!gameDir;
+      const displayPath = gameDir
+        ? path.join('~', entry.name, path.relative(installDir, gameDir))
+        : path.join('~', entry.name);
+      results.push({ name: entry.name, gamePath: gameDir || installDir, displayPath, hasGame });
     }
   } catch {}
 
@@ -618,7 +635,7 @@ function browseDir(req, res) {
     entries.sort((a, b) => a.name.localeCompare(b.name));
   } catch {}
 
-  const hasGame = fs.existsSync(path.join(resolved, 'StardewValley'));
+  const hasGame = !!findGameDir(resolved);
   const parent  = resolved === '/host-parent' ? null
     : ALLOWED.some(a => path.dirname(resolved) === a || path.dirname(resolved).startsWith(a + '/'))
       ? path.dirname(resolved)
