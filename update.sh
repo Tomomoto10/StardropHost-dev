@@ -195,8 +195,7 @@ PYEOF
         echo ""
         [[ "$_FORCE_UPDATE" =~ ^[Yy]$ ]] && _SDV_UPDATE_AVAILABLE=true
     elif [ -z "$_STORED_BUILD" ]; then
-        print_warning "Could not read installed build ID (manifest missing) — assuming update needed"
-        _SDV_UPDATE_AVAILABLE=true
+        print_info "No Steam manifest found — game was installed manually, skipping update check"
     elif [ "$_STORED_BUILD" = "$_LATEST_BUILD" ]; then
         print_success "Stardew Valley is up to date (build $_LATEST_BUILD)"
     else
