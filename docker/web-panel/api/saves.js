@@ -428,7 +428,7 @@ function getSaves(req, res) {
       return res.json({ saves: [], selectedSave: '' });
     }
 
-    const selectedSave = getSelectedSaveName();
+    let selectedSave = getSelectedSaveName();
     const saves = [];
 
     for (const entry of fs.readdirSync(config.SAVES_DIR, { withFileTypes: true })) {
@@ -440,7 +440,7 @@ function getSaves(req, res) {
 
       const info = {
         name:       entry.name,
-        isSelected: entry.name === selectedSave,
+        isSelected: false,
         size:       0,
         lastModified: null,
         files:      0,
@@ -457,6 +457,33 @@ function getSaves(req, res) {
       } catch {}
 
       saves.push(info);
+    }
+
+    // If nothing is stored, infer selection from the running game via live-status.json.
+    // The game rewrites startup_preferences on launch and strips out <saveFolderName>,
+    // so a freshly-started server won't have a stored selection until the user clicks
+    // Select — this closes that gap automatically.
+    if (!selectedSave && saves.length > 0) {
+      try {
+        const live = JSON.parse(fs.readFileSync(config.LIVE_FILE, 'utf-8'));
+        if (live.serverState === 'running' && live.farmName) {
+          const matched = saves.find(s => s.farmName === live.farmName);
+          if (matched) {
+            selectedSave = matched.name;
+            try { setSelectedSaveName(matched.name); } catch {}
+          }
+        }
+      } catch {}
+    }
+
+    // If there's still nothing and only one save exists, auto-select it.
+    if (!selectedSave && saves.length === 1) {
+      selectedSave = saves[0].name;
+      try { setSelectedSaveName(saves[0].name); } catch {}
+    }
+
+    for (const s of saves) {
+      s.isSelected = s.name === selectedSave;
     }
 
     saves.sort((a, b) => {

@@ -279,7 +279,7 @@ print_info "Docker will reuse cached layers for anything that hasn't changed."
 print_info "Only modified files (scripts, web panel, config) are rebuilt — this is fast."
 echo ""
 
-if ! $COMPOSE_CMD build stardrop-server; then
+if ! $COMPOSE_CMD build stardrop-server stardrop-manager stardrop-steam-auth; then
     echo ""
     print_error "Build failed — check the output above for the cause."
     echo ""
@@ -331,9 +331,7 @@ echo -e "  Showing startup logs for 15 seconds..."
 echo ""
 
 sleep 2
-timeout 15 docker logs -f "${CONTAINER_PREFIX}-server" 2>/dev/null \
-    || timeout 15 docker logs -f "${CONTAINER_PREFIX}" 2>/dev/null \
-    || true
+timeout 15 docker logs -f "${CONTAINER_PREFIX}" 2>/dev/null || true
 
 echo ""
 echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -341,5 +339,5 @@ echo -e "${GREEN}${BOLD}  Server is running in the background.${NC}"
 echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  Web panel:     ${CYAN}${BOLD}http://${SERVER_IP}:${PANEL_PORT}${NC}"
-echo -e "  Watch logs:    ${CYAN}docker logs -f ${CONTAINER_PREFIX}-server${NC}"
+echo -e "  Watch logs:    ${CYAN}docker logs -f ${CONTAINER_PREFIX}${NC}"
 echo ""
