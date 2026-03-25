@@ -141,7 +141,7 @@ $COMPOSE_CMD down
 print_success "Containers stopped"
 
 # -- Step 2.5: Stardew Valley game update (optional) --
-if [ -f "$SCRIPT_DIR/data/game/StardewValley" ]; then
+if [ -f "$SCRIPT_DIR/data/game/StardewValley" ] && [ -f "$SMAPI_LOG_PATH" ]; then
     print_step "Step 2.5: Stardew Valley update check..."
 
     # Read installed version from SMAPI log
