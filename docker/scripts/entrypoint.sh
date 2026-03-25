@@ -378,6 +378,28 @@ fi
 # -- Step 3: Install SMAPI --
 log_step "Step 3: Installing SMAPI mod loader..."
 
+# If update.sh queued a SMAPI update, download the requested version from
+# GitHub and overwrite the version baked into the image at build time.
+SMAPI_UPDATE_MARKER="/home/steam/web-panel/data/smapi-update-needed"
+if [ -f "$SMAPI_UPDATE_MARKER" ]; then
+    _TARGET_SMAPI=$(cat "$SMAPI_UPDATE_MARKER" | tr -d '[:space:]')
+    log_info "SMAPI update queued: downloading v${_TARGET_SMAPI}..."
+    _SMAPI_URL="https://github.com/Pathoschild/SMAPI/releases/download/${_TARGET_SMAPI}/SMAPI-${_TARGET_SMAPI}-installer.zip"
+    _SMAPI_TMP="/home/steam/smapi-download-tmp"
+    rm -rf "$_SMAPI_TMP" && mkdir -p "$_SMAPI_TMP"
+    if curl -fsSL --max-time 120 "$_SMAPI_URL" -o "$_SMAPI_TMP/SMAPI-installer.zip" 2>/dev/null; then
+        # Replace bundled installer only on successful download
+        rm -rf /home/steam/smapi
+        mv "$_SMAPI_TMP" /home/steam/smapi
+        rm -f "$SMAPI_UPDATE_MARKER"
+        log_info "✅ SMAPI v${_TARGET_SMAPI} downloaded"
+    else
+        rm -rf "$_SMAPI_TMP"
+        rm -f "$SMAPI_UPDATE_MARKER"
+        log_warning "Could not download SMAPI v${_TARGET_SMAPI} — using bundled version"
+    fi
+fi
+
 if [ ! -f "/home/steam/stardewvalley/StardewModdingAPI" ]; then
     log_info "Installing SMAPI..."
     cd /home/steam

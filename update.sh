@@ -263,13 +263,17 @@ else
     print_info "No game installed yet — skipping game update check"
 fi
 
-# Remove old SMAPI binary so entrypoint installs the latest version
+# Schedule SMAPI update — remove old binary and write a marker file so the
+# entrypoint downloads the correct version at startup instead of re-using the
+# version that was baked into the Docker image at build time.
 if [ "$_SMAPI_NEEDS_UPDATE" = "true" ]; then
     rm -f "$SCRIPT_DIR/data/game/StardewModdingAPI"
+    mkdir -p "$SCRIPT_DIR/data/panel"
+    echo "${_LATEST_SMAPI}" > "$SCRIPT_DIR/data/panel/smapi-update-needed"
     if [ -n "$_LATEST_SMAPI" ]; then
-        print_success "Old SMAPI removed — v$_LATEST_SMAPI will be installed on next start"
+        print_success "SMAPI update queued — v$_LATEST_SMAPI will be downloaded on next start"
     else
-        print_success "Old SMAPI removed — latest version will be installed on next start"
+        print_success "SMAPI update queued — latest version will be downloaded on next start"
     fi
 fi
 
