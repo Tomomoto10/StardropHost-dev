@@ -10,7 +10,7 @@
     if (!data || !data.valid) { window.location.href = '/login.html'; return; }
     const loader = document.getElementById('app-loader');
     if (loader) loader.classList.add('hidden');
-    // Check wizard, then Steam auth, before showing main app
+    // Check wizard before showing main app
     API.get('/api/wizard/status').then(wiz => {
       if (wiz && wiz.needsWizard) {
         showWizard(wiz);
@@ -1027,142 +1027,16 @@ async function wizComplete() {
   }
 
   document.getElementById('wizard-overlay').style.display = 'none';
-
-  // If Steam mode was selected, show auth screen before dashboard
-  const steamStatus = await API.get('/api/steam/server-status').catch(() => null);
-  if (steamStatus?.steamMode && (steamStatus?.state === 'unauthenticated' || steamStatus?.state === 'guard_required')) {
-    showSteamAuthOverlay('Setup complete! Sign in to Steam to get an invite code.', steamStatus.state === 'guard_required');
-  } else {
-    document.getElementById('app').style.display = 'flex';
-    init();
-    showToast('Setup complete! Server is running.', 'success');
-  }
-}
-
-// ─── Steam Auth Overlay ──────────────────────────────────────────
-
-function _checkSteamAuthOrInit() {
-  API.get('/api/steam/server-status').then(steam => {
-    if (steam?.steamMode && (steam?.state === 'unauthenticated' || steam?.state === 'guard_required')) {
-      showSteamAuthOverlay(null, steam.state === 'guard_required');
-    } else {
-      document.getElementById('app').style.display = 'flex';
-      init();
-    }
-  }).catch(() => {
-    document.getElementById('app').style.display = 'flex';
-    init();
-  });
-}
-
-function showSteamAuthOverlay(toastMsg, guardPending) {
-  document.getElementById('steam-auth-overlay').style.display = 'block';
-  if (guardPending) {
-    _guardReady = true;
-    document.getElementById('sa-guard-row').style.display = '';
-    document.getElementById('sa-guard-hint').style.display = '';
-    const btn    = document.getElementById('sa-btn');
-    const status = document.getElementById('sa-status');
-    if (btn) {
-      btn.textContent = 'Submit Guard Code';
-      btn.onclick     = startupSteamGuard;
-      btn.disabled    = true; // enabled by oninput once code is typed
-    }
-    if (status) { status.style.color = 'var(--accent-warn,#f59e0b)'; status.textContent = 'Steam Guard code required — enter it below.'; }
-    document.getElementById('sa-guard')?.focus();
-  }
-  if (toastMsg) showToast(toastMsg, 'success');
-}
-
-function hideSteamAuthOverlay() {
-  document.getElementById('steam-auth-overlay').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   init();
+  showToast('Setup complete! Server is running.', 'success');
 }
 
-let _guardReady = false;
+// ─── Startup Init ────────────────────────────────────────────────
 
-function onGuardInput() {
-  if (!_guardReady) return;
-  const btn  = document.getElementById('sa-btn');
-  const code = document.getElementById('sa-guard')?.value?.trim();
-  if (btn) btn.disabled = !code;
-}
-
-async function startupSteamLogin() {
-  const username = document.getElementById('sa-username')?.value?.trim();
-  const password = document.getElementById('sa-password')?.value?.trim();
-  const btn      = document.getElementById('sa-btn');
-  const status   = document.getElementById('sa-status');
-
-  if (!username || !password) {
-    status.style.color = 'var(--accent-error,#ef4444)';
-    status.textContent = 'Enter both username and password.';
-    return;
-  }
-
-  _guardReady = false;
-  btn.disabled      = true;
-  btn.textContent   = 'Connecting…';
-  status.style.color = 'var(--text-secondary)';
-  status.textContent = 'Connecting to Steam…';
-
-  // Show guard input immediately so the user can type the code as soon as email arrives.
-  // Submission is blocked (_guardReady=false) until server confirms guard_required.
-  document.getElementById('sa-guard-row').style.display = '';
-  document.getElementById('sa-guard-hint').style.display = '';
-
-  const data = await API.post('/api/steam/server-auth', { username, password }).catch(() => null);
-
-  if (data?.state === 'guard_required') {
-    _guardReady = true;
-    btn.textContent = 'Submit Guard Code';
-    btn.onclick     = startupSteamGuard;
-    // Enable immediately if the user already typed their code while waiting
-    const alreadyEntered = document.getElementById('sa-guard')?.value?.trim();
-    btn.disabled = !alreadyEntered;
-    status.style.color = 'var(--accent-warn,#f59e0b)';
-    status.textContent = 'Steam Guard code required — enter it below.';
-    document.getElementById('sa-guard').focus();
-  } else if (data?.success) {
-    status.style.color = 'var(--accent)';
-    status.textContent = '✅ Authenticated — loading dashboard…';
-    setTimeout(hideSteamAuthOverlay, 800);
-  } else {
-    status.style.color = 'var(--accent-error,#ef4444)';
-    status.textContent = data?.error || 'Login failed — check credentials and try again.';
-    btn.disabled     = false;
-    btn.textContent  = 'Sign In to Steam';
-  }
-}
-
-async function startupSteamGuard() {
-  const code   = document.getElementById('sa-guard')?.value?.trim();
-  const btn    = document.getElementById('sa-btn');
-  const status = document.getElementById('sa-status');
-
-  if (!code) { status.textContent = 'Enter your Steam Guard code.'; return; }
-
-  btn.disabled       = true;
-  status.style.color = 'var(--text-secondary)';
-  status.textContent = 'Verifying code…';
-
-  const data = await API.post('/api/steam/server-auth', { guardCode: code }).catch(() => null);
-
-  if (data?.success) {
-    status.style.color = 'var(--accent)';
-    status.textContent = '✅ Authenticated — loading dashboard…';
-    setTimeout(hideSteamAuthOverlay, 800);
-  } else {
-    status.style.color = 'var(--accent-error,#ef4444)';
-    status.textContent = data?.error || 'Invalid code — try again.';
-    btn.disabled = false;
-  }
-}
-
-async function startupSteamSkip() {
-  await API.post('/api/steam/server-skip').catch(() => {});
-  hideSteamAuthOverlay();
+function _checkSteamAuthOrInit() {
+  document.getElementById('app').style.display = 'flex';
+  init();
 }
 
 // ─── Global State ────────────────────────────────────────────────
@@ -1174,8 +1048,6 @@ let lastStatusData         = null;
 let backupStatusPoll       = null;
 let lastBackupStatus       = null;
 let containerReconnectPoll = null;
-let steamPollInterval      = null;
-let steamLoginVisible      = false;
 let isGameRestarting       = false;
 let gameRestartInitiatedAt = 0;
 
@@ -1311,16 +1183,14 @@ function navigateTo(page) {
   setText('pageTitle', PAGE_TITLES[page] || page);
   document.getElementById('sidebar').classList.remove('open');
 
-  if (page !== 'dashboard') stopSteamPolling();
-
   switch (page) {
-    case 'dashboard': loadDashboard();                         break;
-    case 'farm':      loadFarm();                              break;
-    case 'players':   loadPlayers();                           break;
-    case 'saves':     loadSaves();                             break;
-    case 'mods':      loadMods();                              break;
-    case 'logs':      loadLogs('all'); subscribeToLogs('all'); break;
-    case 'config':    loadConfig(); loadVnc(); loadServerModeCard(); break;
+    case 'dashboard': loadDashboard();                                      break;
+    case 'farm':      loadFarm();                                            break;
+    case 'players':   loadPlayers();                                         break;
+    case 'saves':     loadSaves();                                           break;
+    case 'mods':      loadMods();                                            break;
+    case 'logs':      loadLogs('all'); subscribeToLogs('all');               break;
+    case 'config':    loadConfig(); loadVnc(); loadServerModeCard(); loadSteam(); break;
   }
 }
 
@@ -1369,7 +1239,6 @@ function handleWsMessage(msg) {
 async function loadDashboard() {
   const data = await API.get('/api/status');
   if (data) updateDashboardUI(data);
-  loadSteam();
 }
 
 function updateDashboardUI(data) {
@@ -1429,195 +1298,33 @@ function updateDashboardUI(data) {
 
 }
 
-// ─── Steam Invite ─────────────────────────────────────────────────
-
-function startSteamPolling() {
-  if (steamPollInterval) return;
-  steamPollInterval = setInterval(async () => {
-    const [serverStatus, codeData] = await Promise.all([
-      API.get('/api/steam/server-status').catch(() => null),
-      API.get('/api/steam/invitecode').catch(() => null),
-    ]);
-    renderSteamPanel(serverStatus, codeData?.inviteCode || null);
-    if (!serverStatus?.steamMode || serverStatus?.state === 'skipped') stopSteamPolling();
-    if (serverStatus?.state === 'authenticated' && codeData?.inviteCode)  stopSteamPolling();
-  }, 4000);
-}
-
-function stopSteamPolling() {
-  if (steamPollInterval) { clearInterval(steamPollInterval); steamPollInterval = null; }
-}
+// ─── Steam Invite Code ────────────────────────────────────────────
+// Invite code is written to live-status.json by the ServerDashboard SMAPI mod.
+// The game's GOG Galaxy SDK provides it automatically when a multiplayer lobby
+// is created — no credentials or authentication required.
 
 async function loadSteam() {
-  const [serverStatus, codeData] = await Promise.all([
-    API.get('/api/steam/server-status').catch(() => null),
-    API.get('/api/steam/invitecode').catch(() => null),
-  ]);
-  renderSteamPanel(serverStatus, codeData?.inviteCode || null);
-  if (serverStatus?.steamMode && serverStatus?.state !== 'skipped') {
-    if (serverStatus?.state === 'guard_required' ||
-        (serverStatus?.state === 'authenticated' && !codeData?.inviteCode)) {
-      startSteamPolling();
-    }
-  }
+  const data = await API.get('/api/steam/invitecode').catch(() => null);
+  renderSteamPanel(data?.inviteCode || null);
 }
 
-function renderSteamPanel(serverStatus, inviteCode) {
-  const panel = document.getElementById('steamPanel');
-  const card  = document.getElementById('steamCard');
+function renderSteamPanel(inviteCode) {
+  const panel   = document.getElementById('steamPanel');
+  const card    = document.getElementById('steamCard');
+  const titleEl = document.getElementById('steamCardTitle');
   if (!panel) return;
 
   if (card) card.style.display = '';
-  const titleEl = document.getElementById('steamCardTitle');
+  if (titleEl) titleEl.textContent = 'Invite Code';
 
-  // LAN mode or skipped — show simple LAN indicator
-  if (!serverStatus?.steamMode || serverStatus?.state === 'skipped') {
-    if (titleEl) titleEl.textContent = 'Server Mode';
+  if (inviteCode) {
     panel.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:16px;font-weight:700;color:var(--text-secondary)">● LAN</span>
-        <span style="font-size:13px;color:var(--text-muted)">Players join via local network or direct IP. Switch to Steam mode in Settings for invite codes.</span>
-      </div>`;
-    return;
-  }
-  if (titleEl) titleEl.textContent = 'Steam Invite Code';
-
-  const state = serverStatus?.state || 'unauthenticated';
-
-  // Don't wipe login form while user is typing credentials
-  if (steamLoginVisible && document.getElementById('steamUsername')) return;
-
-  // Don't wipe guard input while it's active
-  if (state === 'guard_required' && document.getElementById('steamGuardInput')) {
-    startSteamPolling();
-    return;
-  }
-
-  let html = '';
-
-  if (state === 'authenticated') {
-    const code = inviteCode
-      ? `<div class="detail-value steam-invite-code-value" style="font-family:monospace;letter-spacing:1px;font-size:15px;margin:4px 0">${escapeHtml(inviteCode)}</div>
-         <div class="detail-note">Stardew Valley → Co-op → Enter Invite Code</div>`
-      : `<div style="color:var(--text-muted);font-size:13px">Waiting for game to start...</div>`;
-    html = `
-      <div style="margin-bottom:12px">${code}</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span style="color:var(--accent);font-size:13px">● Signed in to Steam</span>
-        <button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444" onclick="steamLogout()">Sign Out</button>
-      </div>`;
-
-  } else if (state === 'guard_required') {
-    html = `
-      <div style="margin-bottom:8px;font-size:13px;color:var(--text-secondary)">
-        Steam Guard code required — check your email or authenticator app.
-      </div>
-      <div class="form-row">
-        <input type="text" id="steamGuardInput" class="input" placeholder="Steam Guard code"
-               maxlength="10" style="width:180px" onkeydown="if(event.key==='Enter') submitSteamGuard()">
-        <button class="btn btn-primary btn-sm" onclick="submitSteamGuard()">Submit</button>
-        <button class="btn btn-sm" onclick="steamCancelLogin()">Cancel</button>
-      </div>`;
-    startSteamPolling();
-
+      <div class="detail-label" style="margin-bottom:4px">Share this code with friends</div>
+      <div class="detail-value steam-invite-code-value" style="font-family:monospace;letter-spacing:1px;font-size:15px;margin:4px 0">${escapeHtml(inviteCode)}</div>
+      <div class="detail-note">Stardew Valley → Co-op → Enter Invite Code</div>`;
   } else {
-    // unauthenticated
-    if (steamLoginVisible) {
-      html = `
-        <div style="margin-bottom:8px;font-size:13px;color:var(--text-secondary)">
-          Sign in to Steam to get an invite code. Credentials are never stored.
-          <div class="steam-login-error"></div>
-        </div>
-        <div class="form-row">
-          <input type="text"     id="steamUsername" class="input" placeholder="Steam username" style="width:160px"
-                 onkeydown="if(event.key==='Enter') steamLogin()">
-          <input type="password" id="steamPassword" class="input" placeholder="Steam password" style="width:160px"
-                 onkeydown="if(event.key==='Enter') steamLogin()">
-          <button class="btn btn-success btn-sm" onclick="steamLogin()">Sign In</button>
-          <button class="btn btn-sm" onclick="steamLoginVisible=false;loadSteam()">Cancel</button>
-        </div>`;
-    } else {
-      html = `
-        <div style="margin-bottom:8px;font-size:13px;color:var(--text-secondary)">
-          Sign in to Steam to get an invite code. The server is waiting to start.
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="showSteamLoginForm()">Authenticate Steam</button>
-          <button class="btn btn-sm" onclick="steamSkip()">Start as LAN</button>
-        </div>`;
-    }
+    panel.innerHTML = `<div style="color:var(--text-muted);font-size:13px">Waiting for a multiplayer session to start...</div>`;
   }
-
-  panel.innerHTML = html;
-}
-
-function showSteamLoginForm() {
-  steamLoginVisible = true;
-  loadSteam();
-}
-
-async function steamLogin() {
-  const username = document.getElementById('steamUsername')?.value?.trim();
-  const password = document.getElementById('steamPassword')?.value;
-  if (!username || !password) { showToast('Enter your Steam username and password', 'error'); return; }
-
-  const panel = document.getElementById('steamPanel');
-  if (panel) panel.innerHTML = `<div style="color:var(--accent-info);font-size:13px">${icon('loader', 'icon icon-spin')} Signing in to Steam — this may take up to a minute...</div>`;
-
-  const data = await API.post('/api/steam/server-auth', { username, password });
-
-  if (data?.state === 'guard_required') {
-    renderSteamPanel({ steamMode: true, state: 'guard_required' }, null);
-  } else if (data?.success) {
-    steamLoginVisible = false;
-    renderSteamPanel({ steamMode: true, state: 'authenticated' }, null);
-    startSteamPolling();
-  } else {
-    showToast(data?.error || 'Login failed', 'error');
-    steamLoginVisible = true;
-    loadSteam();
-  }
-}
-
-async function submitSteamGuard() {
-  const code = document.getElementById('steamGuardInput')?.value?.trim();
-  if (!code) { showToast('Enter your Steam Guard code', 'error'); return; }
-
-  const panel = document.getElementById('steamPanel');
-  if (panel) panel.innerHTML = `<div style="color:var(--accent-info);font-size:13px">${icon('loader', 'icon icon-spin')} Verifying Steam Guard code...</div>`;
-
-  const data = await API.post('/api/steam/server-auth', { guardCode: code });
-
-  if (data?.success) {
-    steamLoginVisible = false;
-    renderSteamPanel({ steamMode: true, state: 'authenticated' }, null);
-    startSteamPolling();
-  } else {
-    showToast(data?.error || 'Failed to verify code', 'error');
-    renderSteamPanel({ steamMode: true, state: 'guard_required' }, null);
-  }
-}
-
-async function steamCancelLogin() {
-  await API.post('/api/steam/server-logout').catch(() => {});
-  steamLoginVisible = false;
-  stopSteamPolling();
-  loadSteam();
-}
-
-async function steamLogout() {
-  if (!confirm('Sign out of Steam? The invite code will stop working and the game will restart.')) return;
-  await API.post('/api/steam/server-logout').catch(() => {});
-  steamLoginVisible = false;
-  stopSteamPolling();
-  loadSteam();
-}
-
-async function steamSkip() {
-  await API.post('/api/steam/server-skip').catch(() => {});
-  stopSteamPolling();
-  const card = document.getElementById('steamCard');
-  if (card) card.style.display = 'none';
 }
 
 // ─── Farm ────────────────────────────────────────────────────────
@@ -2053,16 +1760,16 @@ function stopBackupStatusPolling() {
 async function loadServerModeCard() {
   const card = document.getElementById('serverModeCard');
   if (!card) return;
-  const data = await API.get('/api/steam/server-status').catch(() => null);
-  const isSteam = data?.steamMode === true;
+  const data = await API.get('/api/config').catch(() => null);
+  const isSteam = data?.serverMode === 'steam';
   card.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
       <div>
         <div style="font-weight:600;font-size:15px;margin-bottom:4px">Server Mode</div>
         <div style="font-size:13px;color:var(--text-secondary)">
           ${isSteam
-            ? 'Steam — authenticate on the dashboard to get a Steam invite code for friends.'
-            : 'LAN — server starts immediately, no Steam login required.'}
+            ? 'Steam — invite codes are generated automatically when multiplayer starts.'
+            : 'LAN — server is visible on the local network. No internet required.'}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">

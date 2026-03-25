@@ -240,7 +240,9 @@ function getConfig(req, res) {
     groups.push({ name: groupName, items });
   }
 
-  res.json({ groups });
+  const serverMode = (env.SERVER_MODE || process.env.SERVER_MODE || 'lan')
+    .replace(/['"]/g, '').trim() || 'lan';
+  res.json({ groups, serverMode });
 }
 
 function updateConfig(req, res) {

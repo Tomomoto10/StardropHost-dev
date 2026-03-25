@@ -128,10 +128,6 @@ app.post('/api/steam/login',      auth.verifyMiddleware, steamAPI.login);
 app.post('/api/steam/guard',      auth.verifyMiddleware, steamAPI.submitGuardCode);
 app.post('/api/steam/logout',     auth.verifyMiddleware, steamAPI.logout);
 app.get( '/api/steam/invitecode', auth.verifyMiddleware, steamAPI.getInviteCode);
-app.get( '/api/steam/server-status', auth.verifyMiddleware, steamAPI.serverAuthStatus);
-app.post('/api/steam/server-auth',   auth.verifyMiddleware, steamAPI.serverAuth);
-app.post('/api/steam/server-logout', auth.verifyMiddleware, steamAPI.serverLogout);
-app.post('/api/steam/server-skip',   auth.verifyMiddleware, steamAPI.serverSkip);
 
 // -- Setup wizard (no token on status so the frontend can decide whether to show it) --
 const wizardAPI = require('./api/wizard');

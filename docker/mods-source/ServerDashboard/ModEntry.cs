@@ -69,23 +69,6 @@ namespace ServerDashboard
         {
             // Write an initial offline status immediately on launch
             WriteOffline();
-
-            // Diagnostic: confirm Steam SDK is in place
-            string sdkPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".steam", "sdk64", "steamclient.so");
-            Monitor.Log(File.Exists(sdkPath)
-                ? $"[InviteCode] Steam SDK found at {sdkPath}"
-                : $"[InviteCode] Steam SDK NOT found at {sdkPath} — invite codes will not work",
-                File.Exists(sdkPath) ? LogLevel.Info : LogLevel.Warn);
-
-            string appIdPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "stardewvalley", "steam_appid.txt");
-            Monitor.Log(File.Exists(appIdPath)
-                ? $"[InviteCode] steam_appid.txt found: {File.ReadAllText(appIdPath).Trim()}"
-                : $"[InviteCode] steam_appid.txt NOT found at {appIdPath}",
-                File.Exists(appIdPath) ? LogLevel.Info : LogLevel.Warn);
         }
 
         private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
@@ -219,27 +202,15 @@ namespace ServerDashboard
             int   hours12  = hours > 12 ? hours - 12 : hours == 0 ? 12 : hours;
             string timeStr = $"{hours12}:{minutes:D2} {(isPm ? "PM" : "AM")}";
 
-            // Only attempt invite code retrieval when Steam auth is confirmed (/tmp/steam-ready).
-            // In LAN mode this file is never created, so we skip entirely to avoid log spam.
+            // Retrieve invite code — provided by the game's GOG Galaxy SDK when a multiplayer
+            // lobby is created. No credentials required; the game handles lobby creation.
             string? inviteCode = null;
-            bool steamReady = File.Exists("/tmp/steam-ready");
-            if (steamReady)
+            try { inviteCode = Game1.server?.getInviteCode(); } catch (Exception ex)
             {
-                try { inviteCode = Game1.server?.getInviteCode(); } catch (Exception ex)
-                {
-                    Monitor.Log($"[InviteCode] getInviteCode() threw: {ex.Message}", LogLevel.Warn);
-                }
-
-                if (string.IsNullOrEmpty(inviteCode))
-                    Monitor.Log("[InviteCode] Steam authenticated but invite code is still null — Steam lobby may not be ready yet", LogLevel.Debug);
-                else
-                    Monitor.Log($"[InviteCode] Code: {inviteCode}", LogLevel.Debug);
-
-                if (!string.IsNullOrEmpty(inviteCode))
-                {
-                    try { File.WriteAllText("/tmp/invite-code.txt", inviteCode); } catch {}
-                }
+                Monitor.Log($"[InviteCode] getInviteCode() threw: {ex.Message}", LogLevel.Trace);
             }
+            if (!string.IsNullOrEmpty(inviteCode))
+                Monitor.Log($"[InviteCode] {inviteCode}", LogLevel.Debug);
 
             return new LiveStatus
             {
