@@ -381,6 +381,8 @@ log_step "Step 3: Installing SMAPI mod loader..."
 if [ ! -f "/home/steam/stardewvalley/StardewModdingAPI" ]; then
     log_info "Installing SMAPI..."
     cd /home/steam
+    # SMAPI changed their zip structure — the installer zip may be nested inside an outer zip
+    (cd smapi && for f in *.zip; do [ -f "$f" ] && unzip -q "$f" && rm "$f"; done) 2>/dev/null || true
     echo "1" | dotnet smapi/SMAPI*/internal/linux/SMAPI.Installer.dll \
         --install \
         --game-path /home/steam/stardewvalley
