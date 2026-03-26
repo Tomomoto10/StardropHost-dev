@@ -38,6 +38,7 @@ namespace ServerDashboard
             helper.Events.GameLoop.GameLaunched    += OnGameLaunched;
             helper.Events.GameLoop.SaveLoaded      += (_, _) => ForceWrite();
             helper.Events.GameLoop.ReturnedToTitle += (_, _) => WriteOffline();
+            helper.Events.GameLoop.DayEnding       += (_, _) => GC.Collect();
 
             helper.ConsoleCommands.Add(
                 "dashboard_status",
@@ -74,6 +75,13 @@ namespace ServerDashboard
         private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
         {
             if (!Context.IsWorldReady) return;
+
+            // Keep multiplayer network settings tuned for low latency.
+            // These revert to defaults if not re-applied each tick.
+            Game1.Multiplayer.defaultInterpolationTicks      = 7;  // default: 15
+            Game1.Multiplayer.farmerDeltaBroadcastPeriod     = 1;  // default: 3
+            Game1.Multiplayer.locationDeltaBroadcastPeriod   = 1;  // default: 3
+            Game1.Multiplayer.worldStateDeltaBroadcastPeriod = 1;  // default: 3
 
             _secondsSinceLastWrite += (double)Game1.currentGameTime.ElapsedGameTime.TotalSeconds;
 

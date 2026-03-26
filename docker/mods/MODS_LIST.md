@@ -7,7 +7,7 @@
 - **Version**: 1.20.3-unofficial.5-mikkoperkele
 - **Description**: Enables headless 24/7 server operation
 - **Unique ID**: mikko.Always_On_Server
-- **License**: GPL-3.0
+- **License**: Unlicense (public domain)
 - **Nexus**: https://www.nexusmods.com/stardewvalley/mods/2677
 
 ### 2. AutoHideHost
