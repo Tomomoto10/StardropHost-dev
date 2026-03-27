@@ -32,7 +32,7 @@ RUN dpkg --add-architecture i386 && \
     dotnet-runtime-6.0 \
     dotnet-sdk-6.0 \
     # Utilities
-    procps net-tools \
+    procps net-tools patchelf \
     && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
            /usr/share/doc/* /usr/share/man/* /usr/share/info/* \

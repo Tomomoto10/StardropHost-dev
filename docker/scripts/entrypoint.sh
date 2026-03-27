@@ -604,6 +604,20 @@ fi
 echo "413150" > "$STEAM_APPID_FILE"
 log_info "✅ steam_appid.txt written (413150)"
 
+# -- Galaxy .so execstack fix --
+# On Linux, libGalaxy64.so and libGalaxyCSharpGlue.so ship with an execstack
+# flag that causes the multiplayer library to crash, silently falling back to
+# LAN and making invite codes impossible. patchelf --clear-execstack removes
+# the flag. Safe to re-run — no-op if already cleared.
+for SO in libGalaxy64.so libGalaxyCSharpGlue.so; do
+    SO_PATH="/home/steam/stardewvalley/$SO"
+    if [ -f "$SO_PATH" ]; then
+        patchelf --clear-execstack "$SO_PATH" 2>/dev/null && \
+            log_info "✅ Cleared execstack: $SO" || \
+            log_warn "⚠️  patchelf failed on $SO (non-fatal)"
+    fi
+done
+
 # -- Step 5: Virtual display --
 log_step "Step 5: Starting virtual display..."
 
