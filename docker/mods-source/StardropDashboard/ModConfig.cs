@@ -1,4 +1,4 @@
-namespace ServerDashboard
+namespace StardropDashboard
 {
     public class ModConfig
     {

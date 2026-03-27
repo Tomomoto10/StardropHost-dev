@@ -8,7 +8,7 @@ using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Buildings;
 
-namespace ServerDashboard
+namespace StardropDashboard
 {
     public class ModEntry : Mod
     {
@@ -49,7 +49,7 @@ namespace ServerDashboard
                 }
             );
 
-            Monitor.Log($"ServerDashboard ready. Output: {_outputPath}", LogLevel.Info);
+            Monitor.Log($"StardropDashboard ready. Output: {_outputPath}", LogLevel.Info);
         }
 
         // ── Resolve output directory ──────────────────────────────
@@ -161,7 +161,7 @@ namespace ServerDashboard
                 }
                 catch (Exception ex)
                 {
-                    Monitor.Log($"ServerDashboard: Error reading player {farmer?.Name} — {ex.Message}", LogLevel.Trace);
+                    Monitor.Log($"StardropDashboard: Error reading player {farmer?.Name} — {ex.Message}", LogLevel.Trace);
                 }
             }
 

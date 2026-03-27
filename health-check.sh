@@ -120,7 +120,7 @@ check_mods_loaded() {
         print_success "Mods loaded ($mod_count detected)"
         print_info "Checking for core mods..."
         docker logs --tail 200 $CONTAINER_NAME 2>&1 | grep "Loaded.*mod" | \
-            grep -i "AlwaysOnServer\|AutoHideHost\|ServerAutoLoad\|SkillLevelGuard\|ServerDashboard" | \
+            grep -i "AlwaysOnServer\|AutoHideHost\|ServerAutoLoad\|SkillLevelGuard\|StardropDashboard" | \
             while read -r line; do
                 echo -e "  ${CYAN}→${NC} $(echo "$line" | grep -oP 'Loaded \K.*')"
             done

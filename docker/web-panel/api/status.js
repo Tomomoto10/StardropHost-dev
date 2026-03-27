@@ -196,7 +196,7 @@ function collectStatus(req = null) {
     }
   } catch {}
 
-  // -- Read live-status.json from ServerDashboard mod --
+  // -- Read live-status.json from StardropDashboard mod --
   try {
     if (fs.existsSync(config.LIVE_FILE)) {
       const live = JSON.parse(fs.readFileSync(config.LIVE_FILE, 'utf-8'));
@@ -511,9 +511,9 @@ function healthCheck(req, res) {
   } catch {}
   checks.push({ name: 'Game port (24642/UDP)', pass: portOpen });
 
-  // Live status file (ServerDashboard mod)
+  // Live status file (StardropDashboard mod)
   const liveExists = fs.existsSync(config.LIVE_FILE);
-  checks.push({ name: 'ServerDashboard live status', pass: liveExists });
+  checks.push({ name: 'StardropDashboard live status', pass: liveExists });
 
   const passed = checks.filter(c => c.pass).length;
   const failed = checks.filter(c => !c.pass).length;

@@ -163,7 +163,7 @@ function sendConsoleCommand(command) {
 // -- Route Handlers --
 
 function getPlayers(req, res) {
-  // Prefer live-status.json data (richer, from ServerDashboard mod)
+  // Prefer live-status.json data (richer, from StardropDashboard mod)
   const livePlayers = getPlayersFromLiveStatus();
   const logPlayers  = parsePlayersFromLogs();
   const players     = livePlayers || logPlayers;

@@ -4,7 +4,7 @@
  * The web panel never handles Steam credentials directly — it passes them
  * straight through to the isolated steam-auth service.
  *
- * Invite code is read directly from the ServerDashboard SMAPI mod output —
+ * Invite code is read directly from the StardropDashboard SMAPI mod output —
  * no Steam login is required for that.
  */
 
@@ -109,7 +109,7 @@ async function logout(req, res) {
 }
 
 async function getInviteCode(req, res) {
-  // Invite code is written by the ServerDashboard SMAPI mod via Game1.server.getInviteCode()
+  // Invite code is written by the StardropDashboard SMAPI mod via Game1.server.getInviteCode()
   const serverMode = (process.env.SERVER_MODE || 'lan').toLowerCase();
 
   // 1. Try dedicated invite-code file (written immediately when code is generated)

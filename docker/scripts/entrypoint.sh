@@ -430,20 +430,20 @@ else
     log_info "✅ SMAPI already installed"
 fi
 
-# -- Step 3.5: Build ServerDashboard mod --
+# -- Step 3.5: Build StardropDashboard mod --
 # Runs here because game files + SMAPI are now in place, providing the
 # DLLs (StardewValley.dll, StardewModdingAPI.dll) that ModBuildConfig
 # needs. NuGet packages were pre-restored into the image during docker build
 # so this works without internet access.
-log_step "Step 3.5: Building ServerDashboard mod..."
+log_step "Step 3.5: Building StardropDashboard mod..."
 
-SD_SRC="/home/steam/mod-source/ServerDashboard"
-SD_DEST="/home/steam/preinstalled-mods/ServerDashboard"
+SD_SRC="/home/steam/mod-source/StardropDashboard"
+SD_DEST="/home/steam/preinstalled-mods/StardropDashboard"
 
-if [ -f "$SD_DEST/ServerDashboard.dll" ]; then
-    log_info "✅ ServerDashboard already built"
+if [ -f "$SD_DEST/StardropDashboard.dll" ]; then
+    log_info "✅ StardropDashboard already built"
 elif [ -d "$SD_SRC" ]; then
-    log_info "Building ServerDashboard against game files..."
+    log_info "Building StardropDashboard against game files..."
     dotnet build "$SD_SRC" -c Release \
         /p:GamePath=/home/steam/stardewvalley \
         /p:EnableModDeploy=false \
@@ -451,18 +451,18 @@ elif [ -d "$SD_SRC" ]; then
         2>&1
 
     SD_OUT="$SD_SRC/bin/Release/net6.0"
-    if [ -f "$SD_OUT/ServerDashboard.dll" ]; then
+    if [ -f "$SD_OUT/StardropDashboard.dll" ]; then
         mkdir -p "$SD_DEST"
-        cp "$SD_OUT/ServerDashboard.dll" "$SD_DEST/"
+        cp "$SD_OUT/StardropDashboard.dll" "$SD_DEST/"
         cp "$SD_SRC/manifest.json"       "$SD_DEST/"
         chown -R steam:steam "$SD_DEST" 2>/dev/null || true
-        log_info "✅ ServerDashboard built and staged"
+        log_info "✅ StardropDashboard built and staged"
     else
-        log_warn "⚠️  ServerDashboard build failed — live dashboard data won't update"
+        log_warn "⚠️  StardropDashboard build failed — live dashboard data won't update"
         log_warn "    The server will still run normally"
     fi
 else
-    log_warn "⚠️  ServerDashboard source not found at $SD_SRC — skipping"
+    log_warn "⚠️  StardropDashboard source not found at $SD_SRC — skipping"
 fi
 
 # -- Step 3.55: Build AutoHideHost mod (translated source replaces pre-built DLL) --

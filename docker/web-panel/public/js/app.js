@@ -1597,7 +1597,7 @@ function updateDashboardUI(data) {
 }
 
 // ─── Steam Invite Code ────────────────────────────────────────────
-// Invite code is written to live-status.json by the ServerDashboard SMAPI mod.
+// Invite code is written to live-status.json by the StardropDashboard SMAPI mod.
 // The game's GOG Galaxy SDK provides it automatically when a multiplayer lobby
 // is created — no credentials or authentication required.
 
@@ -1678,7 +1678,7 @@ async function loadFarm() {
       </div>
     </div>
     <div style="margin-top:12px">${players}</div>
-    ${!data.liveDataAvailable ? '<div style="margin-top:8px;color:var(--text-muted);font-size:13px">Live data unavailable — ServerDashboard mod not installed (Phase 6)</div>' : ''}
+    ${!data.liveDataAvailable ? '<div style="margin-top:8px;color:var(--text-muted);font-size:13px">Live data unavailable — StardropDashboard mod not installed (Phase 6)</div>' : ''}
   `;
 
   // Community Center

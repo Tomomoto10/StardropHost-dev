@@ -104,12 +104,12 @@ else
 fi
 echo ""
 
-# -- 8. ServerDashboard --
-echo -e "${BOLD}[8/10] Mod: ServerDashboard${NC}"
-if echo "$LOG" | grep -q "ServerDashboard"; then
-    check_pass "ServerDashboard loaded"
+# -- 8. StardropDashboard --
+echo -e "${BOLD}[8/10] Mod: StardropDashboard${NC}"
+if echo "$LOG" | grep -q "StardropDashboard"; then
+    check_pass "StardropDashboard loaded"
 else
-    check_warn "ServerDashboard not detected in logs"
+    check_warn "StardropDashboard not detected in logs"
 fi
 echo ""
 

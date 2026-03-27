@@ -6,11 +6,11 @@ Known limitations, first-build pitfalls, and workarounds.
 
 ## First Build Issues
 
-### ServerDashboard mod fails to build
+### StardropDashboard mod fails to build
 
 **Symptom:** `docker build` fails at the `dotnet build` step with a restore or compile error.
 
-**Cause:** `dotnet-sdk-6.0` must be installed in the image and the `ServerDashboard.csproj` NuGet restore requires internet access during build.
+**Cause:** `dotnet-sdk-6.0` must be installed in the image and the `StardropDashboard.csproj` NuGet restore requires internet access during build.
 
 **Workaround:**
 - Ensure your Docker build host has internet access.

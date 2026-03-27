@@ -48,7 +48,7 @@ process_log_line() {
     fi
 
     # Mod output
-    if echo "$line" | grep -qE "\[[0-9]{2}:[0-9]{2}:[0-9]{2}\s+(TRACE|DEBUG|INFO|WARN|ERROR)\s+(Server Auto Load|Skill Level Guard|AutoHideHost|Always On Server|Save Backup|ServerDashboard)\]"; then
+    if echo "$line" | grep -qE "\[[0-9]{2}:[0-9]{2}:[0-9]{2}\s+(TRACE|DEBUG|INFO|WARN|ERROR)\s+(Server Auto Load|Skill Level Guard|AutoHideHost|Always On Server|Save Backup|StardropDashboard)\]"; then
         echo "[$timestamp] $line" >> "$MOD_LOG"
     fi
 

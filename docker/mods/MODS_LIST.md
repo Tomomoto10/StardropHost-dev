@@ -40,11 +40,11 @@
   - Prevents unwanted LevelUpMenu popups
   - Enables Always On Server auto mode on save load
 
-### 5. ServerDashboard ⭐ NEW
+### 5. StardropDashboard ⭐ NEW
 - **Author**: StardropHost
 - **Version**: 1.0.0
 - **Description**: Writes live game state to `live-status.json` every 10 seconds for the web panel
-- **Unique ID**: stardrop.ServerDashboard
+- **Unique ID**: stardrop.StardropDashboard
 - **License**: MIT
 - **Features**:
   - Real-time player data (health, energy, position, money)
@@ -69,8 +69,8 @@ All mods are pre-installed and pre-configured. Settings can be adjusted via the 
 ### Save Selection
 Leave `SAVE_NAME` blank in `.env` to auto-load the most recent save, or set it to a specific save folder name.
 
-### Update Interval (ServerDashboard)
-Edit `ServerDashboard/config.json`:
+### Update Interval (StardropDashboard)
+Edit `StardropDashboard/config.json`:
 ```json
 {
   "UpdateIntervalSeconds": 10

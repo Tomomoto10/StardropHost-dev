@@ -18,7 +18,7 @@ StardropHost/
 │   │   └── SkillLevelGuard/
 │   ├── mods-source/
 │   │   ├── AutoHideHost_v1.0.1/    # C# source for AutoHideHost (reference)
-│   │   ├── ServerDashboard/        # C# source — built at container startup (Step 3.5)
+│   │   ├── StardropDashboard/        # C# source — built at container startup (Step 3.5)
 │   │   └── FarmAutoCreate/         # C# source — built at container startup (Step 3.6)
 │   ├── scripts/
 │   │   ├── entrypoint.sh           # Container startup (main logic)
@@ -113,7 +113,7 @@ entrypoint.sh
                                  - None → wait loop (re-reads env every 30s,
                                    picks up credentials written by wizard)
                     [Step 3]   Install SMAPI (skip if already installed)
-                    [Step 3.5] Build ServerDashboard mod from source
+                    [Step 3.5] Build StardropDashboard mod from source
                                (needs game DLLs, so runs after Step 2)
                     [Step 3.6] Build FarmAutoCreate mod from source
                                (headless new-farm creation, no xdotool)
@@ -131,11 +131,11 @@ entrypoint.sh
 
 ## Key Design Decisions
 
-### ServerDashboard and FarmAutoCreate mods (built at container startup)
+### StardropDashboard and FarmAutoCreate mods (built at container startup)
 
 Both mods are built from source inside the running container (Steps 3.5/3.6 in entrypoint.sh), **not** at image build time. This is intentional: `ModBuildConfig` needs `StardewValley.dll` and `StardewModdingAPI.dll`, which only exist after game files are mounted at runtime. NuGet packages are pre-restored during `docker build` (the `dotnet restore` layer in Dockerfile) so the runtime builds work offline.
 
-**ServerDashboard** writes live server status to `/home/steam/web-panel/data/live-status.json`, which the web panel reads for the dashboard.
+**StardropDashboard** writes live server status to `/home/steam/web-panel/data/live-status.json`, which the web panel reads for the dashboard.
 
 **FarmAutoCreate** reads `/home/steam/web-panel/data/new-farm.json` when the title screen appears and creates a new multiplayer farm programmatically using Stardew's own C# API — no xdotool or VNC interaction required. Technique adapted from Junimo Host's `GameCreatorService`.
 
@@ -149,7 +149,7 @@ SMAPI logs player IDs as large negative integers (e.g. `-123456789012345`). All 
 
 ### Atomic status writes
 
-`ServerDashboard` and `status-reporter.sh` write files via a `.tmp` + `mv` pattern to prevent the web panel reading a partial file mid-write.
+`StardropDashboard` and `status-reporter.sh` write files via a `.tmp` + `mv` pattern to prevent the web panel reading a partial file mid-write.
 
 ### `/api/vnc/connected` — no auth
 

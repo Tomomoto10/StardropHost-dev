@@ -18,7 +18,7 @@ Initial release of StardropHost — a fork of `puppy-stardew-server` (v1.0.77) r
 ### Web Panel
 
 - First-run wizard: admin password → game files → resource limits → server settings → confirm
-- Live status dashboard backed by `ServerDashboard` SMAPI mod writing `live-status.json`
+- Live status dashboard backed by `StardropDashboard` SMAPI mod writing `live-status.json`
 - Log streaming via WebSocket
 - Mod management: list, enable/disable, upload custom mods
 - Save management: browse, select active save, upload archives, download backups
@@ -31,7 +31,7 @@ Initial release of StardropHost — a fork of `puppy-stardew-server` (v1.0.77) r
 - **AutoHideHost** (v1.0.1) — teleports the host character off-screen so they don't interfere
 - **ServerAutoLoad** — auto-loads the last Co-op save on startup
 - **SkillLevelGuard** — enforces a minimum skill level for players joining
-- **ServerDashboard** (custom) — built from source at image build time; writes `live-status.json` for the web panel
+- **StardropDashboard** (custom) — built from source at image build time; writes `live-status.json` for the web panel
 
 ### Scripts
 
@@ -49,7 +49,7 @@ Initial release of StardropHost — a fork of `puppy-stardew-server` (v1.0.77) r
 
 - Fixed `docker-compose.yml` truncated mid-definition — `stardrop-server` service was missing `depends_on`, `environment`, `volumes`, and `ports`
 - Fixed `docker-compose.yml` `stardrop-steam-auth` build path: `./steam-auth` → `./docker/steam-auth`
-- Fixed `Dockerfile` dotnet build copy: `cp -r bin/Release/net6.0/ServerDashboard` (directory doesn't exist) → copy DLL and manifest separately
+- Fixed `Dockerfile` dotnet build copy: `cp -r bin/Release/net6.0/StardropDashboard` (directory doesn't exist) → copy DLL and manifest separately
 - Fixed `web-panel/api/wizard.js` importing `hashPassword` which was never exported from `auth.js` (runtime crash on Step 1)
 - Fixed `wizard.js` writing password to `auth.json` while `auth.js` reads `panel.json` — routed through `auth.setupPassword()`
 - Created missing `docker/steam-auth/package.json` (Dockerfile ran `npm ci` against a non-existent manifest)

@@ -3,7 +3,7 @@
  * Farm overview — live player data + save file parsing
  *
  * Two data sources, used in priority order:
- *   1. live-status.json  — written every 10s by ServerDashboard mod (Phase 6)
+ *   1. live-status.json  — written every 10s by StardropDashboard mod (Phase 6)
  *                          real-time: players, time, season, weather
  *   2. Save file XML     — parsed on demand
  *                          rich:      Community Center, skills, inventory, relationships
@@ -245,7 +245,7 @@ function getLiveStatus(req, res) {
       available: false,
       message:   fs.existsSync(config.LIVE_FILE)
         ? 'Live status file exists but data is stale or unreadable'
-        : 'ServerDashboard mod not installed or server not running',
+        : 'StardropDashboard mod not installed or server not running',
     });
   }
 

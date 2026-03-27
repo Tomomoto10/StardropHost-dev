@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ServerDashboard
+namespace StardropDashboard
 {
     public class LiveStatus
     {
