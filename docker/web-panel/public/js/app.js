@@ -2418,15 +2418,23 @@ async function restartServer() {
 
 async function startServer() {
   const data = await API.post('/api/server/start').catch(() => null);
-  if (data?.success) { showToast('Server starting...', 'success'); renderQuickActions(); updateServerToggleBtn(); }
-  else showToast(data?.error || 'Failed to start server', 'error');
+  if (data?.success) {
+    showToast('Server starting...', 'success');
+    setTimeout(loadDashboard, 2000);
+  } else {
+    showToast(data?.error || 'Failed to start server', 'error');
+  }
 }
 
 async function stopServer() {
   if (!confirm('Stop the server? Players will be disconnected.')) return;
   const data = await API.post('/api/server/stop').catch(() => null);
-  if (data?.success) { showToast('Server stopped', 'success'); renderQuickActions(); updateServerToggleBtn(); }
-  else showToast(data?.error || 'Failed to stop server', 'error');
+  if (data?.success) {
+    showToast('Server stopped', 'success');
+    setTimeout(loadDashboard, 1500);
+  } else {
+    showToast(data?.error || 'Failed to stop server', 'error');
+  }
 }
 
 async function toggleServer() {
