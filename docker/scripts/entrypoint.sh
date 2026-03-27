@@ -440,9 +440,7 @@ log_step "Step 3.5: Building StardropDashboard mod..."
 SD_SRC="/home/steam/mod-source/StardropDashboard"
 SD_DEST="/home/steam/preinstalled-mods/StardropDashboard"
 
-if [ -f "$SD_DEST/StardropDashboard.dll" ]; then
-    log_info "✅ StardropDashboard already built"
-elif [ -d "$SD_SRC" ]; then
+if [ -d "$SD_SRC" ]; then
     log_info "Building StardropDashboard against game files..."
     dotnet build "$SD_SRC" -c Release \
         /p:GamePath=/home/steam/stardewvalley \
@@ -607,14 +605,35 @@ log_info "✅ steam_appid.txt written (413150)"
 # -- Galaxy .so execstack fix --
 # On Linux, libGalaxy64.so and libGalaxyCSharpGlue.so ship with an execstack
 # flag that causes the multiplayer library to crash, silently falling back to
-# LAN and making invite codes impossible. patchelf --clear-execstack removes
-# the flag. Safe to re-run — no-op if already cleared.
+# LAN and making invite codes impossible.
+# patchelf 0.14.3 (Ubuntu 22.04) lacks --clear-execstack; use Python to clear
+# the X bit in PT_GNU_STACK directly. Safe to re-run — no-op if already cleared.
+_CLEAR_EXECSTACK_PY='
+import struct, sys
+with open(sys.argv[1], "r+b") as f:
+    if f.read(4) != b"\x7fELF": sys.exit(1)
+    f.seek(4);  bits = struct.unpack("B", f.read(1))[0]
+    f.seek(5);  end  = "<" if struct.unpack("B", f.read(1))[0] == 1 else ">"
+    if bits == 2:
+        f.seek(32); po = struct.unpack(end+"Q", f.read(8))[0]
+        f.seek(54); ps = struct.unpack(end+"H", f.read(2))[0]
+        f.seek(56); pn = struct.unpack(end+"H", f.read(2))[0]
+        for i in range(pn):
+            f.seek(po + i*ps); pt = struct.unpack(end+"I", f.read(4))[0]
+            if pt == 0x6474e551:
+                fp = po + i*ps + 4
+                f.seek(fp); fl = struct.unpack(end+"I", f.read(4))[0]
+                if fl & 1:
+                    f.seek(fp); f.write(struct.pack(end+"I", fl & ~1))
+                sys.exit(0)
+sys.exit(1)
+'
 for SO in libGalaxy64.so libGalaxyCSharpGlue.so; do
     SO_PATH="/home/steam/stardewvalley/$SO"
     if [ -f "$SO_PATH" ]; then
-        patchelf --clear-execstack "$SO_PATH" 2>/dev/null && \
+        python3 -c "$_CLEAR_EXECSTACK_PY" "$SO_PATH" && \
             log_info "✅ Cleared execstack: $SO" || \
-            log_warn "⚠️  patchelf failed on $SO (non-fatal)"
+            log_warn "⚠️  Could not clear execstack on $SO (non-fatal)"
     fi
 done
 

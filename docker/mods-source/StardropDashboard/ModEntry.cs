@@ -141,6 +141,27 @@ namespace StardropDashboard
                 Monitor.Log($"SteamNetServer patch failed (non-fatal): {ex.Message}", LogLevel.Warn);
             }
 
+            // Patches 6-7 — Fake Steam Client API calls that crash in GameServer mode
+            // The game calls SteamUser.GetSteamID() and SteamFriends.GetPersonaName() in
+            // various places even after we skip SteamHelper.Initialize. Without patching them,
+            // they throw because SteamAPI.Init() was never called.
+            try
+            {
+                harmony.Patch(
+                    original: AccessTools.Method(typeof(Steamworks.SteamUser), nameof(Steamworks.SteamUser.GetSteamID)),
+                    prefix:   new HarmonyMethod(typeof(ModEntry), nameof(SteamUser_GetSteamID_Prefix))
+                );
+                harmony.Patch(
+                    original: AccessTools.Method(typeof(Steamworks.SteamFriends), nameof(Steamworks.SteamFriends.GetPersonaName)),
+                    prefix:   new HarmonyMethod(typeof(ModEntry), nameof(SteamFriends_GetPersonaName_Prefix))
+                );
+                Monitor.Log("SteamUser/SteamFriends patches applied.", LogLevel.Trace);
+            }
+            catch (Exception ex)
+            {
+                Monitor.Log($"SteamUser/SteamFriends patches failed (non-fatal): {ex.Message}", LogLevel.Warn);
+            }
+
             helper.ConsoleCommands.Add(
                 "dashboard_status",
                 "Force an immediate write of live-status.json.",
@@ -288,6 +309,26 @@ namespace StardropDashboard
         private static bool SteamNetServer_Initialize_Prefix()
         {
             _instance?.Monitor.Log("SteamNetServer.initialize skipped (GameServer mode).", LogLevel.Debug);
+            return false; // skip original
+        }
+
+        // ── Harmony: SteamUser.GetSteamID prefix ─────────────────
+        // SteamAPI.Init() was never called (GameServer mode), so any direct call to
+        // SteamUser.GetSteamID() would crash. Return GameServer's Steam ID instead,
+        // or a stable fake ID while waiting for the GameServer connection.
+        private static bool SteamUser_GetSteamID_Prefix(ref CSteamID __result)
+        {
+            __result = (_steamInitialized && _serverSteamId.IsValid())
+                ? _serverSteamId
+                : new CSteamID(123456789UL);
+            return false; // skip original
+        }
+
+        // ── Harmony: SteamFriends.GetPersonaName prefix ──────────
+        // Same reason as above — Steam Client API unavailable in GameServer mode.
+        private static bool SteamFriends_GetPersonaName_Prefix(ref string __result)
+        {
+            __result = ServerName;
             return false; // skip original
         }
 
