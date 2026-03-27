@@ -19,6 +19,8 @@ NC='\033[0m'
 log()       { echo -e "${GREEN}[Crash-Monitor]${NC} $1"; }
 log_error() { echo -e "${RED}[Crash-Monitor]${NC} $1"; }
 
+STOP_FLAG="/tmp/stardrop-server-stopped"
+
 RESTART_TIMES=()
 
 can_restart() {
@@ -33,11 +35,22 @@ can_restart() {
 cd "$GAME_DIR" || exit 1
 
 while true; do
+    # Wait while deliberately stopped
+    while [ -f "$STOP_FLAG" ]; do
+        sleep 2
+    done
+
     log "Starting game server..."
     ./StardewModdingAPI --server
     EXIT_CODE=$?
 
     log_error "Game process exited (exit code: $EXIT_CODE)"
+
+    # If stopped deliberately, don't count as a crash — just wait for start signal
+    if [ -f "$STOP_FLAG" ]; then
+        log "Server was stopped deliberately. Waiting for start signal..."
+        continue
+    fi
 
     if ! can_restart; then
         log_error "Too many restarts (${MAX_RESTARTS} within ${RESTART_WINDOW}s)"

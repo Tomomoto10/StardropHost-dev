@@ -2420,7 +2420,8 @@ async function startServer() {
   const data = await API.post('/api/server/start').catch(() => null);
   if (data?.success) {
     showToast('Server starting...', 'success');
-    setTimeout(loadDashboard, 2000);
+    // Poll until gameRunning becomes true (crash-monitor picks up flag removal)
+    _pollServerState(true, 15000);
   } else {
     showToast(data?.error || 'Failed to start server', 'error');
   }
@@ -2431,10 +2432,23 @@ async function stopServer() {
   const data = await API.post('/api/server/stop').catch(() => null);
   if (data?.success) {
     showToast('Server stopped', 'success');
-    setTimeout(loadDashboard, 1500);
+    // Poll until gameRunning becomes false
+    _pollServerState(false, 10000);
   } else {
     showToast(data?.error || 'Failed to stop server', 'error');
   }
+}
+
+// Poll /api/status every 1s until gameRunning matches target, then update UI
+async function _pollServerState(targetRunning, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  const poll = async () => {
+    const data = await API.get('/api/status').catch(() => null);
+    if (data) updateDashboardUI(data);
+    if (data && !!data.gameRunning === targetRunning) return;
+    if (Date.now() < deadline) setTimeout(poll, 1000);
+  };
+  setTimeout(poll, 800);
 }
 
 async function toggleServer() {

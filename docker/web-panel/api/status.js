@@ -390,14 +390,14 @@ function restartServer(req, res) {
   }
 }
 
-// Stop game process — kill crash-monitor first so it doesn't auto-restart
+const STOP_FLAG = '/tmp/stardrop-server-stopped';
+
+// Stop game process — set stop flag so crash-monitor won't restart, then kill SMAPI
 function stopServer(req, res) {
   try {
-    spawnSync('sh', ['-lc',
-      'pkill -f "crash-monitor.sh" >/dev/null 2>&1 || true; ' +
-      'sleep 1; ' +
-      'pkill -f "StardewModdingAPI|Stardew Valley" >/dev/null 2>&1 || true'
-    ], { encoding: 'utf-8', timeout: 10000 });
+    fs.writeFileSync(STOP_FLAG, '');
+    spawnSync('sh', ['-lc', 'pkill -f "StardewModdingAPI|Stardew Valley" >/dev/null 2>&1 || true'],
+      { encoding: 'utf-8', timeout: 5000 });
     cachedStatus = null;
     res.json({ success: true, message: 'Game stopped' });
   } catch (e) {
@@ -405,17 +405,10 @@ function stopServer(req, res) {
   }
 }
 
-// Start game process — relaunch crash-monitor which starts SMAPI in its loop
+// Start game process — remove stop flag so crash-monitor resumes its loop
 function startServer(req, res) {
   try {
-    const { spawn } = require('child_process');
-    const child = spawn('/home/steam/scripts/crash-monitor.sh', [], {
-      cwd:      '/home/steam/stardewvalley',
-      env:      process.env,
-      detached: true,
-      stdio:    'ignore',
-    });
-    child.unref();
+    if (fs.existsSync(STOP_FLAG)) fs.unlinkSync(STOP_FLAG);
     cachedStatus = null;
     res.json({ success: true, message: 'Game start initiated' });
   } catch (e) {
