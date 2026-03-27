@@ -2711,6 +2711,8 @@ async function stopServer() {
     isStopping = true;
     if (lastStatusData) updateDashboardUI(lastStatusData);
     showToast('Server stopping...', 'info');
+    // Log out of steam-auth on deliberate stop — modal will re-appear on next start
+    API.post('/api/steam/logout').catch(() => null);
     _pollServerState(false, 35000);
   } else {
     showToast(data?.error || 'Failed to stop server', 'error');
@@ -2727,7 +2729,13 @@ async function _pollServerState(targetRunning, timeoutMs) {
     const reached = targetRunning
       ? data?.live?.serverState === 'running'
       : data && !data.gameRunning;
-    if (reached) { if (targetRunning && !isGameRestarting) showToast('Server is online', 'success'); return; }
+    if (reached) {
+      if (targetRunning && !isGameRestarting) {
+        showToast('Server is online', 'success');
+        checkSteamAuthRequired();  // re-prompt if online mode (skip if restart — stay logged in)
+      }
+      return;
+    }
     if (Date.now() < deadline) setTimeout(poll, 1500);
   };
   setTimeout(poll, 800);

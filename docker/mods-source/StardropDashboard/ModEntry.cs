@@ -403,21 +403,85 @@ namespace StardropDashboard
 
             Action<uint> onStateChange = (state) =>
             {
-                if (steamHelper.Networking != null) return;
-
                 if ((state & 1) != 0)
                     Monitor.Log("Galaxy signed in.", LogLevel.Debug);
 
                 if ((state & 2) != 0)
                 {
                     Monitor.Log("Galaxy logged on — invite codes active.", LogLevel.Info);
-                    SetSteamNetworking(steamHelper, CreateSteamNetHelper());
-                    SetSteamConnectionFinished(steamHelper, true);
+                    // Networking may already be set from the initial fallback (ticket fetch failed
+                    // at launch). Don't overwrite it, but always mark Galaxy as connected —
+                    // SetSteamGalaxyConnected(true) switches sdk.Networking to GalaxyNetHelper,
+                    // which TryLateAddGalaxyServer then uses to create the GalaxyNetServer.
+                    if (steamHelper.Networking == null)
+                    {
+                        SetSteamNetworking(steamHelper, CreateSteamNetHelper());
+                        SetSteamConnectionFinished(steamHelper, true);
+                    }
                     SetSteamGalaxyConnected(steamHelper, true);
+                    TryLateAddGalaxyServer();
                 }
             };
 
             return (IOperationalStateChangeListener)Activator.CreateInstance(listenerType, onStateChange)!;
+        }
+
+        // ── Late-add Galaxy server (race condition recovery) ──────
+        // Called when Galaxy logs on after the game server is already running.
+        // Adds a GalaxyNetServer to Game1.server's internal servers list so the
+        // Galaxy lobby is created and an invite code becomes available.
+        // Must be called AFTER SetSteamGalaxyConnected(true) — that call switches
+        // sdk.Networking to GalaxyNetHelper so CreateServer() produces the right type.
+        private static void TryLateAddGalaxyServer()
+        {
+            try
+            {
+                if (Game1.server == null)
+                {
+                    _instance?.Monitor.Log("TryLateAddGalaxyServer: Game1.server is null, skipping.", LogLevel.Debug);
+                    return;
+                }
+
+                var sdkGetter = AccessTools.PropertyGetter(
+                    AccessTools.TypeByName("StardewValley.Program"), "sdk");
+                var sdk = sdkGetter?.Invoke(null, null) as SDKHelper;
+                if (sdk?.Networking == null)
+                {
+                    _instance?.Monitor.Log("TryLateAddGalaxyServer: sdk.Networking is null, skipping.", LogLevel.Debug);
+                    return;
+                }
+
+                var serversField = _helper!.Reflection.GetField<List<Server>>(Game1.server, "servers");
+                var servers = serversField.GetValue();
+
+                // Don't add a second GalaxyNetServer if one already exists
+                bool alreadyHasGalaxy = false;
+                foreach (var s in servers)
+                    if (s.GetType().Name == "GalaxyNetServer") { alreadyHasGalaxy = true; break; }
+
+                if (alreadyHasGalaxy)
+                {
+                    _instance?.Monitor.Log("TryLateAddGalaxyServer: GalaxyNetServer already present.", LogLevel.Debug);
+                    return;
+                }
+
+                _instance?.Monitor.Log("Late-adding GalaxyNetServer (Galaxy logged on after server created)...", LogLevel.Info);
+                var galaxyServer = sdk.Networking.CreateServer(Game1.server);
+                if (galaxyServer != null)
+                {
+                    servers.Add(galaxyServer);
+                    galaxyServer.initialize();
+                    _instance?.Monitor.Log("GalaxyNetServer added — invite code should appear shortly.", LogLevel.Info);
+                }
+                else
+                {
+                    _instance?.Monitor.Log("TryLateAddGalaxyServer: CreateServer returned null.", LogLevel.Warn);
+                }
+            }
+            catch (Exception ex)
+            {
+                _instance?.Monitor.Log($"TryLateAddGalaxyServer failed (non-fatal): {ex.Message}", LogLevel.Warn);
+            }
         }
 
         // ── SteamHelper reflection helpers ────────────────────────
