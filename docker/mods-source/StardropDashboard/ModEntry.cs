@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HarmonyLib;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -19,6 +20,10 @@ namespace StardropDashboard
         private double _secondsSinceLastWrite = 0;
         private string _outputPath = "";
 
+        // ── Invite code (captured via Harmony hook) ───────────────
+        private static string? _cachedInviteCode = null;
+        private static ModEntry? _instance = null;
+
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             PropertyNamingPolicy        = JsonNamingPolicy.CamelCase,
@@ -29,6 +34,8 @@ namespace StardropDashboard
         // ── Entry point ───────────────────────────────────────────
         public override void Entry(IModHelper helper)
         {
+            _instance = this;
+
             Config = helper.ReadConfig<ModConfig>();
 
             _outputPath = ResolveOutputPath();
@@ -40,6 +47,22 @@ namespace StardropDashboard
             helper.Events.GameLoop.ReturnedToTitle += (_, _) => WriteOffline();
             helper.Events.GameLoop.DayEnding       += (_, _) => GC.Collect();
 
+            // Hook GalaxySocket.GetInviteCode to capture the invite code the instant
+            // the game generates it — more reliable than waiting for the next polling cycle.
+            try
+            {
+                var harmony = new Harmony(ModManifest.UniqueID);
+                harmony.Patch(
+                    original: AccessTools.Method("StardewValley.Network.GalaxySocket:GetInviteCode"),
+                    postfix:  new HarmonyMethod(typeof(ModEntry), nameof(GalaxySocket_GetInviteCode_Postfix))
+                );
+                Monitor.Log("Invite code hook applied.", LogLevel.Trace);
+            }
+            catch (Exception ex)
+            {
+                Monitor.Log($"Invite code hook failed (non-fatal): {ex.Message}", LogLevel.Warn);
+            }
+
             helper.ConsoleCommands.Add(
                 "dashboard_status",
                 "Force an immediate write of live-status.json.",
@@ -50,6 +73,19 @@ namespace StardropDashboard
             );
 
             Monitor.Log($"StardropDashboard ready. Output: {_outputPath}", LogLevel.Info);
+        }
+
+        // ── Harmony postfix — fires when game generates invite code ──
+        private static void GalaxySocket_GetInviteCode_Postfix(string __result)
+        {
+            if (string.IsNullOrEmpty(__result)) return;
+            if (__result == _cachedInviteCode) return;
+
+            _cachedInviteCode = __result;
+            _instance?.Monitor.Log($"[InviteCode] Captured: {__result}", LogLevel.Debug);
+
+            // Write immediately rather than waiting for the next polling cycle
+            _instance?.ForceWrite();
         }
 
         // ── Resolve output directory ──────────────────────────────
@@ -95,6 +131,7 @@ namespace StardropDashboard
         // ── Write offline tombstone ───────────────────────────────
         private void WriteOffline()
         {
+            _cachedInviteCode = null;
             var status = new LiveStatus
             {
                 Timestamp   = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
@@ -210,15 +247,15 @@ namespace StardropDashboard
             int   hours12  = hours > 12 ? hours - 12 : hours == 0 ? 12 : hours;
             string timeStr = $"{hours12}:{minutes:D2} {(isPm ? "PM" : "AM")}";
 
-            // Retrieve invite code — provided by the game's GOG Galaxy SDK when a multiplayer
-            // lobby is created. No credentials required; the game handles lobby creation.
-            string? inviteCode = null;
-            try { inviteCode = Game1.server?.getInviteCode(); } catch (Exception ex)
+            // Use the invite code captured by the Harmony hook.
+            // Falls back to polling getInviteCode() if the hook hasn't fired yet.
+            string? inviteCode = _cachedInviteCode;
+            if (string.IsNullOrEmpty(inviteCode))
             {
-                Monitor.Log($"[InviteCode] getInviteCode() threw: {ex.Message}", LogLevel.Trace);
+                try { inviteCode = Game1.server?.getInviteCode(); } catch { }
+                if (!string.IsNullOrEmpty(inviteCode))
+                    _cachedInviteCode = inviteCode;
             }
-            if (!string.IsNullOrEmpty(inviteCode))
-                Monitor.Log($"[InviteCode] {inviteCode}", LogLevel.Debug);
 
             return new LiveStatus
             {
