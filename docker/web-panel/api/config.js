@@ -71,7 +71,7 @@ const CONFIG_SCHEMA = {
   ],
   'Stability': [
     { key: 'ENABLE_CRASH_RESTART', label: 'Auto Crash Restart', type: 'boolean', default: 'true' },
-    { key: 'MAX_CRASH_RESTARTS',   label: 'Max Restarts',       type: 'number',  default: '5' },
+    { key: 'MAX_CRASH_RESTARTS',   label: 'Max Restarts',       type: 'number',  default: '3' },
   ],
   'Monitoring': [
     { key: 'ENABLE_LOG_MONITOR', label: 'Log Monitor',   type: 'boolean', default: 'true' },

@@ -1937,14 +1937,21 @@ async function loadConfig() {
   const data = await API.get('/api/config');
   if (!data) return;
 
-  const container = document.getElementById('configContainer');
-  container.innerHTML = '';
+  const container       = document.getElementById('configContainer');
+  const containerBottom = document.getElementById('configContainerBottom');
+  container.innerHTML       = '';
+  if (containerBottom) containerBottom.innerHTML = '';
+
+  // Groups rendered below the VNC card
+  const BOTTOM_GROUPS = new Set(['Server', 'Monitoring']);
 
   const deferredTzPickers = [];
 
   for (const group of data.groups) {
     // VNC & Display settings are rendered inside the VNC panel card below
     if (group.name === 'VNC & Display') continue;
+
+    const target = (containerBottom && BOTTOM_GROUPS.has(group.name)) ? containerBottom : container;
 
     const card = document.createElement('div');
     card.className = 'card config-group';
@@ -2000,7 +2007,7 @@ async function loadConfig() {
       card.appendChild(row);
     }
 
-    container.appendChild(card);
+    target.appendChild(card);
 
     // Now card is in the DOM — build any deferred timezone pickers for this card
     for (const p of deferredTzPickers.splice(0)) {
@@ -2126,7 +2133,7 @@ async function vncEnable() {
 async function vncDisable() {
   if (!confirm('Disable VNC? Active connections will be dropped.')) return;
   const data = await API.post('/api/vnc/disable');
-  if (data?.success) { showToast('VNC disabled', 'success'); loadVnc(); }
+  if (data?.success) { showToast('VNC disabled', 'success'); setTimeout(loadVnc, 1500); }
   else showToast(data?.error || 'Failed to disable VNC', 'error');
 }
 
