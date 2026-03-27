@@ -32,7 +32,8 @@ namespace StardropDashboard
         private ModConfig Config = null!;
 
         // ── State ─────────────────────────────────────────────────
-        private double _secondsSinceLastWrite = 0;
+        private double _secondsSinceLastWrite       = 0;
+        private double _secondsSinceLastGalaxyRetry = 0;
         private string _outputPath = "";
 
         // ── Static ref — needed by Harmony postfixes ──────────────
@@ -469,20 +470,35 @@ namespace StardropDashboard
             Game1.Multiplayer.locationDeltaBroadcastPeriod   = 1;  // default: 3
             Game1.Multiplayer.worldStateDeltaBroadcastPeriod = 1;  // default: 3
 
-            _secondsSinceLastWrite += (double)Game1.currentGameTime.ElapsedGameTime.TotalSeconds;
+            double elapsed = Game1.currentGameTime.ElapsedGameTime.TotalSeconds;
+            _secondsSinceLastWrite += elapsed;
 
             if (_secondsSinceLastWrite >= Config.UpdateIntervalSeconds)
             {
                 _secondsSinceLastWrite = 0;
                 WriteStatus();
             }
+
+            // Retry Galaxy sign-in every 30s while running but not yet signed in.
+            // Covers the case where the user opens the panel and logs into steam-auth
+            // after the save has already loaded (the SaveLoaded one-shot is already gone).
+            if (_galaxyInitComplete && !_galaxySignedIn && !string.IsNullOrEmpty(_steamAuthUrl))
+            {
+                _secondsSinceLastGalaxyRetry += elapsed;
+                if (_secondsSinceLastGalaxyRetry >= 30)
+                {
+                    _secondsSinceLastGalaxyRetry = 0;
+                    Task.Run(() => FetchTicketAndSignIn(null));
+                }
+            }
         }
 
         // ── Write offline tombstone ───────────────────────────────
         private void WriteOffline()
         {
-            _cachedInviteCode = null;
-            _galaxySignedIn   = false;
+            _cachedInviteCode            = null;
+            _galaxySignedIn              = false;
+            _secondsSinceLastGalaxyRetry = 0;
             WriteToDisk(new LiveStatus
             {
                 Timestamp   = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
