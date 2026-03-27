@@ -1179,6 +1179,7 @@ let isGameRestarting       = false;
 let gameRestartInitiatedAt = 0;
 let isStopping             = false;
 let isStarting             = false;
+let isTransitioning        = false; // true during any start/stop/restart/boot state
 
 // ─── Theme ───────────────────────────────────────────────────────
 let currentTheme = (() => {
@@ -1403,8 +1404,8 @@ function _qaButtonDef(id) {
   if (id === 'toggle-server') {
     const running = !!(lastStatusData?.gameRunning);
     return running
-      ? { label: 'Stop Server',  icon: 'icon-screen',  cls: 'btn-danger',  onclick: 'stopServer()' }
-      : { label: 'Start Server', icon: 'icon-refresh', cls: 'btn-success', onclick: 'startServer()' };
+      ? { label: 'Stop Server',  icon: 'icon-screen',  cls: 'btn-danger',  onclick: 'stopServer()',  disabled: isTransitioning }
+      : { label: 'Start Server', icon: 'icon-refresh', cls: 'btn-success', onclick: 'startServer()', disabled: isTransitioning };
   }
   return QUICK_ACTION_DEFS[id];
 }
@@ -1421,7 +1422,7 @@ function renderQuickActions() {
       ondragstart="onQADragStart(event)" ondragover="onQADragOver(event)"
       ondrop="onQADrop(event)" ondragend="onQADragEnd(event)"`;
     return `<div class="quick-action-wrap${editClass}" ${drag}>
-      <button class="btn ${def.cls}" type="button" onclick="${quickActionsEditMode ? '' : def.onclick}">
+      <button class="btn ${def.cls}" type="button" onclick="${quickActionsEditMode ? '' : def.onclick}" ${def.disabled ? 'disabled' : ''}>
         <svg class="icon"><use href="#${def.icon}"></use></svg>${escapeHtml(def.label)}
       </button>
       <button class="quick-action-remove" onclick="removeQuickAction('${id}')" title="Remove">×</button>
@@ -1558,10 +1559,11 @@ function updateDashboardUI(data) {
   document.getElementById('serverStatus').innerHTML =
     `<span class="status-dot ${statusClass}"></span><span id="serverStatusText">${statusText}</span>`;
 
+  isTransitioning = starting;
   // Update config tab server toggle button
-  updateServerToggleBtn();
+  updateServerToggleBtn(starting);
 
-  // Disable restart button while game is loading or restarting
+  // Disable restart button while in any transitional state
   const restartBtn = document.querySelector('.btn[onclick="restartServer()"]');
   if (restartBtn) restartBtn.disabled = starting;
 
@@ -2486,13 +2488,14 @@ async function toggleServer() {
   else await startServer();
 }
 
-function updateServerToggleBtn() {
+function updateServerToggleBtn(transitioning = false) {
   const btn = document.getElementById('serverToggleBtn');
   if (!btn) return;
   const running = !!(lastStatusData?.gameRunning);
   btn.textContent = running ? 'Stop Server' : 'Start Server';
   btn.className   = `btn btn-sm ${running ? 'btn-danger' : 'btn-success'}`;
   btn.onclick     = running ? stopServer : startServer;
+  btn.disabled    = transitioning;
 }
 
 async function createBackup() {
