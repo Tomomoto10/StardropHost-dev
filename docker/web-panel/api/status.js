@@ -124,10 +124,12 @@ function getNetworkInfo(requestHost = '') {
   };
 }
 
-// -- Get host CPU core count for normalisation --
-// BUG FIX: ps reports CPU per-core so divide by nproc to get true % of total host capacity.
-// Always use host core count — CPU_LIMIT caps usage but doesn't change the display denominator.
+// -- Get effective CPU core count for normalisation --
+// BUG FIX: ps reports CPU per-core. Divide by CPU_LIMIT to get % of allocated budget.
+// Falls back to nproc (% of total host) when no limit is set.
 function getCoreCount() {
+  const envLimit = parseFloat(process.env.CPU_LIMIT || '0');
+  if (envLimit > 0) return envLimit;
   try {
     return parseInt(execSync('nproc', { encoding: 'utf-8' }).trim(), 10) || 1;
   } catch {
