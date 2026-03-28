@@ -24,7 +24,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -66,25 +65,53 @@ namespace StardropHostDependencies
         // ── Headless Server state ────────────────────────────────────────────
         private readonly Dictionary<string, int> _prevFriendships = new();
 
+        // ── Rendering state (shared by Harmony patches) ──────────────────────
+        private static bool _shouldDrawFrame = false;
+
         // ════════════════════════════════════════════════════════════════════
         // ENTRY
         // ════════════════════════════════════════════════════════════════════
 
         public override void Entry(IModHelper helper)
         {
-            // Disable rendering — server runs headless, no need to draw frames to Xvfb at 60fps.
-            // This is the single biggest CPU saving for a dedicated server (matches AlwaysOnServer behaviour).
+            // Headless server optimisations — disable rendering, sound, and input.
+            // Approach from JunimoServer (MIT): patch at MonoGame level using SuppressDraw()
+            // so frame presentation is suppressed, not just the game's draw method.
+            // Each patch is individually try-caught so a single failure can't prevent mod load.
             var harmony = new Harmony(ModManifest.UniqueID);
-            harmony.Patch(
-                AccessTools.Method(typeof(Game1), "_draw"),
-                prefix: new HarmonyMethod(typeof(ModEntry), nameof(SkipDraw))
-            );
+
+            try
+            {
+                harmony.Patch(
+                    AccessTools.Method(typeof(Game), "BeginDraw"),
+                    prefix: new HarmonyMethod(typeof(ModEntry), nameof(BeginDraw_Prefix)));
+            }
+            catch (Exception ex) { Monitor.Log($"[HeadlessServer] BeginDraw patch failed: {ex.Message}", LogLevel.Warn); }
+
+            foreach (var sig in new[]
+            {
+                "StardewValley.Game1:updateMusic",
+                "StardewValley.Game1:initializeVolumeLevels",
+                "StardewValley.Audio.SoundsHelper:PlayLocal",
+                "StardewValley.Game1:UpdateControlInput",
+                "StardewValley.BellsAndWhistles.Butterfly:update",
+                "StardewValley.BellsAndWhistles.AmbientLocationSounds:update",
+            })
+            {
+                try
+                {
+                    harmony.Patch(AccessTools.Method(sig),
+                        prefix: new HarmonyMethod(typeof(ModEntry), nameof(Disable_Prefix)));
+                }
+                catch (Exception ex) { Monitor.Log($"[HeadlessServer] Patch '{sig}' skipped: {ex.Message}", LogLevel.Trace); }
+            }
 
             helper.Events.GameLoop.SaveLoaded       += OnSaveLoaded;
             helper.Events.GameLoop.DayStarted       += OnDayStarted;
             helper.Events.GameLoop.UpdateTicked     += OnUpdateTicked;
             helper.Events.GameLoop.TimeChanged      += OnTimeChanged;
             helper.Events.GameLoop.Saving           += OnSaving;
+            helper.Events.GameLoop.DayEnding        += OnDayEnding;
             helper.Events.Display.MenuChanged       += OnMenuChanged;
             helper.Events.Multiplayer.PeerConnected    += OnPeerConnected;
             helper.Events.Multiplayer.PeerDisconnected += OnPeerDisconnected;
@@ -127,6 +154,7 @@ namespace StardropHostDependencies
 
         private void OnDayStarted(object? sender, DayStartedEventArgs e)
         {
+            _shouldDrawFrame = false; // re-suppress after DayEnding enabled it for save
             if (!Context.IsMainPlayer) return;
 
             HideHost();
@@ -223,6 +251,7 @@ namespace StardropHostDependencies
 
         private void OnSaving(object? sender, SavingEventArgs e)
         {
+            _shouldDrawFrame = true; // safety net — DayEnding should have already set this
             if (!Context.IsMainPlayer) return;
 
             // Ensure host wakes in FarmHouse, not the Desert
@@ -243,6 +272,16 @@ namespace StardropHostDependencies
             // Auto-dismiss any blocking DialogueBox during save
             if (Game1.activeClickableMenu is DialogueBox)
                 Game1.activeClickableMenu.receiveLeftClick(10, 10);
+        }
+
+        private void OnDayEnding(object? sender, DayEndingEventArgs e)
+        {
+            // Re-enable drawing before the end-of-night save sequence.
+            // SaveGameMenu.update() checks hasDrawn (set inside Draw()) before it begins saving.
+            // If drawing is still suppressed here, the save deadlocks waiting for hasDrawn.
+            // OnDayStarted re-suppresses after the new day finishes loading.
+            _shouldDrawFrame = true;
+            GC.Collect();
         }
 
         private void OnMenuChanged(object? sender, MenuChangedEventArgs e)
@@ -762,13 +801,23 @@ namespace StardropHostDependencies
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // HEADLESS RENDERING PATCH
+        // HEADLESS RENDERING PATCHES
         // ════════════════════════════════════════════════════════════════════
 
-        // Returning false from a Harmony prefix skips the original method entirely.
-        // This prevents Game1._draw() from running each frame — the game still ticks
-        // at full speed for logic/network but doesn't waste CPU rendering to Xvfb.
-        private static bool SkipDraw(GameTime gameTime, RenderTarget2D toBuffer) => false;
+        // Prefix on Game.BeginDraw(). Calls SuppressDraw() so MonoGame skips frame
+        // presentation entirely — cheaper than patching Game1._draw() which only skips
+        // the Stardew draw code but still lets MonoGame clear/present the buffer.
+        // Must be public for Harmony to find it via nameof().
+        public static bool BeginDraw_Prefix(Game __instance)
+        {
+            if (_shouldDrawFrame) return true;
+            __instance.SuppressDraw();
+            return false;
+        }
+
+        // Generic prefix — returns false to skip the patched method entirely.
+        // Used for sound, input, and ambient effect methods.
+        public static bool Disable_Prefix() => false;
 
         // ════════════════════════════════════════════════════════════════════
         // WAIT CONDITION HELPER
