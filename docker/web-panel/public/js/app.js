@@ -2922,7 +2922,7 @@ async function confirmSelfUpdate() {
     const loaderText = loader?.querySelector('.app-loader-text');
     if (loaderText) loaderText.textContent = 'Updating StardropHost...';
     const loaderSub = document.getElementById('app-loader-sub');
-    if (loaderSub) { loaderSub.textContent = 'If the dashboard doesn\'t load after 30s, refresh the page.'; loaderSub.style.display = 'block'; }
+    if (loaderSub) { loaderSub.textContent = 'The dashboard may take up to a minute to load, if it doesn\'t, reload the page.'; loaderSub.style.display = 'block'; }
     if (loader) loader.classList.remove('hidden');
     const app = document.getElementById('app');
     if (app) app.style.display = 'none';
@@ -2977,13 +2977,13 @@ async function loadRemoteStatus() {
       if (statusEl) {
         if (running) {
           statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
-            <span class="status-dot" style="background:var(--accent)"></span>
-            <span style="font-weight:500;color:var(--accent)">Active</span>
+            <span class="status-dot running"></span>
+            <span style="font-weight:500;color:#22c55e">Active</span>
             <span style="color:var(--text-secondary);font-size:13px">— Share your playit.gg address with friends to connect</span>
           </div>`;
         } else {
           statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
-            <span class="status-dot" style="background:var(--text-muted)"></span>
+            <span class="status-dot offline"></span>
             <span style="font-weight:500;color:var(--text-muted)">Paused</span>
             <span style="color:var(--text-secondary);font-size:13px">— Tunnel is stopped, key is saved</span>
           </div>`;
