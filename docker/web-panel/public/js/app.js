@@ -2890,10 +2890,13 @@ async function confirmSelfUpdate() {
   const data = await API.post('/api/server/update').catch(() => null);
   if (data?.success || data?.action === 'update') {
     closeSelfUpdateModal();
-    // Hide notification — update is underway
-    const notif = document.getElementById('panelUpdateNotification');
-    if (notif) notif.style.display = 'none';
-    showToast('Update started — the panel will restart shortly...', 'success');
+    // Show the full-screen loader with "Updating..." while the container rebuilds
+    const loader = document.getElementById('app-loader');
+    const loaderText = loader?.querySelector('.app-loader-text');
+    if (loaderText) loaderText.textContent = 'Updating StardropHost...';
+    if (loader) loader.classList.remove('hidden');
+    const app = document.getElementById('app');
+    if (app) app.style.display = 'none';
     setTimeout(startContainerReconnectPolling, 5000);
   } else {
     showToast(data?.error || 'Update failed', 'error');
