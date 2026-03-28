@@ -4,7 +4,7 @@
  */
 
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const http = require('http');
 const config = require('../server');
 
@@ -163,8 +163,9 @@ setInterval(() => {
 // The web panel runs inside the game container, so no docker exec needed.
 function sendConsoleCommand(command) {
   try {
-    const pids = execSync('pgrep -f StardewModdingAPI', { encoding: 'utf-8' })
-      .trim().split('\n').filter(Boolean);
+    // Use spawnSync (not execSync) to avoid shell wrapper self-matching pgrep
+    const result = spawnSync('pgrep', ['-f', 'StardewModdingAPI'], { encoding: 'utf-8' });
+    const pids = result.stdout.trim().split('\n').filter(Boolean);
     const pid = pids[0];
     if (!pid) return false;
     const input = command.endsWith('\n') ? command : `${command}\n`;

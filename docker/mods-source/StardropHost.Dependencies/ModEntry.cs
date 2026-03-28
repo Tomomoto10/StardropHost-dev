@@ -80,6 +80,10 @@ namespace StardropHostDependencies
             helper.Events.Multiplayer.PeerDisconnected += OnPeerDisconnected;
             helper.Events.Player.Warped             += OnWarped;
 
+            helper.ConsoleCommands.Add("kick",  "Kick a connected farmhand. Usage: kick <name|id>",   OnKickCommand);
+            helper.ConsoleCommands.Add("ban",   "Ban a connected farmhand. Usage: ban <name|id>",    OnBanCommand);
+            helper.ConsoleCommands.Add("unban", "Unban a player by name. Usage: unban <name|id>", OnUnbanCommand);
+
             Monitor.Log("StardropHost.Dependencies loaded.", LogLevel.Info);
         }
 
@@ -655,6 +659,87 @@ namespace StardropHostDependencies
                     _petHandled = true; // don't get stuck
                 }
             }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // PLAYER MANAGER — kick / ban / unban
+        // ════════════════════════════════════════════════════════════════════
+
+        private Farmer? FindFarmhand(string target)
+        {
+            // Match by name (case-insensitive) or numeric UniqueMultiplayerID string
+            return Game1.getOnlineFarmers()
+                .Where(f => f.UniqueMultiplayerID != Game1.player.UniqueMultiplayerID)
+                .FirstOrDefault(f =>
+                    f.Name.Equals(target, StringComparison.OrdinalIgnoreCase) ||
+                    f.UniqueMultiplayerID.ToString() == target);
+        }
+
+        private void OnKickCommand(string cmd, string[] args)
+        {
+            if (!Context.IsWorldReady || !Context.IsMainPlayer)
+            {
+                Monitor.Log("Kick requires an active hosted session.", LogLevel.Warn);
+                return;
+            }
+            if (args.Length == 0) { Monitor.Log("Usage: kick <name|id>", LogLevel.Info); return; }
+
+            var target = string.Join(" ", args);
+            var farmer = FindFarmhand(target);
+
+            if (farmer == null)
+            {
+                Monitor.Log($"[PlayerManager] Kick: player '{target}' not found online.", LogLevel.Warn);
+                return;
+            }
+
+            Game1.server.kick(farmer.UniqueMultiplayerID);
+            Monitor.Log($"[PlayerManager] Kicked {farmer.Name} ({farmer.UniqueMultiplayerID}).", LogLevel.Info);
+        }
+
+        private void OnBanCommand(string cmd, string[] args)
+        {
+            if (!Context.IsWorldReady || !Context.IsMainPlayer)
+            {
+                Monitor.Log("Ban requires an active hosted session.", LogLevel.Warn);
+                return;
+            }
+            if (args.Length == 0) { Monitor.Log("Usage: ban <name|id>", LogLevel.Info); return; }
+
+            var target = string.Join(" ", args);
+            var farmer = FindFarmhand(target);
+
+            if (farmer == null)
+            {
+                Monitor.Log($"[PlayerManager] Ban: player '{target}' not found online.", LogLevel.Warn);
+                return;
+            }
+
+            Game1.server.ban(farmer.UniqueMultiplayerID);
+            Monitor.Log($"[PlayerManager] Banned {farmer.Name} ({farmer.UniqueMultiplayerID}).", LogLevel.Info);
+        }
+
+        private void OnUnbanCommand(string cmd, string[] args)
+        {
+            if (args.Length == 0) { Monitor.Log("Usage: unban <name|id>", LogLevel.Info); return; }
+
+            var target = string.Join(" ", args);
+            var toRemove = Game1.bannedUsers
+                .Where(kv => kv.Value.Equals(target, StringComparison.OrdinalIgnoreCase)
+                          || kv.Key == target)
+                .Select(kv => kv.Key)
+                .ToList();
+
+            if (toRemove.Count == 0)
+            {
+                Monitor.Log($"[PlayerManager] Unban: no banned player matching '{target}'.", LogLevel.Warn);
+                return;
+            }
+
+            foreach (var key in toRemove)
+                Game1.bannedUsers.Remove(key);
+
+            Monitor.Log($"[PlayerManager] Unbanned '{target}'.", LogLevel.Info);
         }
 
         // ════════════════════════════════════════════════════════════════════
