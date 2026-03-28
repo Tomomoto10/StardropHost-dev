@@ -22,7 +22,9 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HarmonyLib;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -70,6 +72,14 @@ namespace StardropHostDependencies
 
         public override void Entry(IModHelper helper)
         {
+            // Disable rendering — server runs headless, no need to draw frames to Xvfb at 60fps.
+            // This is the single biggest CPU saving for a dedicated server (matches AlwaysOnServer behaviour).
+            var harmony = new Harmony(ModManifest.UniqueID);
+            harmony.Patch(
+                AccessTools.Method(typeof(Game1), "_draw"),
+                prefix: new HarmonyMethod(typeof(ModEntry), nameof(SkipDraw))
+            );
+
             helper.Events.GameLoop.SaveLoaded       += OnSaveLoaded;
             helper.Events.GameLoop.DayStarted       += OnDayStarted;
             helper.Events.GameLoop.UpdateTicked     += OnUpdateTicked;
@@ -750,6 +760,15 @@ namespace StardropHostDependencies
 
             Monitor.Log($"[PlayerManager] Unbanned '{target}'.", LogLevel.Info);
         }
+
+        // ════════════════════════════════════════════════════════════════════
+        // HEADLESS RENDERING PATCH
+        // ════════════════════════════════════════════════════════════════════
+
+        // Returning false from a Harmony prefix skips the original method entirely.
+        // This prevents Game1._draw() from running each frame — the game still ticks
+        // at full speed for logic/network but doesn't waste CPU rendering to Xvfb.
+        private static bool SkipDraw(GameTime gameTime, RenderTarget2D toBuffer) => false;
 
         // ════════════════════════════════════════════════════════════════════
         // WAIT CONDITION HELPER
