@@ -23,7 +23,6 @@ using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Locations;
 using StardewValley.Menus;
-using StardewValley.Network;
 using StardewValley.Objects;
 
 namespace StardropHostDependencies
@@ -423,9 +422,14 @@ namespace StardropHostDependencies
         {
             try
             {
-                var field = Helper.Reflection.GetField<Dictionary<string, NetReady>>(
+                // Use IDictionary to avoid a hard reference to the internal NetReady type
+                var field = Helper.Reflection.GetField<System.Collections.IDictionary>(
                     Game1.player.team, "readyChecks", required: false);
-                return field?.GetValue()?.Keys.FirstOrDefault();
+                var dict = field?.GetValue();
+                if (dict == null) return null;
+                foreach (var key in dict.Keys)
+                    return key?.ToString();
+                return null;
             }
             catch { return null; }
         }
