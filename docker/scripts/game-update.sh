@@ -81,11 +81,27 @@ if [ -f "/home/steam/stardewvalley/StardewValley" ]; then
     write_log "✅ Game updated successfully"
     write_status '{"state":"done","message":"Game updated successfully — restart the server to apply"}'
 
-    # Update the availability check file so the notification clears
-    MANIFEST="/home/steam/stardewvalley/steamapps/appmanifest_413150.acf"
-    NEW_BUILD=$(grep '"buildid"' "$MANIFEST" 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
-    if [ -n "$NEW_BUILD" ]; then
-        echo '{"available":false,"currentBuild":"'"$NEW_BUILD"'","latestBuild":"'"$NEW_BUILD"'","checkedAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$CHECK_FILE"
+    # Clear the update notification by recording the Steam API latestBuild as installed.
+    # We deliberately use the Steam API build (not the ACF buildid) because on Linux
+    # the ACF buildid may never match the cross-platform Steam API number even after
+    # a successful update. Recording what Steam reported as "latest" ensures the
+    # notification stays cleared until a genuinely newer build appears.
+    STEAM_LATEST=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$CHECK_FILE'))
+    print(d.get('latestBuild') or d.get('currentBuild') or '')
+except Exception:
+    print('')
+" 2>/dev/null || true)
+    INSTALLED_BUILD="${STEAM_LATEST}"
+    # Fall back to ACF if we have nothing better
+    if [ -z "$INSTALLED_BUILD" ]; then
+        INSTALLED_BUILD=$(grep '"buildid"' "/home/steam/stardewvalley/steamapps/appmanifest_413150.acf" \
+            2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
+    fi
+    if [ -n "$INSTALLED_BUILD" ]; then
+        echo '{"available":false,"installedBuild":"'"$INSTALLED_BUILD"'","latestBuild":"'"$INSTALLED_BUILD"'","checkedAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$CHECK_FILE"
     fi
 
     rm -f "$STEAMCMD_TMP"

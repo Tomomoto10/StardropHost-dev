@@ -1271,6 +1271,8 @@ function init() {
     document.getElementById('logOutput').innerHTML = '';
   };
 
+  document.getElementById('logDownload').onclick = downloadLogs;
+
   document.querySelectorAll('.log-filter').forEach(btn => {
     btn.onclick = () => {
       document.querySelectorAll('.log-filter').forEach(b => b.classList.remove('active'));
@@ -1341,7 +1343,7 @@ function navigateTo(page) {
       break;
     case 'saves':     loadSaves();                                           break;
     case 'mods':      loadMods();                                            break;
-    case 'terminal':  loadLogs('all'); subscribeToLogs('all');               break;
+    case 'terminal':  loadLogs('game'); subscribeToLogs('game');             break;
     case 'config':    loadConfig(); loadVnc(); loadServerModeCard();         break;
   }
 }
@@ -1614,6 +1616,10 @@ function updateDashboardUI(data) {
   setText('detail-local-ips', net.localIps?.[0] || '--');
   setText('detail-vnc',       data.vncEnabled ? `Enabled — port ${net.vncPort || 5900}` : 'Disabled');
 
+  // Show "Check for Updates" bar once the server is running
+  const updateCheckBar = document.getElementById('updateCheckBar');
+  if (updateCheckBar) updateCheckBar.style.display = liveRunning ? '' : 'none';
+
   // Panel update notification (StardropHost itself)
   const panelNotif = document.getElementById('panelUpdateNotification');
   if (panelNotif) {
@@ -1773,6 +1779,33 @@ function formatGameTime(t) {
 }
 
 // ─── Logs ────────────────────────────────────────────────────────
+async function downloadLogs() {
+  const btn = document.getElementById('logDownload');
+  if (btn) { btn.disabled = true; btn.textContent = 'Downloading...'; }
+
+  try {
+    const data = await API.get('/api/logs?type=all&lines=5000');
+    if (!data?.lines?.length) { showToast('No logs to download', 'warn'); return; }
+
+    const text = data.lines.map(l => l.text).join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href     = url;
+    a.download = `stardrop-logs-${ts}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    showToast('Failed to download logs', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg class="icon"><use href="#icon-download"></use></svg> Download';
+    }
+  }
+}
+
 async function loadLogs(filter, search) {
   const params = new URLSearchParams({ type: filter || 'all', lines: 300 });
   if (search) params.set('search', search);
@@ -2841,4 +2874,20 @@ async function confirmSelfUpdate() {
     btn.disabled = false;
     btn.textContent = 'Update Now';
   }
+}
+
+async function checkAllUpdates() {
+  const btn = document.getElementById('checkUpdatesBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking...'; }
+
+  await Promise.all([
+    API.post('/api/game-update/check').catch(() => null),
+    API.post('/api/panel-update/check').catch(() => null),
+  ]);
+
+  // Refresh status to pick up new check results
+  await _pollServerState(false);
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Check for Updates'; }
+  showToast('Update check complete', 'success');
 }

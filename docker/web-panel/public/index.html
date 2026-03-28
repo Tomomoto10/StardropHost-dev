@@ -392,6 +392,9 @@
 
           <div id="panelUpdateNotification" style="display:none"></div>
           <div id="gameUpdateNotification" style="display:none"></div>
+          <div id="updateCheckBar" style="display:none;text-align:right;margin-bottom:8px">
+            <button class="btn btn-sm btn-secondary" type="button" id="checkUpdatesBtn" onclick="checkAllUpdates()">Check for Updates</button>
+          </div>
 
           <div class="card">
             <h3>Quick Actions</h3>
@@ -501,17 +504,20 @@
           <div class="card console-card">
             <div class="logs-toolbar">
               <div class="log-filters">
-                <button class="log-filter active" type="button" data-filter="all">All</button>
+                <button class="log-filter active" type="button" data-filter="game">Game</button>
                 <button class="log-filter" type="button" data-filter="error">Errors</button>
-                <button class="log-filter" type="button" data-filter="mod">Mods</button>
-                <button class="log-filter" type="button" data-filter="server">Server</button>
-                <button class="log-filter" type="button" data-filter="game">Game</button>
+                <button class="log-filter" type="button" data-filter="smapi">SMAPI</button>
+                <button class="log-filter" type="button" data-filter="all">All</button>
               </div>
               <input type="text" id="logSearch" class="input input-sm" placeholder="Search logs...">
               <div class="log-controls">
                 <button class="btn btn-sm" id="logAutoScroll" type="button" title="Toggle auto-scroll">
                   <svg class="icon"><use href="#icon-download"></use></svg>
                   Auto
+                </button>
+                <button class="btn btn-sm" id="logDownload" type="button" title="Download all logs">
+                  <svg class="icon"><use href="#icon-download"></use></svg>
+                  Download
                 </button>
                 <button class="btn btn-sm" id="logClear" type="button" title="Clear display">
                   <svg class="icon"><use href="#icon-trash"></use></svg>

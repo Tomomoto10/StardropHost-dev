@@ -307,7 +307,10 @@ function collectStatus(req = null) {
       const check = JSON.parse(fs.readFileSync(checkFile, 'utf-8'));
       status.gameUpdateAvailable = check.available === true;
       if (check.available) {
-        status.gameUpdateBuilds = { current: check.currentBuild, latest: check.latestBuild };
+        status.gameUpdateBuilds = {
+          current: check.installedBuild || check.currentBuild,
+          latest:  check.latestBuild,
+        };
       }
     } else {
       status.gameUpdateAvailable = false;

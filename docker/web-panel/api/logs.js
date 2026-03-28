@@ -33,21 +33,22 @@ function getLogSource(filter) {
   return { path: config.SMAPI_LOG, filtered: true };
 }
 
-function matchesFilter(filter, line) {
-  if (!line || filter === 'all' || filter === 'smapi') return true;
+function isSmapiSource(line) {
+  return /\[\d{2}:\d{2}:\d{2}\s+\w+\s+SMAPI\]/i.test(line);
+}
 
+function matchesFilter(filter, line) {
+  if (!line || filter === 'all') return true;
+
+  if (filter === 'smapi') {
+    return isSmapiSource(line);
+  }
   if (filter === 'error') {
     return /ERROR|FATAL|Exception/i.test(line);
   }
-  if (filter === 'mod') {
-    return /\[\d{2}:\d{2}:\d{2}\s+(TRACE|DEBUG|INFO|WARN|ERROR)\s+(?!SMAPI\b|game\b)([^\]]+)\]/i.test(line);
-  }
-  if (filter === 'server') {
-    return /Starting LAN server|Starting server\. Protocol|ServerOfflineMode|Multiplayer|Connection|joined the game|left the game|farmhand|player connected|player disconnected|peer .* joined|peer .* left|client .* connected|client .* disconnected|Received connection for vanilla player|Approved request for farmhand/i.test(line);
-  }
+  // "game" tab = everything that is NOT a pure SMAPI-sourced line
   if (filter === 'game') {
-    return /\[\d{2}:\d{2}:\d{2}\s+(TRACE|DEBUG|INFO|WARN|ERROR)\s+game\]/i.test(line) &&
-      !matchesFilter('server', line);
+    return !isSmapiSource(line);
   }
   return true;
 }

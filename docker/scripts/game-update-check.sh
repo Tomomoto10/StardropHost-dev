@@ -34,8 +34,26 @@ check_for_update() {
         return
     fi
 
-    local installed_build
-    installed_build=$(grep '"buildid"' "$MANIFEST" 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
+    # Prefer installedBuild from the check file (written by game-update.sh after a
+    # successful download). This records the Steam API build number rather than the
+    # ACF buildid, which on Linux may differ from the cross-platform Steam build ID
+    # even when the game is fully up to date.
+    local installed_build=""
+    if [ -f "$STATUS_FILE" ]; then
+        installed_build=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$STATUS_FILE'))
+    print(d.get('installedBuild') or d.get('currentBuild') or '')
+except Exception:
+    print('')
+" 2>/dev/null || true)
+    fi
+
+    # Fall back to ACF if no stored build
+    if [ -z "$installed_build" ]; then
+        installed_build=$(grep '"buildid"' "$MANIFEST" 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
+    fi
 
     if [ -z "$installed_build" ]; then
         write_status '{"available":false,"reason":"no_manifest","checkedAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
@@ -83,10 +101,10 @@ EOF
 
     if [ "$installed_build" = "$latest_build" ]; then
         log_info "Game is up to date"
-        write_status '{"available":false,"currentBuild":"'"$installed_build"'","latestBuild":"'"$latest_build"'","checkedAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+        write_status '{"available":false,"installedBuild":"'"$installed_build"'","latestBuild":"'"$latest_build"'","checkedAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
     else
         log_info "Update available: $installed_build → $latest_build"
-        write_status '{"available":true,"currentBuild":"'"$installed_build"'","latestBuild":"'"$latest_build"'","checkedAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+        write_status '{"available":true,"installedBuild":"'"$installed_build"'","latestBuild":"'"$latest_build"'","checkedAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
     fi
 }
 

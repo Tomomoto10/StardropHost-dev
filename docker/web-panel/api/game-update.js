@@ -62,14 +62,14 @@ function getStatus(req, res) {
   } catch {}
 
   res.json({
-    available:     check?.available     ?? false,
-    currentBuild:  check?.currentBuild  || getInstalledBuildId(),
-    latestBuild:   check?.latestBuild   || null,
-    checkedAt:     check?.checkedAt     || null,
-    reason:        check?.reason        || null,
-    update:        update               || null,
-    log:           logLines,
-    running:       updateProcess !== null,
+    available:      check?.available                                                ?? false,
+    installedBuild: check?.installedBuild || check?.currentBuild || getInstalledBuildId(),
+    latestBuild:    check?.latestBuild    || null,
+    checkedAt:      check?.checkedAt      || null,
+    reason:         check?.reason         || null,
+    update:         update                || null,
+    log:            logLines,
+    running:        updateProcess !== null,
   });
 }
 
