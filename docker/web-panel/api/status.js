@@ -221,17 +221,19 @@ function collectStatus(req = null) {
   if (_pgrep.status === 0 && pidStr) {
     status.gameRunning = true;
 
-    // Always read fresh metrics from the live process — never use stale status.json values
-    // (status.json from a previous run persists on disk and would show wrong values during Starting...)
+    // Sum ALL processes for CPU (not just SMAPI) — matches what the host/hypervisor sees
     try {
-      const cpuRaw = parseFloat(execSync(`ps -p ${pidStr} -o %cpu= 2>/dev/null`, { encoding: 'utf-8' }).trim()) || 0;
+      const cpuAll = execSync(`ps -e -o %cpu= 2>/dev/null | awk '{s+=$1} END {print s}'`, { encoding: 'utf-8' }).trim();
       const cores = getCoreCount();
-      status.cpu = Math.round((cpuRaw / cores) * 10) / 10;
+      status.cpu = Math.round((parseFloat(cpuAll) / cores) * 10) / 10;
     } catch {}
 
+    // Use total system memory usage (MemTotal - MemAvailable) — includes Xvfb, Node, scripts etc.
     try {
-      const rssStr = execSync(`grep VmRSS /proc/${pidStr}/status 2>/dev/null | awk '{print $2}'`, { encoding: 'utf-8' }).trim();
-      if (rssStr) status.memory.used = Math.round(parseInt(rssStr, 10) / 1024);
+      const meminfo     = fs.readFileSync('/proc/meminfo', 'utf-8');
+      const totalKB     = parseInt(meminfo.match(/MemTotal:\s+(\d+)/)?.[1]     || '0', 10);
+      const availableKB = parseInt(meminfo.match(/MemAvailable:\s+(\d+)/)?.[1] || '0', 10);
+      if (totalKB > 0) status.memory.used = Math.round((totalKB - availableKB) / 1024);
     } catch {}
 
     if (status.uptime === 0) {
@@ -275,15 +277,6 @@ function collectStatus(req = null) {
     }
   }
 
-  // Fill memory.used from /proc/meminfo if still zero while game is running
-  if (status.gameRunning && status.memory.used === 0) {
-    try {
-      const meminfo    = fs.readFileSync('/proc/meminfo', 'utf-8');
-      const totalKB    = parseInt(meminfo.match(/MemTotal:\s+(\d+)/)?.[1]     || '0', 10);
-      const availableKB= parseInt(meminfo.match(/MemAvailable:\s+(\d+)/)?.[1] || '0', 10);
-      if (totalKB > 0) status.memory.used = Math.round((totalKB - availableKB) / 1024);
-    } catch {}
-  }
 
   // -- Fill gaps from SMAPI log hints --
   const hints = extractLogHints();
