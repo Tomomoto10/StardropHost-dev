@@ -1631,7 +1631,7 @@ function updateDashboardUI(data) {
   // Panel update notification (StardropHost itself)
   const panelNotif = document.getElementById('panelUpdateNotification');
   if (panelNotif) {
-    if (data.panelUpdateAvailable) {
+    if (liveRunning && data.panelUpdateAvailable) {
       const info = data.panelUpdateInfo || {};
       const sub  = info.message ? `"${info.message.substring(0, 60)}${info.message.length > 60 ? '…' : ''}"` : 'A new version is available';
       panelNotif.innerHTML = `
@@ -1652,7 +1652,7 @@ function updateDashboardUI(data) {
   // Game update notification
   const notif = document.getElementById('gameUpdateNotification');
   if (notif) {
-    if (data.gameUpdateAvailable) {
+    if (liveRunning && data.gameUpdateAvailable) {
       const builds = data.gameUpdateBuilds || {};
       const sub = builds.latest ? `Build ${builds.current || '?'} → ${builds.latest}` : 'A new version is available';
       notif.innerHTML = `
