@@ -200,61 +200,65 @@ function getPlayers(req, res) {
     if (now - p.lastSeen > RECENT_EXPIRE_MS) recentPlayers.delete(id);
   }
 
+  const bans = loadBans();
+  const bannedIds   = new Set(bans.map(b => b.id).filter(Boolean));
+  const bannedNames = new Set(bans.map(b => b.name).filter(Boolean));
+
   res.json({
     online: Math.max(online, players.length),
-    max: 4,
+    max: 8,
     players,
     recentPlayers: Array.from(recentPlayers.values()).sort((a, b) => b.lastSeen - a.lastSeen),
     history: playerHistory,
+    bannedIds:   Array.from(bannedIds),
+    bannedNames: Array.from(bannedNames),
   });
 }
 
 function kickPlayer(req, res) {
   const { id, name } = req.body;
-  if (!id && !name) {
-    return res.status(400).json({ error: 'Player id or name is required' });
-  }
+  if (!id && !name) return res.status(400).json({ error: 'Player id or name is required' });
 
   const target = name || id;
   const success = sendConsoleCommand(`kick ${target}`);
 
-  if (success) {
-    res.json({ success: true, message: `Kick command sent for ${target}` });
-  } else {
-    res.status(500).json({ error: 'Failed to send kick command' });
-  }
+  if (success) res.json({ success: true, message: `Kicked ${target}` });
+  else res.status(500).json({ error: 'Failed to send kick command — is the server running?' });
 }
 
 function banPlayer(req, res) {
   const { id, name } = req.body;
-  if (!id && !name) {
-    return res.status(400).json({ error: 'Player id or name is required' });
-  }
+  if (!id && !name) return res.status(400).json({ error: 'Player id or name is required' });
 
   const target = name || id;
-  const bans = loadBans();
 
+  // Record ban locally for UI (unban button on recent players)
+  const bans = loadBans();
   if (!bans.find(b => b.id === id || b.name === name)) {
     bans.push({ id, name, bannedAt: new Date().toISOString() });
     saveBans(bans);
   }
 
-  // Also kick them immediately
-  sendConsoleCommand(`kick ${target}`);
+  // Send to SMAPI — mod calls Game1.server.ban() which kicks + adds to bannedUsers
+  const success = sendConsoleCommand(`ban ${target}`);
 
-  res.json({ success: true, message: `${target} banned` });
+  if (success) res.json({ success: true, message: `Banned ${target}` });
+  else res.status(500).json({ error: 'Failed to send ban command — is the server running?' });
 }
 
 function unbanPlayer(req, res) {
   const { id, name } = req.body;
-  if (!id && !name) {
-    return res.status(400).json({ error: 'Player id or name is required' });
-  }
+  if (!id && !name) return res.status(400).json({ error: 'Player id or name is required' });
 
+  // Remove from local tracking
   const bans = loadBans().filter(b => b.id !== id && b.name !== name);
   saveBans(bans);
 
-  res.json({ success: true, message: 'Player unbanned' });
+  // Send to SMAPI — mod removes from Game1.bannedUsers
+  const target = name || id;
+  sendConsoleCommand(`unban ${target}`);
+
+  res.json({ success: true, message: `Unbanned ${target}` });
 }
 
 function grantAdmin(req, res) {

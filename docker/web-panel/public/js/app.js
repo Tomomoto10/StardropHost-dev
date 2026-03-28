@@ -1903,7 +1903,7 @@ async function loadPlayers() {
   if (!data) return;
 
   const list = document.getElementById('playersList');
-  setText('playerCount', `${data.online ?? 0} / 4`);
+  setText('playerCount', `${data.online ?? 0} / 8`);
 
   if (!data.players?.length) {
     list.innerHTML = `<div class="empty-state">${icon('players', 'icon empty-icon')}<div>No players online</div></div>`;
@@ -1917,8 +1917,8 @@ async function loadPlayers() {
           ${renderPlayerStats(p)}
         </div>
         <div class="player-actions">
-          <button class="btn btn-sm" onclick="kickPlayer('${escapeHtml(p.id)}','${escapeHtml(p.name)}')">Kick</button>
-          <button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444" onclick="banPlayer('${escapeHtml(p.id)}','${escapeHtml(p.name)}')">Ban</button>
+          <button class="btn btn-sm" onclick="kickPlayer(this,'${escapeHtml(p.id)}','${escapeHtml(p.name)}')">Kick</button>
+          <button class="btn btn-sm btn-danger" onclick="banPlayer(this,'${escapeHtml(p.id)}','${escapeHtml(p.name)}')">Ban</button>
         </div>
       </div>
     `).join('');
@@ -1928,6 +1928,9 @@ async function loadPlayers() {
   const recentCard = document.getElementById('recentPlayersCard');
   const recentList = document.getElementById('recentPlayersList');
   const recent = (data.recentPlayers || []).filter(p => p.name);
+  const bannedIds   = new Set(data.bannedIds   || []);
+  const bannedNames = new Set(data.bannedNames || []);
+  const isBanned = p => bannedIds.has(p.id) || bannedNames.has(p.name);
 
   if (recent.length) {
     recentCard.style.display = '';
@@ -1937,12 +1940,18 @@ async function loadPlayers() {
         <div class="player-body">
           <div class="player-name">
             ${escapeHtml(p.name)}
-            <span class="player-offline-badge">Offline</span>
+            <span class="player-offline-badge">${isBanned(p) ? 'Banned' : 'Offline'}</span>
           </div>
           ${p.location ? `<div class="player-info">${escapeHtml(p.location)}</div>` : ''}
           ${renderPlayerStats(p)}
         </div>
-        <div class="player-last-seen">Last seen<br>${timeAgo(p.lastSeen)}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+          <div class="player-last-seen">Last seen<br>${timeAgo(p.lastSeen)}</div>
+          ${isBanned(p)
+            ? `<button class="btn btn-sm btn-secondary" onclick="unbanPlayer(this,'${escapeHtml(p.id)}','${escapeHtml(p.name)}')">Unban</button>`
+            : `<button class="btn btn-sm btn-danger" onclick="banPlayer(this,'${escapeHtml(p.id)}','${escapeHtml(p.name)}')">Ban</button>`
+          }
+        </div>
       </div>
     `).join('');
   } else {
@@ -1950,18 +1959,27 @@ async function loadPlayers() {
   }
 }
 
-async function kickPlayer(id, name) {
+async function kickPlayer(btn, id, name) {
   if (!confirm(`Kick ${name}?`)) return;
-  const data = await API.post('/api/players/kick', { id, name });
+  btn.disabled = true; btn.textContent = 'Kicking...';
+  const data = await API.post('/api/players/kick', { id, name }).catch(() => null);
   showToast(data?.success ? `Kicked ${name}` : (data?.error || 'Kick failed'), data?.success ? 'success' : 'error');
-  if (data?.success) loadPlayers();
+  if (data?.success) loadPlayers(); else { btn.disabled = false; btn.textContent = 'Kick'; }
 }
 
-async function banPlayer(id, name) {
-  if (!confirm(`Ban ${name}? They will be kicked immediately.`)) return;
-  const data = await API.post('/api/players/ban', { id, name });
+async function banPlayer(btn, id, name) {
+  if (!confirm(`Ban ${name}? They will be kicked and blocked from rejoining.`)) return;
+  btn.disabled = true; btn.textContent = 'Banning...';
+  const data = await API.post('/api/players/ban', { id, name }).catch(() => null);
   showToast(data?.success ? `Banned ${name}` : (data?.error || 'Ban failed'), data?.success ? 'success' : 'error');
-  if (data?.success) loadPlayers();
+  if (data?.success) loadPlayers(); else { btn.disabled = false; btn.textContent = 'Ban'; }
+}
+
+async function unbanPlayer(btn, id, name) {
+  btn.disabled = true; btn.textContent = 'Unbanning...';
+  const data = await API.post('/api/players/unban', { id, name }).catch(() => null);
+  showToast(data?.success ? `Unbanned ${name}` : (data?.error || 'Unban failed'), data?.success ? 'success' : 'error');
+  if (data?.success) loadPlayers(); else { btn.disabled = false; btn.textContent = 'Unban'; }
 }
 
 // ─── Saves ───────────────────────────────────────────────────────
