@@ -1171,6 +1171,7 @@ let ws                     = null;
 let currentPage            = 'dashboard';
 let logAutoScroll          = true;
 let statusInterval         = null;
+let farmInterval           = null;
 let lastStatusData         = null;
 let backupStatusPoll       = null;
 let lastBackupStatus       = null;
@@ -1287,6 +1288,11 @@ function init() {
   };
 
   statusInterval = setInterval(loadDashboard, 10000);
+
+  // Restore page from URL hash on refresh
+  const VALID_PAGES = ['dashboard','farm','players','saves','mods','logs','terminal','config'];
+  const hashPage = window.location.hash.slice(1);
+  if (hashPage && VALID_PAGES.includes(hashPage)) navigateTo(hashPage);
 }
 
 // ─── Navigation ──────────────────────────────────────────────────
@@ -1303,6 +1309,10 @@ function setupNavigation() {
 
 function navigateTo(page) {
   currentPage = page;
+  history.replaceState(null, '', '#' + page);
+
+  // Stop farm polling when leaving farm tab
+  if (page !== 'farm' && farmInterval) { clearInterval(farmInterval); farmInterval = null; }
 
   document.querySelectorAll('.nav-item, .mob-nav-item').forEach(i => i.classList.remove('active'));
   document.querySelectorAll(`.nav-item[data-page="${page}"], .mob-nav-item[data-page="${page}"]`)
@@ -1316,12 +1326,15 @@ function navigateTo(page) {
 
   switch (page) {
     case 'dashboard': loadDashboard(); renderQuickActions();                  break;
-    case 'farm':      loadFarm();                                            break;
+    case 'farm':
+      loadFarm();
+      if (!farmInterval) farmInterval = setInterval(loadFarm, 5000);
+      break;
     case 'players':   loadPlayers();                                         break;
     case 'saves':     loadSaves();                                           break;
     case 'mods':      loadMods();                                            break;
     case 'logs':      loadLogs('all'); subscribeToLogs('all');               break;
-    case 'config':    loadConfig(); loadVnc(); loadServerModeCard();             break;
+    case 'config':    loadConfig(); loadVnc(); loadServerModeCard();         break;
   }
 }
 
@@ -1656,14 +1669,14 @@ async function loadFarm() {
       `<div class="detail-item">
         <div class="detail-label">${escapeHtml(room)}</div>
         <div class="detail-value" style="color:${info.complete ? 'var(--accent)' : 'var(--text-secondary)'}">
-          ${info.complete ? '✅ Complete' : `${info.bundles.filter(b => b.complete).length}/${info.bundles.length} bundles`}
+          ${info.complete ? '✅ Complete' : `${info.bundles.filter(b => b.complete).length}/${info.bundles.length} Bundles`}
         </div>
       </div>`
     ).join('');
 
     ccEl.innerHTML = `
       <div style="margin-bottom:12px">
-        <strong>${cc.completedRooms}/${cc.totalRooms} rooms complete</strong>
+        <strong>${cc.completedRooms}/${cc.totalRooms} Rooms Complete</strong>
         <div class="progress-bar" style="margin-top:6px">
           <div class="progress-fill" style="width:${cc.percentComplete}%;${cc.percentComplete === 100 ? 'background:var(--accent)' : ''}"></div>
         </div>
