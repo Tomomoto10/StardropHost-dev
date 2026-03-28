@@ -301,12 +301,16 @@ function collectStatus(req = null) {
   status.containerUptime = Math.floor((Date.now() - PANEL_START_TIME) / 1000);
 
   // -- Game update availability (written by game-update-check.sh daily) --
+  // Only show if the check file was written AFTER this panel process started —
+  // prevents stale pre-restart results from flashing a false notification on boot.
   try {
     const checkFile = require('path').join(config.DATA_DIR, 'game-update-available.json');
     if (fs.existsSync(checkFile)) {
-      const check = JSON.parse(fs.readFileSync(checkFile, 'utf-8'));
-      status.gameUpdateAvailable = check.available === true;
-      if (check.available) {
+      const check     = JSON.parse(fs.readFileSync(checkFile, 'utf-8'));
+      const checkTime = check.checkedAt ? new Date(check.checkedAt).getTime() : 0;
+      const isFresh   = checkTime > PANEL_START_TIME;
+      status.gameUpdateAvailable = isFresh && check.available === true;
+      if (status.gameUpdateAvailable) {
         status.gameUpdateBuilds = {
           current: check.installedBuild || check.currentBuild,
           latest:  check.latestBuild,
@@ -320,12 +324,15 @@ function collectStatus(req = null) {
   }
 
   // -- Panel update availability (written by panel-update.js background check) --
+  // Same freshness gate — suppress stale result until background check runs (~5s after start).
   try {
     const checkFile = require('path').join(config.DATA_DIR, 'panel-update-available.json');
     if (fs.existsSync(checkFile)) {
-      const check = JSON.parse(fs.readFileSync(checkFile, 'utf-8'));
-      status.panelUpdateAvailable = check.available === true;
-      if (check.available) {
+      const check     = JSON.parse(fs.readFileSync(checkFile, 'utf-8'));
+      const checkTime = check.checkedAt ? new Date(check.checkedAt).getTime() : 0;
+      const isFresh   = checkTime > PANEL_START_TIME;
+      status.panelUpdateAvailable = isFresh && check.available === true;
+      if (status.panelUpdateAvailable) {
         status.panelUpdateInfo = { sha: check.latestCommitSha, message: check.latestMessage };
       }
     } else {
