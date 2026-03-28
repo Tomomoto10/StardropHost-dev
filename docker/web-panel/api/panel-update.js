@@ -9,9 +9,10 @@ const path  = require('path');
 const https = require('https');
 const config = require('../server');
 
-const CHECK_FILE       = path.join(config.DATA_DIR, 'panel-update-available.json');
-const BUILD_STAMP_FILE = path.join(__dirname, '..', 'build-timestamp.txt');
-const PACKAGE_FILE     = path.join(__dirname, '..', 'package.json');
+const CHECK_FILE          = path.join(config.DATA_DIR, 'panel-update-available.json');
+const BUILD_STAMP_FILE    = path.join(__dirname, '..', 'build-timestamp.txt');
+const INSTALLED_SHA_FILE  = path.join(config.DATA_DIR, 'installed-commit.txt');
+const PACKAGE_FILE        = path.join(__dirname, '..', 'package.json');
 
 function getPanelVersion() {
   try { return JSON.parse(fs.readFileSync(PACKAGE_FILE, 'utf-8')).version || null; } catch { return null; }
@@ -33,6 +34,14 @@ function getBuildTimestamp() {
     const raw = fs.readFileSync(BUILD_STAMP_FILE, 'utf-8').trim();
     const ts  = parseInt(raw, 10);
     return isNaN(ts) ? null : ts;
+  } catch { return null; }
+}
+
+// Written by update.sh after each successful update — preferred over timestamp comparison
+function getInstalledCommitSha() {
+  try {
+    const sha = fs.readFileSync(INSTALLED_SHA_FILE, 'utf-8').trim();
+    return sha || null;
   } catch { return null; }
 }
 
@@ -77,10 +86,15 @@ async function runCheck() {
     return readJsonSafe(CHECK_FILE);
   }
 
-  const available = buildTs !== null && latest.ts !== null && latest.ts > buildTs;
+  const installedSha = getInstalledCommitSha();
+  // Prefer SHA comparison (exact) — falls back to timestamp when no SHA file exists (fresh install)
+  const available = installedSha !== null
+    ? latest.sha !== null && installedSha !== latest.sha
+    : buildTs !== null && latest.ts !== null && latest.ts > buildTs;
   const result = {
     available,
     buildTimestamp:  buildTs,
+    installedSha,
     latestCommitSha: latest.sha,
     latestCommitTs:  latest.ts,
     latestMessage:   latest.message,

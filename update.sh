@@ -206,6 +206,15 @@ if ! $COMPOSE_CMD up -d; then
     exit 1
 fi
 
+# Record installed commit SHA so panel-update.js can compare SHAs (not timestamps)
+if command -v git &>/dev/null && [ -d "$SCRIPT_DIR/.git" ]; then
+    _INSTALLED_SHA=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || true)
+    if [ -n "$_INSTALLED_SHA" ]; then
+        mkdir -p "$SCRIPT_DIR/data/panel"
+        echo "$_INSTALLED_SHA" > "$SCRIPT_DIR/data/panel/installed-commit.txt"
+    fi
+fi
+
 # Restore server state — if it wasn't explicitly stopped, clear any stale stop flag
 if [ "$_WAS_EXPLICITLY_STOPPED" = "false" ]; then
     rm -f "$_STOP_FLAG"
