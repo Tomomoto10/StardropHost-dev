@@ -8,7 +8,7 @@
 
 FROM docker:27-cli
 
-RUN apk add --no-cache nodejs docker-cli-compose
+RUN apk add --no-cache nodejs docker-cli-compose git bash
 
 WORKDIR /app
 

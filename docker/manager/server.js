@@ -125,11 +125,19 @@ function startService(service) {
 
 function updateServer() {
   const env = buildComposeEnv();
+
+  // Spawn a one-off Alpine container that runs update.sh on the host project dir.
+  // Because this container is outside the compose project, it is unaffected when
+  // docker compose up -d later restarts the manager or any other service.
+  // The Docker socket gives it full access to rebuild and restart all containers.
   const command = [
-    `git -C ${PROJECT_DIR} pull --ff-only`,
-    `docker compose -f ${COMPOSE_FILE} --project-directory ${PROJECT_DIR} build`,
-    `docker compose -f ${COMPOSE_FILE} --project-directory ${PROJECT_DIR} up -d`,
-  ].join(' && ');
+    'docker run --rm',
+    '-v /var/run/docker.sock:/var/run/docker.sock',
+    `-v ${PROJECT_DIR}:${PROJECT_DIR}`,
+    `-w ${PROJECT_DIR}`,
+    'alpine',
+    'sh -c "apk add -q git bash docker-cli docker-cli-compose && bash update.sh"',
+  ].join(' ');
 
   const child = spawn('sh', ['-lc', command], {
     cwd: PROJECT_DIR,
