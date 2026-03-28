@@ -1611,6 +1611,142 @@ function updateDashboardUI(data) {
 // ─── Farm ────────────────────────────────────────────────────────
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s; }
 
+// Farm map — wiki thumbnail images (CC BY-NC-SA 3.0, stardewvalleywiki.com)
+// Full-res originals (no /thumb/ path, no size prefix)
+const FARM_IMAGES = {
+  'Standard':     'https://stardewvalleywiki.com/mediawiki/images/6/6f/Standard_Farm_thumb.png',
+  'Riverland':    'https://stardewvalleywiki.com/mediawiki/images/a/ae/Riverlands_Farm_thumb.png',
+  'Forest':       'https://stardewvalleywiki.com/mediawiki/images/b/bc/Forest_Farm_thumb.png',
+  'Hilltop':      'https://stardewvalleywiki.com/mediawiki/images/f/fc/Hilltop_Farm_thumb.png',
+  'Wilderness':   'https://stardewvalleywiki.com/mediawiki/images/2/2a/Wilderness_Farm_thumb.png',
+  'Four Corners': 'https://stardewvalleywiki.com/mediawiki/images/c/c5/Four_Corners_Farm.png',
+  'Beach':        'https://stardewvalleywiki.com/mediawiki/images/d/d9/Beach_Farm.png',
+  'Meadowlands':  'https://stardewvalleywiki.com/mediawiki/images/0/0e/Meadowlands_Farm.png',
+};
+
+// All farm maps are 80×65 tiles (total map grid including border)
+const FARM_MAP_TILES_W = 80;
+const FARM_MAP_TILES_H = 65;
+
+// Player dot colours (cycling)
+const PLAYER_COLORS = ['#a78bfa', '#f59e0b', '#34d399', '#f87171', '#60a5fa', '#f472b6'];
+
+// Image cache — keyed by farmType, value = Image object or null (failed)
+const _farmImgCache = {};
+let   _farmImgLoading = {};
+
+function loadFarmImage(farmType) {
+  return new Promise(resolve => {
+    if (farmType in _farmImgCache) return resolve(_farmImgCache[farmType]);
+    if (_farmImgLoading[farmType]) return _farmImgLoading[farmType].then(resolve);
+
+    _farmImgLoading[farmType] = new Promise(res => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload  = () => { _farmImgCache[farmType] = img;  res(img);  };
+      img.onerror = () => { _farmImgCache[farmType] = null; res(null); };
+      img.src = FARM_IMAGES[farmType] || '';
+    });
+    _farmImgLoading[farmType].then(resolve);
+  });
+}
+
+async function renderFarmMap(data) {
+  const wrap   = document.getElementById('farmMapWrap');
+  const canvas = document.getElementById('farmMapCanvas');
+  const legend = document.getElementById('farmMapLegend');
+  if (!canvas) return;
+
+  const players   = (data.players || []).filter(p => !p.isHost && p.tileX != null && p.tileY != null);
+  const farmType  = data.farmType || 'Standard';
+  const isRunning = data.serverState === 'running' || data.liveDataAvailable;
+
+  // Show offline placeholder when server not running
+  if (!isRunning) {
+    canvas.style.display = 'none';
+    if (!wrap.querySelector('.farm-map-offline')) {
+      const ph = document.createElement('div');
+      ph.className = 'farm-map-offline';
+      ph.textContent = 'Server offline — map unavailable';
+      wrap.insertBefore(ph, canvas);
+    }
+    legend.innerHTML = '';
+    return;
+  }
+
+  // Remove offline placeholder if present
+  const ph = wrap.querySelector('.farm-map-offline');
+  if (ph) ph.remove();
+  canvas.style.display = 'block';
+
+  // Size canvas to container width, preserve 80:65 aspect ratio
+  const containerW = canvas.parentElement.offsetWidth || 480;
+  const pxW = containerW;
+  const pxH = Math.round(pxW * (FARM_MAP_TILES_H / FARM_MAP_TILES_W));
+  canvas.width  = pxW;
+  canvas.height = pxH;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, pxW, pxH);
+
+  // Draw background image (or fallback)
+  const img = FARM_IMAGES[farmType] ? await loadFarmImage(farmType) : null;
+  if (img) {
+    ctx.drawImage(img, 0, 0, pxW, pxH);
+  } else {
+    ctx.fillStyle = '#2d4a1e';
+    ctx.fillRect(0, 0, pxW, pxH);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${farmType} Farm — map image unavailable`, pxW / 2, pxH / 2);
+    ctx.textAlign = 'left';
+  }
+
+  // Draw player dots
+  const scaleX = pxW / FARM_MAP_TILES_W;
+  const scaleY = pxH / FARM_MAP_TILES_H;
+  const DOT_R  = Math.max(5, Math.round(scaleX * 0.6));
+
+  players.forEach((p, i) => {
+    const px    = p.tileX * scaleX;
+    const py    = p.tileY * scaleY;
+    const color = PLAYER_COLORS[i % PLAYER_COLORS.length];
+
+    // Glow ring
+    ctx.beginPath();
+    ctx.arc(px, py, DOT_R + 2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fill();
+
+    // Dot
+    ctx.beginPath();
+    ctx.arc(px, py, DOT_R, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // Name label
+    const label = p.name || 'Player';
+    ctx.font = `bold ${Math.max(9, Math.round(scaleX * 0.8))}px sans-serif`;
+    const labelX = px + DOT_R + 3;
+    const labelY = py + 4;
+    ctx.lineWidth   = 2.5;
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.strokeText(label, labelX, labelY);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, labelX, labelY);
+  });
+
+  // Legend
+  if (players.length) {
+    legend.innerHTML = players.map((p, i) =>
+      `<span><span class="farm-map-dot" style="background:${PLAYER_COLORS[i % PLAYER_COLORS.length]}"></span>${escapeHtml(p.name || 'Player')} — ${escapeHtml(p.locationName || 'Farm')}</span>`
+    ).join('');
+  } else {
+    legend.innerHTML = '<span style="color:var(--text-muted)">No players online</span>';
+  }
+}
+
 async function loadFarm() {
   const data = await API.get('/api/farm/overview');
   if (!data) return;
@@ -1686,6 +1822,9 @@ async function loadFarm() {
   } else {
     ccEl.innerHTML = '<div class="empty-state">Community Center data not available</div>';
   }
+
+  // Live map
+  renderFarmMap(data);
 
   // Farm info — no Farmer field
   infoEl.innerHTML = `
