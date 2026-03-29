@@ -133,13 +133,13 @@ const panelUpdateAPI = require('./api/panel-update');
 app.get( '/api/panel-update/status', auth.verifyMiddleware, panelUpdateAPI.getStatus);
 app.post('/api/panel-update/check',  auth.verifyMiddleware, panelUpdateAPI.checkNow);
 
-// -- Remote (playit.gg tunnel management) --
+// -- Remote (tunnel service management via compose override) --
 const remoteAPI = require('./api/remote');
 app.get( '/api/remote/status', auth.verifyMiddleware, remoteAPI.getStatus);
-app.post('/api/remote/key',    auth.verifyMiddleware, remoteAPI.setKey);
-app.post('/api/remote/pause',  auth.verifyMiddleware, remoteAPI.pauseTunnel);
-app.post('/api/remote/resume', auth.verifyMiddleware, remoteAPI.resumeTunnel);
-app.post('/api/remote/clear',  auth.verifyMiddleware, remoteAPI.clearKey);
+app.post('/api/remote/apply',  auth.verifyMiddleware, remoteAPI.applyCompose);
+app.post('/api/remote/start',  auth.verifyMiddleware, remoteAPI.startService);
+app.post('/api/remote/stop',   auth.verifyMiddleware, remoteAPI.stopService);
+app.post('/api/remote/remove', auth.verifyMiddleware, remoteAPI.removeService);
 
 // -- Steam (auth via steam-auth container for game download only) --
 const steamAPI = require('./api/steam');

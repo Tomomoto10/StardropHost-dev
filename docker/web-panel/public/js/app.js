@@ -1253,7 +1253,6 @@ function init() {
   loadBackupStatus();
   renderQuickActions();
   loadPanelVersion();
-  setupPlayitKeyToggle();
 
   document.getElementById('logoutBtn').onclick = () => {
     localStorage.removeItem('panel_token');
@@ -2950,137 +2949,168 @@ async function checkAllUpdates() {
   showToast('Update check complete', 'success');
 }
 
-// ─── Remote (playit.gg) ──────────────────────────────────────────
+// ─── Remote (tunnel compose management) ──────────────────────────
 
 async function loadRemoteStatus() {
-  const loading   = document.getElementById('remoteLoading');
-  const noKeyEl   = document.getElementById('remoteNoKey');
-  const hasKeyEl  = document.getElementById('remoteHasKey');
-  const statusEl  = document.getElementById('remoteStatus');
-  const pauseBtn  = document.getElementById('playitPauseBtn');
-  const resumeBtn = document.getElementById('playitResumeBtn');
+  const loading    = document.getElementById('remoteLoading');
+  const noConfig   = document.getElementById('remoteNoConfig');
+  const configured = document.getElementById('remoteConfigured');
   if (!loading) return;
 
   try {
-    const data    = await API.get('/api/remote/status');
-    const hasKey  = data.hasKey === true;
-    const running = data.running === true;
+    const data = await API.get('/api/remote/status');
 
-    loading.style.display  = 'none';
-    noKeyEl.style.display  = hasKey ? 'none' : '';
-    hasKeyEl.style.display = hasKey ? '' : 'none';
+    loading.style.display    = 'none';
+    noConfig.style.display   = data.configured ? 'none' : '';
+    configured.style.display = data.configured ? ''     : 'none';
 
-    if (hasKey) {
-      if (pauseBtn)  pauseBtn.style.display  = running ? '' : 'none';
-      if (resumeBtn) resumeBtn.style.display = running ? 'none' : '';
-
-      if (statusEl) {
-        if (running) {
-          statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
-            <span class="status-dot running"></span>
-            <span style="font-weight:500;color:#22c55e">Active</span>
-            <span style="color:var(--text-secondary);font-size:13px">— Share your playit.gg address with friends to connect</span>
-          </div>`;
-        } else {
-          statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
-            <span class="status-dot offline"></span>
-            <span style="font-weight:500;color:var(--text-muted)">Paused</span>
-            <span style="color:var(--text-secondary);font-size:13px">— Tunnel is stopped, key is saved</span>
-          </div>`;
-        }
-      }
+    if (data.configured) {
+      _renderRemoteServices(data.services || [], data.anyRunning);
+      const yamlEl = document.getElementById('remoteCurrentYaml');
+      if (yamlEl) yamlEl.textContent = data.yaml || '';
     }
   } catch {
-    loading.style.display  = 'none';
-    noKeyEl.style.display  = '';
-    hasKeyEl.style.display = 'none';
+    loading.style.display    = 'none';
+    noConfig.style.display   = '';
+    configured.style.display = 'none';
   }
 }
 
-async function activatePlayit() {
-  const input = document.getElementById('playitKeyInput');
-  const btn   = document.getElementById('playitActivateBtn');
-  const msgEl = document.getElementById('playitMsg');
-  const key   = input?.value?.trim();
+function _renderRemoteServices(services, anyRunning) {
+  const el       = document.getElementById('remoteServiceStatus');
+  const startBtn = document.getElementById('remoteStartBtn');
+  const stopBtn  = document.getElementById('remoteStopBtn');
+  if (!el) return;
 
-  if (!key) {
-    _showPlayitMsg('Please enter your playit.gg secret key.', 'error');
+  if (startBtn) startBtn.style.display = anyRunning ? 'none' : '';
+  if (stopBtn)  stopBtn.style.display  = anyRunning ? ''     : 'none';
+
+  if (!services.length) {
+    el.innerHTML = '<span style="color:var(--text-muted);font-size:13px">No services found in config.</span>';
+    return;
+  }
+
+  el.innerHTML = services.map(s => {
+    const running = s.running;
+    const dot     = running ? 'running' : 'offline';
+    const label   = running
+      ? '<span style="font-weight:500;color:#22c55e">Active</span>'
+      : '<span style="font-weight:500;color:var(--text-muted)">Stopped</span>';
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span class="status-dot ${dot}"></span>
+      <span style="font-size:13px;color:var(--text-secondary);font-family:monospace">${s.name}</span>
+      ${label}
+      <span style="font-size:12px;color:var(--text-muted)">${s.state !== 'unknown' ? '— ' + s.state : ''}</span>
+    </div>`;
+  }).join('');
+}
+
+async function applyRemoteCompose() {
+  const textarea = document.getElementById('remoteComposeInput');
+  const btn      = document.getElementById('remoteApplyBtn');
+  const msgEl    = document.getElementById('remoteApplyMsg');
+  const yaml     = textarea?.value?.trim();
+
+  if (!yaml) {
+    _showRemoteMsg('Paste a docker compose snippet first.', 'error');
+    return;
+  }
+  if (!yaml.includes('services:')) {
+    _showRemoteMsg('YAML must contain a services: block.', 'error');
     return;
   }
 
   btn.disabled    = true;
-  btn.textContent = 'Activating...';
+  btn.textContent = 'Applying...';
   msgEl.style.display = 'none';
 
   try {
-    await API.post('/api/remote/key', { secretKey: key });
-    input.value = '';
+    await API.post('/api/remote/apply', { yaml });
+    textarea.value = '';
     await loadRemoteStatus();
   } catch (e) {
-    _showPlayitMsg(e.message || 'Failed to activate tunnel.', 'error');
+    _showRemoteMsg(e.message || 'Failed to apply config.', 'error');
     btn.disabled    = false;
-    btn.textContent = 'Activate';
+    btn.textContent = 'Apply & Connect';
   }
 }
 
-async function pausePlayit() {
-  const btn = document.getElementById('playitPauseBtn');
+async function startRemoteService() {
+  const btn = document.getElementById('remoteStartBtn');
   btn.disabled    = true;
-  btn.textContent = 'Pausing...';
+  btn.textContent = 'Starting...';
   try {
-    await API.post('/api/remote/pause');
+    await API.post('/api/remote/start');
     await loadRemoteStatus();
   } catch (e) {
-    showToast(e.message || 'Failed to pause tunnel.', 'error');
-    btn.disabled    = false;
-    btn.textContent = 'Pause';
-  }
-}
-
-async function resumePlayit() {
-  const btn = document.getElementById('playitResumeBtn');
-  btn.disabled    = true;
-  btn.textContent = 'Resuming...';
-  try {
-    await API.post('/api/remote/resume');
-    await loadRemoteStatus();
-  } catch (e) {
-    showToast(e.message || 'Failed to resume tunnel.', 'error');
+    showToast(e.message || 'Failed to start service.', 'error');
+  } finally {
     btn.disabled    = false;
     btn.textContent = 'Resume';
   }
 }
 
-async function clearPlayit() {
-  const btn = document.getElementById('playitClearBtn');
+async function stopRemoteService() {
+  const btn = document.getElementById('remoteStopBtn');
   btn.disabled    = true;
-  btn.textContent = 'Removing...';
-
+  btn.textContent = 'Stopping...';
   try {
-    await API.post('/api/remote/clear');
+    await API.post('/api/remote/stop');
     await loadRemoteStatus();
   } catch (e) {
-    showToast(e.message || 'Failed to remove key.', 'error');
+    showToast(e.message || 'Failed to stop service.', 'error');
+  } finally {
     btn.disabled    = false;
-    btn.textContent = 'Remove Key & Stop Tunnel';
+    btn.textContent = 'Pause';
   }
 }
 
-function _showPlayitMsg(text, type) {
-  const el = document.getElementById('playitMsg');
+async function removeRemoteService() {
+  const btn = document.getElementById('remoteRemoveBtn');
+  btn.disabled    = true;
+  btn.textContent = 'Removing...';
+  try {
+    await API.post('/api/remote/remove');
+    await loadRemoteStatus();
+  } catch (e) {
+    showToast(e.message || 'Failed to remove service.', 'error');
+    btn.disabled    = false;
+    btn.textContent = 'Remove & Stop';
+  }
+}
+
+function editRemoteCompose() {
+  // Switch back to the textarea pre-filled with current YAML
+  const yamlEl   = document.getElementById('remoteCurrentYaml');
+  const textarea = document.getElementById('remoteComposeInput');
+  const configured = document.getElementById('remoteConfigured');
+  const noConfig   = document.getElementById('remoteNoConfig');
+  if (textarea && yamlEl) textarea.value = yamlEl.textContent;
+  if (configured) configured.style.display = 'none';
+  if (noConfig)   noConfig.style.display   = '';
+}
+
+// Pre-fill compose textarea from an example and scroll to it
+function useComposeExample(exampleId) {
+  const example  = document.getElementById(exampleId);
+  const textarea = document.getElementById('remoteComposeInput');
+  const card     = document.getElementById('remoteNoConfig');
+  if (!example || !textarea) return;
+  textarea.value = example.textContent.trim();
+  // Show no-config state so textarea is visible
+  const loading    = document.getElementById('remoteLoading');
+  const configured = document.getElementById('remoteConfigured');
+  if (loading)    loading.style.display    = 'none';
+  if (configured) configured.style.display = 'none';
+  if (card)       card.style.display       = '';
+  textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  textarea.focus();
+}
+
+function _showRemoteMsg(text, type) {
+  const el = document.getElementById('remoteApplyMsg');
   if (!el) return;
   el.textContent   = text;
   el.style.color   = type === 'error' ? '#ef4444' : 'var(--accent)';
   el.style.display = '';
-}
-
-function setupPlayitKeyToggle() {
-  const toggle = document.getElementById('playitKeyToggle');
-  const input  = document.getElementById('playitKeyInput');
-  if (!toggle || !input) return;
-  toggle.addEventListener('click', () => {
-    const isPassword = input.type === 'password';
-    input.type = isPassword ? 'text' : 'password';
-    toggle.querySelector('use').setAttribute('href', isPassword ? '#icon-eye-off' : '#icon-eye');
-  });
 }

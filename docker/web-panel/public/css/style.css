@@ -1072,3 +1072,72 @@ body {
   .cards-grid { grid-template-columns: 1fr; }
   #page-container { padding: 12px; }
 }
+
+/* ── Remote tab ──────────────────────────────────────────────── */
+.remote-guide > summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.remote-guide > summary::-webkit-details-marker { display: none; }
+.remote-guide > summary::before {
+  content: '▶';
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.remote-guide[open] > summary::before { transform: rotate(90deg); }
+
+.remote-badge {
+  background: var(--accent-dark);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.remote-sub {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.remote-sub > summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: 10px 14px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.remote-sub > summary::-webkit-details-marker { display: none; }
+.remote-sub > summary::before {
+  content: '▶';
+  font-size: 9px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+.remote-sub[open] > summary::before { transform: rotate(90deg); }
+.remote-sub > summary ~ * { padding: 12px 14px; }
+
+.remote-steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+.remote-steps li { margin-bottom: 4px; }
+.remote-steps a  { color: var(--accent); }

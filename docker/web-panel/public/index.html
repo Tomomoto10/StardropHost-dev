@@ -588,67 +588,180 @@
         <!-- ── Remote ──────────────────────────────────────────── -->
         <section id="page-remote" class="page">
 
-          <!-- About card -->
+          <!-- Header card -->
           <div class="card" style="margin-bottom:16px">
-            <h3>Remote Play via playit.gg</h3>
-            <p style="color:var(--text-secondary);margin:8px 0 12px">
-              playit.gg creates a free internet tunnel so your friends can join without port forwarding or a VPN.
-              Once connected, they join using the invite address shown on your
-              <a href="https://playit.gg" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">playit.gg dashboard</a>.
+            <h3>Remote Access — Friend Connect</h3>
+            <p style="color:var(--text-secondary);margin:8px 0 10px;line-height:1.65;font-size:14px">
+              Host your Stardew server behind a firewall or NAT? Use a tunnel service to give friends a
+              public address to connect — no port forwarding or VPN required. Your StardropHost dashboard
+              can also be accessed remotely using the same tunnel.
             </p>
-            <div style="font-size:13px;color:var(--text-secondary);line-height:1.7">
-              <strong>How to get started:</strong>
-              <ol style="margin:6px 0 0 18px;padding:0">
-                <li>Sign up at <a href="https://playit.gg" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">playit.gg</a></li>
-                <li>Create a UDP tunnel on port <strong>24642</strong></li>
-                <li>Copy your <strong>Secret Key</strong> from the tunnel agent page</li>
-                <li>Paste it below and click <strong>Activate</strong></li>
-                <li>Share the tunnel address from your playit.gg dashboard with your friends</li>
-              </ol>
+            <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
+              Friends join using a domain name or IP provided by the tunnel service — not in-game invite codes.
+              Premium services like playit.gg support multiple tunnels, making it easy to host several game
+              instances on the same VM.
             </div>
           </div>
 
-          <!-- Secret key card -->
-          <div class="card">
-            <h3>Tunnel Secret Key</h3>
+          <!-- playit.gg guide (collapsible) -->
+          <details class="card remote-guide" style="margin-bottom:16px">
+            <summary>
+              <span style="font-weight:600;font-size:15px">playit.gg</span>
+              <span class="remote-badge">RECOMMENDED</span>
+              <span style="color:var(--text-muted);font-size:13px;margin-left:8px">Free / Paid tunnel — no client setup needed</span>
+            </summary>
 
-            <!-- Loading state -->
+            <div style="margin-top:16px;font-size:13px;color:var(--text-secondary);line-height:1.6;border-top:1px solid var(--border);padding-top:14px">
+              <p style="margin:0 0 8px">
+                playit.gg creates a public tunnel to your server with no client-side install needed for your friends.
+                Works on PC and Mobile (UDP). Console support requires TCP (Premium).
+              </p>
+              <ul style="margin:0 0 10px 18px;padding:0">
+                <li><strong>Free tier</strong> — UDP only, PC &amp; Mobile</li>
+                <li><strong>Premium (~$5/mo)</strong> — TCP + UDP, custom domains, multiple tunnels — highly recommended</li>
+              </ul>
+            </div>
+
+            <!-- Account Setup -->
+            <details class="remote-sub">
+              <summary>Account Setup</summary>
+              <ol class="remote-steps">
+                <li>Sign up at <a href="https://playit.gg" target="_blank" rel="noopener noreferrer">playit.gg</a></li>
+                <li>Do <strong>not</strong> set up an agent yet — press <strong>"Exit Wizard"</strong> if prompted</li>
+                <li>Purchase a Premium subscription (recommended — banner at top of dashboard)</li>
+                <li>Go to <strong>Setup</strong> in the top bar → click <strong>"New Account Wizard"</strong></li>
+                <li>Select <strong>Docker</strong> when asked where to integrate playit</li>
+              </ol>
+            </details>
+
+            <!-- Agent Setup -->
+            <details class="remote-sub">
+              <summary>Agent Setup</summary>
+              <ol class="remote-steps">
+                <li>Name your agent (e.g. <code>StardropHost-1</code>) then press <strong>Next</strong></li>
+                <li>A <code>docker run</code> command will be shown — <strong>copy only the 64-character secret key</strong>:<br>
+                  <code style="display:block;margin:6px 0;padding:6px 10px;background:var(--bg-primary);border-radius:4px;word-break:break-all">
+                    docker run --rm -it --net=host -e SECRET_KEY=<strong style="color:var(--accent)">YOUR_SECRET_KEY_HERE</strong>
+                  </code>
+                </li>
+                <li>After loading, the agent will show <strong>Connected</strong> in the playit.gg Agents tab</li>
+              </ol>
+            </details>
+
+            <!-- Tunnel Setup -->
+            <details class="remote-sub">
+              <summary>Tunnel Setup</summary>
+              <ol class="remote-steps">
+                <li>Go to the <strong>Tunnels</strong> tab on playit.gg → click <strong>Create Tunnel</strong></li>
+                <li>Name it (e.g. <code>Stardrop-Share</code>), select type <strong>UDP</strong>, port count <strong>1</strong></li>
+                <li>Add a description (e.g. <em>Stardew Valley</em>) then complete the usage confirmation</li>
+                <li>For <strong>Local IP &amp; Port</strong>: copy your server's local IP from the StardropHost dashboard
+                  and use port <strong>24642</strong> for game, or your panel port (default <strong>18642</strong>) to share remote dashboard access</li>
+                <li>Select the agent you created in the previous step, then click <strong>Create Tunnel</strong></li>
+                <li>Your tunnel domain (e.g. <code>name.playit.plus</code>) and IP will now appear in the Tunnels tab —
+                  share this address with friends to connect from anywhere</li>
+              </ol>
+            </details>
+
+            <!-- Compose example -->
+            <details class="remote-sub">
+              <summary>Docker Compose Example</summary>
+              <p style="font-size:13px;color:var(--text-secondary);margin:10px 0 8px">
+                Replace <code>YOUR_SECRET_KEY</code> with the key from your agent setup above, then paste into the
+                <strong>Remote Service</strong> box below.
+              </p>
+              <pre id="playitComposeExample" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:12px;overflow-x:auto;margin:0 0 10px;line-height:1.6">services:
+  playit:
+    image: ghcr.io/playit-cloud/playit-agent:0.17
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - SECRET_KEY=YOUR_SECRET_KEY</pre>
+              <button class="btn btn-primary" type="button" onclick="useComposeExample('playitComposeExample')">
+                Use This Example
+              </button>
+            </details>
+
+          </details>
+
+          <!-- Compose configuration card -->
+          <div class="card" style="margin-bottom:16px">
+            <h3>Remote Service</h3>
+
             <div id="remoteLoading" style="color:var(--text-muted);font-size:13px">Loading...</div>
 
-            <!-- State: no key saved -->
-            <div id="remoteNoKey" style="display:none">
-              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 14px">No tunnel configured. Enter your secret key from playit.gg to enable remote play.</p>
-              <div class="form-row" style="align-items:center;gap:8px;flex-wrap:wrap">
-                <div style="position:relative;flex:1;min-width:200px">
-                  <input type="password" id="playitKeyInput" class="input" placeholder="Paste secret key from playit.gg"
-                    style="width:100%;padding-right:40px">
-                  <button type="button" id="playitKeyToggle" title="Show / hide key"
-                    style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);padding:0;line-height:1">
-                    <svg class="icon" style="width:18px;height:18px"><use href="#icon-eye"></use></svg>
-                  </button>
-                </div>
-                <button class="btn btn-primary" type="button" id="playitActivateBtn" onclick="activatePlayit()">Activate</button>
+            <!-- State: not configured -->
+            <div id="remoteNoConfig" style="display:none">
+              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">
+                No remote service configured. Paste a <code>docker compose</code> snippet from your tunnel
+                provider below and click <strong>Apply &amp; Connect</strong>.
+              </p>
+              <textarea id="remoteComposeInput" class="input" rows="10"
+                placeholder="services:
+  your-tunnel:
+    image: provider/agent:latest
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - SECRET_KEY=your_key_here"
+                style="width:100%;font-family:monospace;font-size:12px;resize:vertical;line-height:1.5"></textarea>
+              <div id="remoteApplyMsg" style="margin:8px 0;font-size:13px;display:none"></div>
+              <div style="margin-top:10px">
+                <button class="btn btn-primary" type="button" id="remoteApplyBtn" onclick="applyRemoteCompose()">Apply &amp; Connect</button>
               </div>
-              <div id="playitMsg" style="margin-top:10px;font-size:13px;display:none"></div>
             </div>
 
-            <!-- State: key saved -->
-            <div id="remoteHasKey" style="display:none">
-              <div id="remoteStatus" style="margin-bottom:16px"></div>
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <button class="btn btn-primary" type="button" id="playitPauseBtn" onclick="pausePlayit()" style="display:none">Pause</button>
-                <button class="btn btn-primary" type="button" id="playitResumeBtn" onclick="resumePlayit()" style="display:none">Resume</button>
-                <button class="btn" type="button" id="playitClearBtn" onclick="clearPlayit()"
-                  style="color:#ef4444;border-color:#ef4444">
-                  Remove Key &amp; Stop Tunnel
-                </button>
+            <!-- State: configured -->
+            <div id="remoteConfigured" style="display:none">
+              <div id="remoteServiceStatus" style="margin-bottom:14px"></div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                <button class="btn btn-primary" type="button" id="remoteStartBtn"  onclick="startRemoteService()"  style="display:none">Resume</button>
+                <button class="btn"             type="button" id="remoteStopBtn"   onclick="stopRemoteService()"   style="display:none">Pause</button>
+                <button class="btn"             type="button" id="remoteEditBtn"   onclick="editRemoteCompose()"   >Edit Config</button>
+                <button class="btn"             type="button" id="remoteRemoveBtn" onclick="removeRemoteService()"
+                  style="color:#ef4444;border-color:#ef4444">Remove &amp; Stop</button>
               </div>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:10px">
-                Key is saved permanently. Pause stops the connection without losing your key. To update the key, remove it first then enter the new one.
-              </div>
+              <details style="margin-top:4px">
+                <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;user-select:none">Show current compose config</summary>
+                <pre id="remoteCurrentYaml" style="margin:8px 0 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;line-height:1.5"></pre>
+              </details>
             </div>
 
           </div>
+
+          <!-- Other services (collapsible) -->
+          <details class="card remote-guide">
+            <summary>
+              <span style="font-weight:600;font-size:15px">Other Tunnel Services</span>
+            </summary>
+
+            <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px;font-size:13px;color:var(--text-secondary);line-height:1.7">
+              <p style="margin:0 0 6px">
+                Any service that provides a <strong>Docker Compose example</strong> can be used — paste it in the box above.
+                Services without a compose example require manual setup on your VM (e.g. via SSH on Proxmox) and
+                won't be managed by StardropHost.
+              </p>
+
+              <div style="margin-top:14px">
+                <strong style="color:var(--text-primary);display:block;margin-bottom:6px">No client setup needed (friends connect directly):</strong>
+                <ul style="margin:0 0 14px 18px;padding:0">
+                  <li><strong>Ngrok</strong> — tunnel service, free tier available</li>
+                  <li><strong>Portmap.io</strong> — simple UDP/TCP port mapping</li>
+                </ul>
+              </div>
+
+              <div>
+                <strong style="color:var(--text-primary);display:block;margin-bottom:6px">Client setup needed (friends install an app):</strong>
+                <ul style="margin:0 0 4px 18px;padding:0">
+                  <li><strong>ZeroTier</strong> — virtual LAN, friends need ZeroTier client and your network ID</li>
+                  <li><strong>Tailscale</strong> — mesh VPN, friends need Tailscale and an invite</li>
+                </ul>
+                <p style="margin:8px 0 0;color:var(--text-muted);font-size:12px">
+                  Other VPS, VPN, and port-forwarding services should work but are untested.
+                </p>
+              </div>
+            </div>
+          </details>
 
         </section>
 

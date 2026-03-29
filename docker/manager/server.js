@@ -9,11 +9,12 @@
 
 const fs = require('fs');
 const http = require('http');
-const { spawn, spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 
 const PORT        = parseInt(process.env.MANAGER_PORT || '18700', 10);
 const PROJECT_DIR = process.env.PROJECT_DIR || '/workspace';
-const COMPOSE_FILE = process.env.COMPOSE_FILE || `${PROJECT_DIR}/docker-compose.yml`;
+const COMPOSE_FILE     = process.env.COMPOSE_FILE || `${PROJECT_DIR}/docker-compose.yml`;
+const COMPOSE_OVERRIDE = `${PROJECT_DIR}/docker-compose.override.yml`;
 
 const DEFAULT_ENV_FILE = `${PROJECT_DIR}/.env`;
 const RUNTIME_ENV_FILE = `${PROJECT_DIR}/data/panel/runtime.env`;
@@ -24,14 +25,6 @@ const SERVICE_CONTAINERS = {
   'stardrop-server': 'stardrop',
 };
 
-const PLAYIT_IMAGE = 'ghcr.io/playit-cloud/playit-agent:0.17';
-
-function getPlayitContainerName() {
-  const env = { ...parseEnvFile(DEFAULT_ENV_FILE), ...parseEnvFile(RUNTIME_ENV_FILE) };
-  const prefix = process.env.CONTAINER_PREFIX || env.CONTAINER_PREFIX || 'stardrop';
-  return `${prefix}-playit`;
-}
-
 // -- Helpers --
 
 function sendJson(res, statusCode, data) {
@@ -39,22 +32,17 @@ function sendJson(res, statusCode, data) {
   res.end(JSON.stringify(data));
 }
 
-function readJson(req) {
+function readJson(req, maxBytes = 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
       body += chunk;
-      if (body.length > 1024 * 1024) {
-        reject(new Error('Request body too large'));
-      }
+      if (body.length > maxBytes) reject(new Error('Request body too large'));
     });
     req.on('end', () => {
       if (!body) { resolve({}); return; }
-      try {
-        resolve(JSON.parse(body));
-      } catch {
-        reject(new Error('Invalid JSON body'));
-      }
+      try   { resolve(JSON.parse(body)); }
+      catch { reject(new Error('Invalid JSON body')); }
     });
     req.on('error', reject);
   });
@@ -85,6 +73,29 @@ function buildComposeEnv() {
   };
 }
 
+// Extract top-level service names from a compose YAML string.
+// Handles 2-space or 4-space indented service keys.
+function extractServiceNames(yaml) {
+  const lines = yaml.split('\n');
+  let inServices = false;
+  let serviceIndent = 0;
+  const services = [];
+  for (const line of lines) {
+    const trimmed = line.trimEnd();
+    if (!trimmed || trimmed.trimStart().startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    if (/^services\s*:/.test(trimmed)) { inServices = true; continue; }
+    if (!inServices) continue;
+    if (indent === 0 && trimmed.includes(':')) break; // new top-level key ends services block
+    if (serviceIndent === 0 && indent > 0) serviceIndent = indent;
+    if (indent === serviceIndent) {
+      const m = line.trimStart().match(/^([\w-][\w.-]*)\s*:/);
+      if (m) services.push(m[1]);
+    }
+  }
+  return services;
+}
+
 // -- Actions --
 
 function recreateService(service) {
@@ -96,105 +107,155 @@ function recreateService(service) {
   ].filter(Boolean).join(' && ');
 
   const child = spawn('sh', ['-lc', command], {
-    cwd: PROJECT_DIR,
-    env,
-    detached: true,
-    stdio: 'ignore',
+    cwd: PROJECT_DIR, env, detached: true, stdio: 'ignore',
   });
   child.unref();
 }
 
 function stopService(service) {
-  const env = buildComposeEnv();
   const containerName = SERVICE_CONTAINERS[service];
   const command = `docker stop ${containerName} >/dev/null 2>&1 || true`;
 
   const child = spawn('sh', ['-lc', command], {
-    cwd: PROJECT_DIR,
-    env,
-    detached: true,
-    stdio: 'ignore',
+    cwd: PROJECT_DIR, env: buildComposeEnv(), detached: true, stdio: 'ignore',
   });
   child.unref();
 }
 
 function startService(service) {
-  const env = buildComposeEnv();
   const command = `docker compose -f ${COMPOSE_FILE} --project-directory ${PROJECT_DIR} up -d --no-deps ${service}`;
 
   const child = spawn('sh', ['-lc', command], {
-    cwd: PROJECT_DIR,
-    env,
-    detached: true,
-    stdio: 'ignore',
+    cwd: PROJECT_DIR, env: buildComposeEnv(), detached: true, stdio: 'ignore',
   });
   child.unref();
 }
 
-function startPlayit(secretKey) {
-  // Remove any existing container first (sync — must complete before docker run).
-  // Key is passed as a direct spawn argument — never interpolated into a shell string,
-  // so special characters ($, !, \, etc.) in the key are safe.
-  const name = getPlayitContainerName();
-  const env  = buildComposeEnv();
+// -- Remote compose management --
 
-  spawnSync('docker', ['rm', '-f', name], { env, stdio: 'ignore' });
+function getRemoteStatus() {
+  if (!fs.existsSync(COMPOSE_OVERRIDE)) {
+    return Promise.resolve({ configured: false, services: [] });
+  }
 
-  const child = spawn('docker', [
-    'run', '-d',
-    '--name', name,
-    '--network', 'host',
-    '--restart', 'unless-stopped',
-    PLAYIT_IMAGE,
-    secretKey,
-  ], {
-    env,
-    detached: true,
-    stdio: 'ignore',
-  });
-  child.unref();
-}
+  let yaml;
+  try   { yaml = fs.readFileSync(COMPOSE_OVERRIDE, 'utf8'); }
+  catch { return Promise.resolve({ configured: false, services: [] }); }
 
-function stopPlayit() {
-  const name = getPlayitContainerName();
-  const command = `docker rm -f ${name} >/dev/null 2>&1 || true`;
+  const serviceNames = extractServiceNames(yaml);
+  if (!serviceNames.length) {
+    return Promise.resolve({ configured: true, yaml, services: [] });
+  }
 
-  const child = spawn('sh', ['-lc', command], {
-    cwd: PROJECT_DIR,
-    env: buildComposeEnv(),
-    detached: true,
-    stdio: 'ignore',
-  });
-  child.unref();
-}
+  return new Promise(resolve => {
+    const child = spawn('docker', [
+      'compose',
+      '-f', COMPOSE_FILE,
+      '-f', COMPOSE_OVERRIDE,
+      '--project-directory', PROJECT_DIR,
+      'ps', '--format', 'json',
+      ...serviceNames,
+    ], { env: buildComposeEnv() });
 
-function getPlayitStatus() {
-  const name = getPlayitContainerName();
-  return new Promise((resolve) => {
-    const child = spawn('docker', ['inspect', '--format', '{{.State.Status}}', name], {
-      cwd: PROJECT_DIR,
-      env: buildComposeEnv(),
-    });
     let out = '';
     child.stdout.on('data', d => { out += d; });
-    child.on('close', (code) => {
-      const status = out.trim();
+    child.stderr.on('data', () => {});
+    child.on('close', () => {
+      const statuses = {};
+      const text = out.trim();
+      try {
+        const parsed = JSON.parse(text);
+        const arr = Array.isArray(parsed) ? parsed : [parsed];
+        for (const s of arr) statuses[s.Service || s.Name] = s.State || s.Status || '';
+      } catch {
+        for (const line of text.split('\n').filter(l => l.trim().startsWith('{'))) {
+          try {
+            const s = JSON.parse(line);
+            statuses[s.Service || s.Name] = s.State || s.Status || '';
+          } catch {}
+        }
+      }
+      const services = serviceNames.map(name => {
+        const state = statuses[name] || 'unknown';
+        return { name, state, running: /^running/i.test(state) || state === 'Up' };
+      });
+      resolve({ configured: true, yaml, services, anyRunning: services.some(s => s.running) });
+    });
+    child.on('error', () => {
       resolve({
-        running: code === 0 && status === 'running',
-        containerStatus: code === 0 ? status : 'not found',
+        configured: true, yaml,
+        services: serviceNames.map(n => ({ name: n, state: 'unknown', running: false })),
+        anyRunning: false,
       });
     });
-    child.on('error', () => resolve({ running: false, containerStatus: 'error' }));
   });
+}
+
+function applyRemote(yaml) {
+  const serviceNames = extractServiceNames(yaml);
+  if (!serviceNames.length) throw new Error('No services found in compose YAML');
+
+  fs.writeFileSync(COMPOSE_OVERRIDE, yaml, { mode: 0o644 });
+
+  const command = [
+    `docker compose -f ${COMPOSE_FILE} -f ${COMPOSE_OVERRIDE}`,
+    `--project-directory ${PROJECT_DIR}`,
+    `up -d --no-recreate ${serviceNames.join(' ')}`,
+  ].join(' ');
+
+  const child = spawn('sh', ['-lc', command], {
+    cwd: PROJECT_DIR, env: buildComposeEnv(), detached: true, stdio: 'ignore',
+  });
+  child.unref();
+  return serviceNames;
+}
+
+function startRemote() {
+  if (!fs.existsSync(COMPOSE_OVERRIDE)) throw new Error('No remote compose config found');
+  const yaml = fs.readFileSync(COMPOSE_OVERRIDE, 'utf8');
+  const serviceNames = extractServiceNames(yaml);
+  if (!serviceNames.length) throw new Error('No services found in saved config');
+
+  const command = [
+    `docker compose -f ${COMPOSE_FILE} -f ${COMPOSE_OVERRIDE}`,
+    `--project-directory ${PROJECT_DIR}`,
+    `up -d --no-recreate ${serviceNames.join(' ')}`,
+  ].join(' ');
+
+  const child = spawn('sh', ['-lc', command], {
+    cwd: PROJECT_DIR, env: buildComposeEnv(), detached: true, stdio: 'ignore',
+  });
+  child.unref();
+  return serviceNames;
+}
+
+function stopRemote() {
+  if (!fs.existsSync(COMPOSE_OVERRIDE)) return;
+  const yaml = fs.readFileSync(COMPOSE_OVERRIDE, 'utf8');
+  const serviceNames = extractServiceNames(yaml);
+  if (!serviceNames.length) return;
+
+  // rm -s stops then removes containers
+  const command = [
+    `docker compose -f ${COMPOSE_FILE} -f ${COMPOSE_OVERRIDE}`,
+    `--project-directory ${PROJECT_DIR}`,
+    `rm -sf ${serviceNames.join(' ')}`,
+  ].join(' ');
+
+  const child = spawn('sh', ['-lc', command], {
+    cwd: PROJECT_DIR, env: buildComposeEnv(), detached: true, stdio: 'ignore',
+  });
+  child.unref();
+}
+
+function removeRemote() {
+  stopRemote();
+  try { fs.unlinkSync(COMPOSE_OVERRIDE); } catch {}
 }
 
 function updateServer() {
   const env = buildComposeEnv();
 
-  // Spawn a one-off Alpine container that runs update.sh on the host project dir.
-  // Because this container is outside the compose project, it is unaffected when
-  // docker compose up -d later restarts the manager or any other service.
-  // The Docker socket gives it full access to rebuild and restart all containers.
   const command = [
     'docker run --rm',
     '-v /var/run/docker.sock:/var/run/docker.sock',
@@ -205,10 +266,7 @@ function updateServer() {
   ].join(' ');
 
   const child = spawn('sh', ['-lc', command], {
-    cwd: PROJECT_DIR,
-    env,
-    detached: true,
-    stdio: 'ignore',
+    cwd: PROJECT_DIR, env, detached: true, stdio: 'ignore',
   });
   child.unref();
 }
@@ -217,110 +275,98 @@ function updateServer() {
 
 const server = http.createServer(async (req, res) => {
 
-  // Health check
   if (req.method === 'GET' && req.url === '/health') {
     sendJson(res, 200, { ok: true });
     return;
   }
 
-  // Recreate (full stop + start with fresh container)
   if (req.method === 'POST' && req.url === '/recreate') {
     try {
       const body = await readJson(req);
       const service = body?.service ? String(body.service) : 'stardrop-server';
-      if (!ALLOWED_SERVICES.has(service)) {
-        sendJson(res, 400, { error: 'Unsupported service' });
-        return;
-      }
+      if (!ALLOWED_SERVICES.has(service)) { sendJson(res, 400, { error: 'Unsupported service' }); return; }
       recreateService(service);
       sendJson(res, 202, { success: true, service, action: 'recreate' });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message || 'Failed to schedule recreate' });
-    }
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 
-  // Stop
   if (req.method === 'POST' && req.url === '/stop') {
     try {
       const body = await readJson(req);
       const service = body?.service ? String(body.service) : 'stardrop-server';
-      if (!ALLOWED_SERVICES.has(service)) {
-        sendJson(res, 400, { error: 'Unsupported service' });
-        return;
-      }
+      if (!ALLOWED_SERVICES.has(service)) { sendJson(res, 400, { error: 'Unsupported service' }); return; }
       stopService(service);
       sendJson(res, 202, { success: true, service, action: 'stop' });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message || 'Failed to schedule stop' });
-    }
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 
-  // Start
   if (req.method === 'POST' && req.url === '/start') {
     try {
       const body = await readJson(req);
       const service = body?.service ? String(body.service) : 'stardrop-server';
-      if (!ALLOWED_SERVICES.has(service)) {
-        sendJson(res, 400, { error: 'Unsupported service' });
-        return;
-      }
+      if (!ALLOWED_SERVICES.has(service)) { sendJson(res, 400, { error: 'Unsupported service' }); return; }
       startService(service);
       sendJson(res, 202, { success: true, service, action: 'start' });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message || 'Failed to schedule start' });
-    }
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 
-  // Update (pull latest image and restart)
   if (req.method === 'POST' && req.url === '/update') {
     try {
       updateServer();
       sendJson(res, 202, { success: true, action: 'update' });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message || 'Failed to schedule update' });
-    }
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 
-  // Playit status
-  if (req.method === 'GET' && req.url === '/playit/status') {
+  // Remote compose status
+  if (req.method === 'GET' && req.url === '/remote/status') {
     try {
-      const status = await getPlayitStatus();
+      const status = await getRemoteStatus();
       sendJson(res, 200, status);
-    } catch (error) {
-      sendJson(res, 500, { error: error.message || 'Failed to get playit status' });
-    }
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 
-  // Playit start (accepts secretKey in body)
-  if (req.method === 'POST' && req.url === '/playit/start') {
+  // Apply compose YAML and start services
+  if (req.method === 'POST' && req.url === '/remote/apply') {
     try {
-      const body = await readJson(req);
-      const secretKey = body?.secretKey ? String(body.secretKey).trim() : '';
-      if (!secretKey) {
-        sendJson(res, 400, { error: 'secretKey is required' });
-        return;
-      }
-      startPlayit(secretKey);
-      sendJson(res, 202, { success: true, action: 'playit-start' });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message || 'Failed to start playit' });
-    }
+      const body = await readJson(req, 200 * 1024); // 200KB limit for YAML
+      const yaml = body?.yaml ? String(body.yaml).trim() : '';
+      if (!yaml) { sendJson(res, 400, { error: 'yaml is required' }); return; }
+      if (!yaml.includes('services:')) { sendJson(res, 400, { error: 'YAML must contain a services: block' }); return; }
+      const services = applyRemote(yaml);
+      sendJson(res, 202, { success: true, action: 'apply', services });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 
-  // Playit stop
-  if (req.method === 'POST' && req.url === '/playit/stop') {
+  // Start (resume) existing remote service
+  if (req.method === 'POST' && req.url === '/remote/start') {
     try {
-      stopPlayit();
-      sendJson(res, 202, { success: true, action: 'playit-stop' });
-    } catch (error) {
-      sendJson(res, 500, { error: error.message || 'Failed to stop playit' });
-    }
+      const services = startRemote();
+      sendJson(res, 202, { success: true, action: 'start', services });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
+  // Stop remote service containers (keep config)
+  if (req.method === 'POST' && req.url === '/remote/stop') {
+    try {
+      stopRemote();
+      sendJson(res, 202, { success: true, action: 'stop' });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
+  // Remove remote service (stop + delete config)
+  if (req.method === 'POST' && req.url === '/remote/remove') {
+    try {
+      removeRemote();
+      sendJson(res, 202, { success: true, action: 'remove' });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 
