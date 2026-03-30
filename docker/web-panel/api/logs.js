@@ -16,6 +16,31 @@ const LOG_FILES = {
   game:   'game.log',
 };
 
+// SMAPI-old.txt = previous session (written by SMAPI when it starts a new session)
+function getSmapiOldLogPath() {
+  return path.join(path.dirname(config.SMAPI_LOG), 'SMAPI-old.txt');
+}
+
+// Combine previous session + current session with a separator line.
+// Reads SMAPI-old.txt (if present) then SMAPI-latest.txt.
+function readSmapiWithHistory() {
+  const oldPath = getSmapiOldLogPath();
+  const parts   = [];
+
+  if (fs.existsSync(oldPath)) {
+    try {
+      parts.push(fs.readFileSync(oldPath, 'utf-8'));
+      parts.push('══════════════════════ PREVIOUS SESSION END / CURRENT SESSION START ══════════════════════');
+    } catch { /* skip old log if unreadable */ }
+  }
+
+  if (fs.existsSync(config.SMAPI_LOG)) {
+    try { parts.push(fs.readFileSync(config.SMAPI_LOG, 'utf-8')); } catch { /* skip */ }
+  }
+
+  return parts.join('\n');
+}
+
 function getCategorizedLogPath(filter) {
   return path.join(config.LOG_DIR, 'categorized', LOG_FILES[filter] || LOG_FILES.all);
 }
@@ -73,12 +98,16 @@ function getLogs(req, res) {
   const source  = getLogSource(filter);
   const logPath = source.path;
 
-  if (!fs.existsSync(logPath)) {
+  // For raw SMAPI log tabs (all/smapi), include previous session from SMAPI-old.txt
+  const useHistory = (filter === 'all' || filter === 'smapi');
+
+  if (!useHistory && !fs.existsSync(logPath)) {
     return res.json({ lines: [], total: 0, file: logPath, exists: false });
   }
 
   try {
-    const content  = fs.readFileSync(logPath, 'utf-8');
+    const content  = useHistory ? readSmapiWithHistory() : fs.readFileSync(logPath, 'utf-8');
+    if (!content) return res.json({ lines: [], total: 0, file: path.basename(logPath), exists: false });
     let allLines   = content.split('\n').filter(l => l.trim());
 
     if (source.filtered) {

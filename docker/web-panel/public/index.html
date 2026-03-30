@@ -595,7 +595,10 @@
           </div>
           <div id="configContainerBottom"></div>
           <div class="card" style="margin-top:16px">
-            <h3>Change Panel Password</h3>
+            <h3>Change Admin Credentials</h3>
+            <div class="form-row" style="margin-bottom:8px">
+              <input type="text" id="newUsername" class="input" placeholder="New username (optional)">
+            </div>
             <div class="form-row">
               <input type="password" id="oldPassword" class="input" placeholder="Current password">
               <input type="password" id="newPassword" class="input" placeholder="New password">
@@ -775,8 +778,10 @@
               Paste a <code>docker-compose</code> snippet from your tunnel provider and click <strong>Apply &amp; Connect</strong>.
               The service will start automatically and status will update above.
             </p>
-            <textarea id="remoteComposeInput" class="input" rows="10" placeholder=""
-              style="width:100%;font-family:monospace;font-size:12px;resize:vertical;line-height:1.5"></textarea>
+            <div id="remoteComposeInputWrap">
+              <textarea id="remoteComposeInput" class="input" rows="10" placeholder=""
+                style="width:100%;font-family:monospace;font-size:12px;resize:vertical;line-height:1.5"></textarea>
+            </div>
             <div id="remoteApplyMsg" style="margin:8px 0;font-size:13px;display:none"></div>
             <div style="margin-top:10px">
               <button class="btn btn-primary" type="button" id="remoteApplyBtn" onclick="applyRemoteCompose()">Apply &amp; Connect</button>

@@ -269,6 +269,11 @@
     <!-- Login form -->
     <form id="loginForm" class="auth-form hidden" onsubmit="handleLogin(event)">
       <div class="form-group">
+        <label for="loginUsername">Username</label>
+        <input type="text" id="loginUsername" placeholder="Enter username"
+               autocomplete="username" required>
+      </div>
+      <div class="form-group">
         <label for="password">Password</label>
         <input type="password" id="password" placeholder="Enter panel password"
                autocomplete="current-password" required>
@@ -278,6 +283,11 @@
 
     <!-- First-run setup form -->
     <form id="setupForm" class="auth-form hidden" onsubmit="handleSetup(event)">
+      <div class="form-group">
+        <label for="setupUsername">Username</label>
+        <input type="text" id="setupUsername" placeholder="Choose a username"
+               autocomplete="username" required>
+      </div>
       <div class="form-group">
         <label for="setupPassword">Password</label>
         <input type="password" id="setupPassword" placeholder="Choose a password"
@@ -289,9 +299,13 @@
                autocomplete="new-password" required>
       </div>
       <div class="validation-list">
+        <div class="rule" id="ruleUsername">
+          <span class="rule-dot"></span>
+          <span>Username at least 3 characters (letters, numbers, _ . -)</span>
+        </div>
         <div class="rule" id="ruleLength">
           <span class="rule-dot"></span>
-          <span>At least 8 characters</span>
+          <span>Password at least 8 characters</span>
         </div>
         <div class="rule" id="ruleMatch">
           <span class="rule-dot"></span>
@@ -327,14 +341,14 @@
 
       if (mode === 'login') {
         document.getElementById('formTitle').textContent    = 'Sign In';
-        document.getElementById('formSubtitle').textContent = 'Enter your admin password to continue.';
+        document.getElementById('formSubtitle').textContent = 'Enter your admin credentials to continue.';
         document.title = 'StardropHost — Login';
-        document.getElementById('password').focus();
+        document.getElementById('loginUsername').focus();
       } else {
-        document.getElementById('formTitle').textContent    = 'Set Admin Password';
-        document.getElementById('formSubtitle').textContent = 'First time setup — create your admin password.';
+        document.getElementById('formTitle').textContent    = 'Create Admin Account';
+        document.getElementById('formSubtitle').textContent = 'First time setup — choose your username and password.';
         document.title = 'StardropHost — Setup';
-        document.getElementById('setupPassword').focus();
+        document.getElementById('setupUsername').focus();
       }
     }
 
@@ -351,18 +365,22 @@
     }
 
     function updateSetupValidation() {
+      const user    = document.getElementById('setupUsername').value;
       const pw      = document.getElementById('setupPassword').value;
       const confirm = document.getElementById('confirmPassword').value;
 
-      const hasLength = pw.length >= 8;
-      const hasMatch  = confirm.length > 0 && pw === confirm;
+      const hasUsername = user.length >= 3 && /^[a-zA-Z0-9_.-]+$/.test(user);
+      const hasLength   = pw.length >= 8;
+      const hasMatch    = confirm.length > 0 && pw === confirm;
 
+      document.getElementById('ruleUsername').className =
+        `rule ${user    ? (hasUsername ? 'valid' : 'invalid') : ''}`.trim();
       document.getElementById('ruleLength').className =
-        `rule ${pw      ? (hasLength ? 'valid' : 'invalid') : ''}`.trim();
+        `rule ${pw      ? (hasLength   ? 'valid' : 'invalid') : ''}`.trim();
       document.getElementById('ruleMatch').className  =
-        `rule ${confirm ? (hasMatch  ? 'valid' : 'invalid') : ''}`.trim();
+        `rule ${confirm ? (hasMatch    ? 'valid' : 'invalid') : ''}`.trim();
 
-      document.getElementById('setupBtn').disabled = !(hasLength && hasMatch);
+      document.getElementById('setupBtn').disabled = !(hasUsername && hasLength && hasMatch);
     }
 
     async function request(url, options = {}) {
@@ -410,7 +428,8 @@
       clearFeedback();
 
       const btn = document.getElementById('loginBtn');
-      const pw  = document.getElementById('password').value;
+      const user = document.getElementById('loginUsername').value;
+      const pw   = document.getElementById('password').value;
 
       btn.disabled    = true;
       btn.textContent = 'Logging in...';
@@ -418,7 +437,7 @@
       try {
         const { res, data } = await request('/api/auth/login', {
           method: 'POST',
-          body: JSON.stringify({ password: pw }),
+          body: JSON.stringify({ username: user, password: pw }),
         });
 
         if (res.ok) {
@@ -445,6 +464,7 @@
       clearFeedback();
       updateSetupValidation();
 
+      const user    = document.getElementById('setupUsername').value;
       const pw      = document.getElementById('setupPassword').value;
       const confirm = document.getElementById('confirmPassword').value;
       const btn     = document.getElementById('setupBtn');
@@ -458,7 +478,7 @@
       try {
         const { res, data } = await request('/api/auth/setup', {
           method: 'POST',
-          body: JSON.stringify({ password: pw, confirmPassword: confirm }),
+          body: JSON.stringify({ username: user, password: pw, confirmPassword: confirm }),
         });
 
         if (res.ok) {
@@ -487,6 +507,7 @@
       applyTheme();
     });
 
+    document.getElementById('setupUsername').addEventListener('input',  updateSetupValidation);
     document.getElementById('setupPassword').addEventListener('input',  updateSetupValidation);
     document.getElementById('confirmPassword').addEventListener('input', updateSetupValidation);
 

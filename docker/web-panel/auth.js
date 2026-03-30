@@ -42,6 +42,12 @@ function normalizeConfig(config) {
     changed = true;
   }
 
+  // Migration: existing installs without a username get default 'admin'
+  if (!normalized.username) {
+    normalized.username = 'admin';
+    changed = true;
+  }
+
   if (normalized.needsSetup && normalized.passwordHash) {
     normalized.needsSetup = false;
     changed = true;
@@ -73,6 +79,7 @@ async function initialize(dataDir) {
 
   if (!panelConfig) {
     panelConfig = {
+      username: 'admin',
       passwordHash: null,
       jwtSecret: crypto.randomBytes(32).toString('hex'),
       needsSetup: true,
@@ -161,10 +168,19 @@ async function setup(req, res) {
     return res.status(429).json(getRateLimitResponse(ip));
   }
 
-  const { password, confirmPassword } = req.body || {};
+  const { username, password, confirmPassword } = req.body || {};
 
   if (!password || !confirmPassword) {
     return res.status(400).json({ error: 'Password and confirmation are required' });
+  }
+
+  if (username !== undefined) {
+    if (typeof username !== 'string' || username.trim().length < 3) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters' });
+    }
+    if (!/^[a-zA-Z0-9_.-]+$/.test(username.trim())) {
+      return res.status(400).json({ error: 'Username may only contain letters, numbers, _ . -' });
+    }
   }
 
   if (password.length < 8) {
@@ -175,6 +191,7 @@ async function setup(req, res) {
     return res.status(400).json({ error: 'Passwords do not match' });
   }
 
+  if (username !== undefined) panelConfig.username = username.trim();
   panelConfig.passwordHash = await bcrypt.hash(password, 12);
   panelConfig.needsSetup = false;
   panelConfig.setupCompletedAt = new Date().toISOString();
@@ -195,22 +212,23 @@ async function login(req, res) {
     return res.status(429).json(getRateLimitResponse(ip));
   }
 
-  const { password } = req.body;
-  if (!password) {
-    return res.status(400).json({ error: 'Password is required' });
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
   }
 
   if (!panelConfig.passwordHash) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
-  const valid = await bcrypt.compare(password, panelConfig.passwordHash);
-  if (!valid) {
+  const usernameMatch = (panelConfig.username || 'admin').toLowerCase() === username.trim().toLowerCase();
+  const passwordValid = await bcrypt.compare(password, panelConfig.passwordHash);
+  if (!usernameMatch || !passwordValid) {
     recordFailedLogin(ip);
     const attempt = loginAttempts.get(ip);
     const remaining = MAX_ATTEMPTS - attempt.count;
     return res.status(401).json({
-      error: 'Invalid password',
+      error: 'Invalid username or password',
       attemptsRemaining: remaining > 0 ? remaining : 0,
     });
   }
@@ -230,7 +248,7 @@ async function changePassword(req, res) {
     return res.status(403).json({ error: 'Setup required', needsSetup: true });
   }
 
-  const { oldPassword, newPassword } = req.body;
+  const { oldPassword, newPassword, newUsername } = req.body;
 
   if (!oldPassword || !newPassword) {
     return res.status(400).json({ error: 'Old and new passwords are required' });
@@ -238,6 +256,15 @@ async function changePassword(req, res) {
 
   if (newPassword.length < 6) {
     return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  }
+
+  if (newUsername !== undefined) {
+    if (typeof newUsername !== 'string' || newUsername.trim().length < 3) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters' });
+    }
+    if (!/^[a-zA-Z0-9_.-]+$/.test(newUsername.trim())) {
+      return res.status(400).json({ error: 'Username may only contain letters, numbers, _ . -' });
+    }
   }
 
   if (!panelConfig.passwordHash) {
@@ -249,6 +276,7 @@ async function changePassword(req, res) {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
 
+  if (newUsername) panelConfig.username = newUsername.trim();
   panelConfig.passwordHash = await bcrypt.hash(newPassword, 12);
   panelConfig.passwordChangedAt = new Date().toISOString();
   saveConfig();
@@ -284,8 +312,9 @@ function verifyMiddleware(req, res, next) {
 }
 
 // Used by wizard.js to set the panel password without going through HTTP
-async function setupPassword(password) {
+async function setupPassword(password, username) {
   if (!panelConfig) return false;
+  if (username) panelConfig.username = username;
   panelConfig.passwordHash = await bcrypt.hash(password, 12);
   panelConfig.needsSetup = false;
   panelConfig.setupCompletedAt = new Date().toISOString();

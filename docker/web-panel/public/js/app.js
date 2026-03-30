@@ -1600,6 +1600,9 @@ function updateDashboardUI(data) {
     `<span class="status-dot ${statusClass}"></span><span id="serverStatusText">${statusText}</span>`;
 
   isTransitioning = starting;
+  // Update config tab server status badge (live — same style as header)
+  const cfgSrvEl = document.getElementById('configServerStatusBadge');
+  if (cfgSrvEl) cfgSrvEl.innerHTML = `<span class="status-dot ${statusClass}"></span>${statusText}`;
   // Update config tab server toggle button
   updateServerToggleBtn(starting);
 
@@ -2387,24 +2390,27 @@ async function loadConfig() {
 
     // Server group: prepend status indicators + append Start/Stop toggle
     if (group.name === 'Server') {
-      const running    = !!(lastStatusData?.gameRunning);
-      const stopping   = isStopping;
-      const starting   = isStarting || isGameRestarting;
-      const statusText = stopping ? 'Stopping…' : starting ? 'Starting…' : running ? 'Running' : 'Stopped';
-      const statusCol  = stopping ? '#f59e0b' : starting ? '#f59e0b' : running ? '#22c55e' : 'var(--text-muted)';
+      const running      = !!(lastStatusData?.gameRunning);
+      const liveRunning  = lastStatusData?.serverState === 'running';
+      const bootStarting = !running && !lastStatusData?.stoppedByUser && (lastStatusData?.containerUptime || 0) < 90;
+      const stopping     = isStopping;
+      const starting     = isStarting || isGameRestarting || bootStarting || (running && !liveRunning);
+      const realStopped  = !running && !isGameRestarting && !isStarting && !bootStarting;
+      const statusText   = stopping ? 'Stopping…' : isGameRestarting ? 'Restarting…' : starting ? 'Starting…' : running ? 'Running' : 'Stopped';
+      const statusCls    = realStopped ? 'offline' : (stopping || isGameRestarting || starting) ? 'restarting' : 'running';
 
       // Remote status
-      let remText, remColor;
+      let remText, remCls;
       if (_remoteOptimisticState === 'starting') {
-        remText = 'Starting'; remColor = '#f59e0b';
+        remText = 'Starting'; remCls = 'restarting';
       } else if (_remoteOptimisticState === 'stopping') {
-        remText = 'Stopping'; remColor = 'var(--text-muted)';
+        remText = 'Stopping'; remCls = 'offline';
       } else if (!lastRemoteData?.configured) {
-        remText = 'Not Setup'; remColor = 'var(--text-muted)';
+        remText = 'Not Setup'; remCls = 'offline';
       } else if (lastRemoteData.anyRunning) {
-        remText = 'Active'; remColor = '#22c55e';
+        remText = 'Connected'; remCls = 'running';
       } else {
-        remText = 'Stopped'; remColor = '#ef4444';
+        remText = 'Stopped'; remCls = 'offline';
       }
 
       const statusRow = document.createElement('div');
@@ -2413,7 +2419,9 @@ async function loadConfig() {
       statusRow.innerHTML =
         `<div><div class="config-label">Server Status</div></div>
          <div class="config-value">
-           <span id="configServerStatusBadge" style="font-weight:600;color:${statusCol}">● ${escapeHtml(statusText)}</span>
+           <span id="configServerStatusBadge" style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--text-primary)">
+             <span class="status-dot ${statusCls}"></span>${escapeHtml(statusText)}
+           </span>
          </div>`;
 
       const remoteRow = document.createElement('div');
@@ -2422,7 +2430,9 @@ async function loadConfig() {
       remoteRow.innerHTML =
         `<div><div class="config-label">Remote Status</div></div>
          <div class="config-value">
-           <span id="configRemoteStatusBadge" style="font-weight:600;color:${remColor}">● ${escapeHtml(remText)}</span>
+           <span id="configRemoteStatusBadge" style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--text-primary)">
+             <span class="status-dot ${remCls}"></span>${escapeHtml(remText)}
+           </span>
          </div>`;
 
       card.insertBefore(remoteRow, card.firstChild.nextSibling);
@@ -2438,6 +2448,18 @@ async function loadConfig() {
       cfgGameNotif.id = 'configGameUpdateNotif';
       cfgGameNotif.style.display = 'none';
       card.appendChild(cfgGameNotif);
+
+      // Check for Updates — own row
+      const updateRow = document.createElement('div');
+      updateRow.className = 'config-item';
+      updateRow.style.cssText = 'border-top:1px solid var(--border);padding-top:14px;margin-top:4px';
+      updateRow.innerHTML =
+        `<div><div class="config-label">Check for Updates now</div>
+              <div class="config-desc">Checks for StardropHost panel and game updates.</div></div>
+         <div class="config-value">
+           <button class="btn btn-sm btn-secondary" type="button" onclick="checkAllUpdates()">Check Now</button>
+         </div>`;
+      card.appendChild(updateRow);
 
       const sep = document.createElement('div');
       sep.style.cssText = 'border-top:1px solid var(--border);margin:14px 0 10px';
@@ -2459,9 +2481,6 @@ async function loadConfig() {
          </button>
          <button class="btn btn-sm btn-warning" type="button" onclick="restartServer()"${_dis}>
            Restart Server
-         </button>
-         <button class="btn btn-sm btn-secondary" type="button" onclick="checkAllUpdates()">
-           Check for Updates
          </button>
          ${remBtn}`;
       card.appendChild(actions);
@@ -2798,18 +2817,26 @@ async function createBackup() {
 }
 
 async function changePassword() {
-  const oldPwd = document.getElementById('oldPassword').value;
-  const newPwd = document.getElementById('newPassword').value;
+  const newUser = document.getElementById('newUsername')?.value?.trim();
+  const oldPwd  = document.getElementById('oldPassword').value;
+  const newPwd  = document.getElementById('newPassword').value;
   if (!oldPwd || !newPwd) { showToast('Please fill in both password fields', 'error'); return; }
+  if (newUser && !/^[a-zA-Z0-9_.-]{3,}$/.test(newUser)) {
+    showToast('Username must be 3+ characters (letters, numbers, _ . -)', 'error'); return;
+  }
 
-  const data = await API.post('/api/auth/password', { oldPassword: oldPwd, newPassword: newPwd });
+  const payload = { oldPassword: oldPwd, newPassword: newPwd };
+  if (newUser) payload.newUsername = newUser;
+
+  const data = await API.post('/api/auth/password', payload);
   if (data?.success) {
     if (data.token) { API.token = data.token; localStorage.setItem('panel_token', data.token); }
+    if (document.getElementById('newUsername')) document.getElementById('newUsername').value = '';
     document.getElementById('oldPassword').value = '';
     document.getElementById('newPassword').value = '';
-    showToast('Password changed', 'success');
+    showToast('Credentials updated', 'success');
   } else {
-    showToast(data?.error || 'Password change failed', 'error');
+    showToast(data?.error || 'Update failed', 'error');
   }
 }
 
@@ -3183,11 +3210,7 @@ function _updateRemoteBadge() {
   setText('stat-remote', text);
 
   const cfgEl = document.getElementById('configRemoteStatusBadge');
-  if (cfgEl) {
-    const color = orbClass === 'running' ? '#22c55e' : orbClass === 'restarting' ? '#f59e0b' : 'var(--text-muted)';
-    cfgEl.textContent = `● ${text}`;
-    cfgEl.style.color = color;
-  }
+  if (cfgEl) cfgEl.innerHTML = `<span class="status-dot ${orbClass}"></span>${text}`;
 
   renderQuickActions();
 }
@@ -3222,18 +3245,16 @@ function _renderRemoteServices(services, anyRunning) {
 }
 
 function _lockComposeEntry(locked) {
-  const textarea = document.getElementById('remoteComposeInput');
-  const btn      = document.getElementById('remoteApplyBtn');
-  const msgEl    = document.getElementById('remoteApplyMsg');
-  if (textarea) textarea.disabled = locked;
-  if (btn) {
-    btn.disabled    = locked;
-    btn.textContent = locked ? 'Service Active' : 'Apply & Connect';
-  }
+  const textarea  = document.getElementById('remoteComposeInput');
+  const btn       = document.getElementById('remoteApplyBtn');
+  const msgEl     = document.getElementById('remoteApplyMsg');
+  const inputWrap = document.getElementById('remoteComposeInputWrap');
+  if (textarea) textarea.disabled     = locked;
+  if (inputWrap) inputWrap.style.display = locked ? 'none' : '';
+  if (btn) btn.style.display          = locked ? 'none' : '';
   if (msgEl) {
     if (locked) {
-      msgEl.textContent   = 'Stop & Remove the current service to start a new one.';
-      msgEl.style.color   = 'var(--text-muted)';
+      msgEl.innerHTML    = '<strong style="color:var(--text-primary);font-size:14px">&#x2713; Service configured.</strong> <span style="color:var(--text-secondary)">Stop &amp; Remove the current service to start a new one.</span>';
       msgEl.style.display = '';
     } else {
       msgEl.style.display = 'none';

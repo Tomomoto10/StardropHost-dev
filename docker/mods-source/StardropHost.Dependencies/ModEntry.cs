@@ -802,6 +802,8 @@ namespace StardropHostDependencies
             }
 
             Game1.server.ban(farmer.UniqueMultiplayerID);
+            // Game1.server.ban() only kicks — does NOT populate bannedUsers. Add manually.
+            Game1.bannedUsers[farmer.Name] = farmer.UniqueMultiplayerID.ToString();
             Monitor.Log($"[PlayerManager] Banned {farmer.Name} ({farmer.UniqueMultiplayerID}).", LogLevel.Info);
         }
 
@@ -812,13 +814,16 @@ namespace StardropHostDependencies
             var target = string.Join(" ", args);
             var toRemove = Game1.bannedUsers
                 .Where(kv => (kv.Value != null && kv.Value.Equals(target, StringComparison.OrdinalIgnoreCase))
-                          || kv.Key == target)
+                          || kv.Key.Equals(target, StringComparison.OrdinalIgnoreCase))
                 .Select(kv => kv.Key)
                 .ToList();
 
             if (toRemove.Count == 0)
             {
-                Monitor.Log($"[PlayerManager] Unban: no banned player matching '{target}'.", LogLevel.Warn);
+                var keys = Game1.bannedUsers.Count > 0
+                    ? $"Banned list: [{string.Join(", ", Game1.bannedUsers.Keys.Take(10))}]"
+                    : "Banned list is empty";
+                Monitor.Log($"[PlayerManager] Unban: no banned player matching '{target}'. {keys}", LogLevel.Warn);
                 return;
             }
 

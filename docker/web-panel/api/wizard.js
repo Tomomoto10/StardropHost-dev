@@ -165,10 +165,18 @@ function getWizardStatus(req, res) {
   });
 }
 
-// Step 1 — Admin password
+// Step 1 — Admin credentials
 function submitStep1(req, res) {
-  const { password, confirmPassword } = req.body || {};
+  const { username, password, confirmPassword } = req.body || {};
 
+  if (username !== undefined) {
+    if (typeof username !== 'string' || username.trim().length < 3) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters' });
+    }
+    if (!/^[a-zA-Z0-9_.-]+$/.test(username.trim())) {
+      return res.status(400).json({ error: 'Username may only contain letters, numbers, _ . -' });
+    }
+  }
   if (!password || typeof password !== 'string') {
     return res.status(400).json({ error: 'Password is required' });
   }
@@ -179,7 +187,7 @@ function submitStep1(req, res) {
     return res.status(400).json({ error: 'Passwords do not match' });
   }
 
-  auth.setupPassword(password)
+  auth.setupPassword(password, username ? username.trim() : undefined)
     .then(() => {
       const state = readState();
       state.steps[1].complete = true;
