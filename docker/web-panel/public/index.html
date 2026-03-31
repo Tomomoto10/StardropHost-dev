@@ -613,7 +613,14 @@
             <div id="chatFeed" class="chat-feed">
               <div class="empty-state" id="chatEmpty">No messages yet — chat from connected players will appear here.</div>
             </div>
+            <!-- Color swatches -->
+            <div class="chat-color-row" id="chatColorRow"></div>
+            <!-- Compose -->
             <div class="chat-compose-row">
+              <div class="chat-emote-wrap">
+                <button class="btn btn-sm chat-emote-btn" id="chatEmoteBtn" onclick="toggleEmoteMenu()" title="Emotes">😊</button>
+                <div id="chatEmoteMenu" class="chat-emote-menu" style="display:none"></div>
+              </div>
               <input id="chatInput" type="text" class="form-input chat-input" placeholder="Message all players…" maxlength="200" autocomplete="off" />
               <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">Send</button>
               <button class="btn btn-sm" id="chatClearTarget" onclick="clearChatTarget()" style="display:none">&times; Clear</button>

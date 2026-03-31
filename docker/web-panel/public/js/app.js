@@ -1379,6 +1379,8 @@ function navigateTo(page) {
     case 'chat':
       _chatPlayersTs = 0; // force immediate player refresh on page open
       renderChatPlayerPills();
+      initChatColorRow();
+      initChatEmoteMenu();
       loadChatMessages();
       if (!_chatPollTimer) _chatPollTimer = setInterval(loadChatMessages, 3000);
       break;
@@ -2211,6 +2213,108 @@ let _chatLastTs      = 0;      // timestamp of newest message we've rendered
 let _chatPollTimer   = null;
 let _chatPlayers     = [];     // cached online player names for pills
 let _chatPlayersTs   = 0;      // last time we fetched players for chat
+let _chatColor       = null;   // null = no color, 'rainbow', or color name string
+
+// ── Chat color / emote constants ──────────────────────────────────
+const CHAT_COLORS = [
+  { name: 'white',       hex: '#ffffff' },
+  { name: 'red',         hex: '#e05555' },
+  { name: 'blue',        hex: '#5588e0' },
+  { name: 'green',       hex: '#55bb55' },
+  { name: 'jade',        hex: '#5fa880' },
+  { name: 'yellowgreen', hex: '#9acd32' },
+  { name: 'pink',        hex: '#ff8ab4' },
+  { name: 'purple',      hex: '#b06aeb' },
+  { name: 'yellow',      hex: '#e8d44d' },
+  { name: 'orange',      hex: '#e87d30' },
+  { name: 'brown',       hex: '#a0522d' },
+  { name: 'gray',        hex: '#909090' },
+  { name: 'cream',       hex: '#f5e6c8' },
+  { name: 'salmon',      hex: '#fa8072' },
+  { name: 'peach',       hex: '#ffcba4' },
+  { name: 'aqua',        hex: '#00cccc' },
+  { name: 'jungle',      hex: '#29ab87' },
+  { name: 'plum',        hex: '#dda0dd' },
+];
+const CHAT_RAINBOW_SEQ = ['red','orange','yellow','green','aqua','blue','purple'];
+const CHAT_EMOTES = [
+  'happy','sad','surprise','angry','exclamation','heart',
+  'note','question','sleep','taunt','laugh','cry','blush','x','yes','no',
+];
+
+function initChatColorRow() {
+  const row = document.getElementById('chatColorRow');
+  if (!row || row.children.length) return;
+  // "off" swatch
+  const off = document.createElement('button');
+  off.className = 'chat-color-swatch active'; off.dataset.color = '';
+  off.style.background = 'var(--bg-tertiary)'; off.style.border = '1px solid var(--border)';
+  off.title = 'No color'; off.textContent = 'A';
+  off.onclick = () => setChatColor(null);
+  row.appendChild(off);
+  // Named color swatches
+  for (const c of CHAT_COLORS) {
+    const btn = document.createElement('button');
+    btn.className = 'chat-color-swatch'; btn.dataset.color = c.name;
+    btn.style.background = c.hex; btn.title = c.name;
+    btn.onclick = () => setChatColor(c.name);
+    row.appendChild(btn);
+  }
+  // Rainbow swatch
+  const rb = document.createElement('button');
+  rb.className = 'chat-color-swatch chat-color-rainbow'; rb.dataset.color = 'rainbow';
+  rb.title = 'Rainbow'; rb.textContent = '🌈';
+  rb.onclick = () => setChatColor('rainbow');
+  row.appendChild(rb);
+}
+
+function initChatEmoteMenu() {
+  const menu = document.getElementById('chatEmoteMenu');
+  if (!menu || menu.children.length) return;
+  for (const name of CHAT_EMOTES) {
+    const btn = document.createElement('button');
+    btn.className = 'chat-emote-item'; btn.textContent = name;
+    btn.onclick = () => insertEmote(name);
+    menu.appendChild(btn);
+  }
+}
+
+function setChatColor(name) {
+  _chatColor = name || null;
+  // Update active swatch highlight
+  document.querySelectorAll('.chat-color-swatch').forEach(el => {
+    const match = name ? el.dataset.color === name : el.dataset.color === '';
+    el.classList.toggle('active', match);
+  });
+}
+
+function toggleEmoteMenu() {
+  const menu = document.getElementById('chatEmoteMenu');
+  if (!menu) return;
+  const open = menu.style.display !== 'none';
+  menu.style.display = open ? 'none' : 'grid';
+  if (!open) document.getElementById('chatEmoteBtn').classList.add('active');
+  else document.getElementById('chatEmoteBtn').classList.remove('active');
+}
+
+function insertEmote(name) {
+  const input = document.getElementById('chatInput');
+  if (!input) return;
+  input.value = `/emote ${name}`;
+  document.getElementById('chatEmoteMenu').style.display = 'none';
+  document.getElementById('chatEmoteBtn').classList.remove('active');
+  input.focus();
+}
+
+// Close emote menu when clicking outside
+document.addEventListener('click', e => {
+  const menu = document.getElementById('chatEmoteMenu');
+  const btn  = document.getElementById('chatEmoteBtn');
+  if (menu && btn && !menu.contains(e.target) && e.target !== btn) {
+    menu.style.display = 'none';
+    btn.classList.remove('active');
+  }
+});
 
 function renderChatPlayerPills() {
   const row = document.getElementById('chatPlayerPills');
@@ -2284,8 +2388,18 @@ async function loadChatMessages() {
 
 async function sendChatMessage() {
   const input = document.getElementById('chatInput');
-  const message = input.value.trim();
+  let message = input.value.trim();
   if (!message) return;
+
+  // Apply color prefix (skip if message is a /command)
+  if (_chatColor && !message.startsWith('/')) {
+    if (_chatColor === 'rainbow') {
+      const words = message.split(' ');
+      message = words.map((w, i) => `[${CHAT_RAINBOW_SEQ[i % CHAT_RAINBOW_SEQ.length]}]${w}`).join(' ');
+    } else {
+      message = `[${_chatColor}]${message}`;
+    }
+  }
 
   input.disabled = true;
   const data = await API.post('/api/chat/send', { message, to: _chatTarget || 'all' }).catch(() => null);
