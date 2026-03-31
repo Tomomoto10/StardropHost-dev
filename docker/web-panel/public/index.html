@@ -799,24 +799,32 @@
           <div class="card" style="margin-top:16px">
             <h3>Feedback &amp; Support</h3>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-              <div style="font-size:13px;color:var(--text-secondary)">Found a bug or have a feature request? Open an issue on GitHub.</div>
+              <div>
+                <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px">Found a bug or have a feature request? Open an issue on GitHub.</div>
+                <div style="font-size:12px;color:var(--text-muted)">Please select the appropriate label when submitting — <strong style="color:var(--text-secondary)">Bug</strong> or <strong style="color:var(--text-secondary)">Feature Request</strong>.</div>
+              </div>
               <a href="https://github.com/Tomomoto10/StardropHost-dev/issues" target="_blank" rel="noopener noreferrer" class="btn btn-sm">
-                <svg class="icon"><use href="#icon-globe"></use></svg>
+                <svg class="icon"><use href="#icon-github"></use></svg>
                 Report / Request
               </a>
             </div>
           </div>
 
           <div class="card" style="margin-top:16px;border-color:#ef444433">
-            <h3 style="color:#ef4444">Danger Zone</h3>
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-              <div>
-                <div style="font-weight:500;margin-bottom:4px">Delete Farm &amp; Restart Setup</div>
-                <div style="font-size:13px;color:var(--text-secondary)">Permanently deletes all save data and relaunches the setup wizard. Game files and mods are kept.</div>
+            <details>
+              <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <h3 style="color:#ef4444;margin:0">Danger Zone</h3>
+                <svg class="icon" style="color:#ef4444;flex-shrink:0;transition:transform 0.2s" id="dangerZoneChevron"><use href="#icon-chevron-down"></use></svg>
+              </summary>
+              <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+                <div>
+                  <div style="font-weight:500;margin-bottom:4px">Delete Farm &amp; Restart Setup</div>
+                  <div style="font-size:13px;color:var(--text-secondary)">Permanently deletes all save data and relaunches the setup wizard. Game files and mods are kept.</div>
+                </div>
+                <button class="btn" style="color:#ef4444;border-color:#ef4444;white-space:nowrap;flex-shrink:0"
+                  type="button" onclick="openFactoryResetModal()">Delete Farm &amp; Restart Setup</button>
               </div>
-              <button class="btn" style="color:#ef4444;border-color:#ef4444;white-space:nowrap;flex-shrink:0"
-                type="button" onclick="openFactoryResetModal()">Delete Farm &amp; Restart Setup</button>
-            </div>
+            </details>
           </div>
 
         </section>

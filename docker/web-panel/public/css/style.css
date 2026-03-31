@@ -1483,3 +1483,7 @@ body {
   flex-shrink: 0;
 }
 .admin-cred-details[open] > summary::before { transform: rotate(90deg); }
+
+/* ── Danger Zone collapsible ──────────────────────────────────── */
+details:has(#dangerZoneChevron) summary::-webkit-details-marker { display: none; }
+details:has(#dangerZoneChevron)[open] #dangerZoneChevron { transform: rotate(180deg); }
