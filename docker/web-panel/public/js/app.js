@@ -1377,6 +1377,8 @@ function navigateTo(page) {
       if (!playersInterval) playersInterval = setInterval(loadPlayers, 5000);
       break;
     case 'chat':
+      _chatPlayersTs = 0; // force immediate player refresh on page open
+      renderChatPlayerPills();
       loadChatMessages();
       if (!_chatPollTimer) _chatPollTimer = setInterval(loadChatMessages, 3000);
       break;
@@ -2033,9 +2035,6 @@ async function loadPlayers() {
           ${renderPlayerStats(p, sw)}
         </div>
         <div class="player-actions">
-          <button class="btn btn-sm" onclick="setChatTarget('${escapeHtml(p.name)}')">
-            <svg class="icon" style="width:13px;height:13px"><use href="#icon-chat"></use></svg> Chat
-          </button>
           <button class="btn btn-sm" onclick="openAdminModal(_lastPlayersData.players.find(x=>x.id==='${escapeHtml(p.id)}'))">Admin</button>
           <button class="btn btn-sm" onclick="kickPlayer(this,'${escapeHtml(p.id)}','${escapeHtml(p.name)}')">Kick</button>
           <button class="btn btn-sm btn-danger" onclick="banPlayer(this,'${escapeHtml(p.id)}','${escapeHtml(p.name)}')">Ban</button>
@@ -2207,9 +2206,22 @@ function _showAdminResult(success, command, error) {
 
 // ─── Chat ─────────────────────────────────────────────────────────
 
-let _chatTarget    = null;   // null = broadcast to all; string = player name for private
-let _chatLastTs    = 0;      // timestamp of newest message we've rendered
-let _chatPollTimer = null;
+let _chatTarget      = null;   // null = broadcast to all; string = player name for private
+let _chatLastTs      = 0;      // timestamp of newest message we've rendered
+let _chatPollTimer   = null;
+let _chatPlayers     = [];     // cached online player names for pills
+let _chatPlayersTs   = 0;      // last time we fetched players for chat
+
+function renderChatPlayerPills() {
+  const row = document.getElementById('chatPlayerPills');
+  if (!row) return;
+  const pills = [{ name: null, label: 'World Chat' }].concat(_chatPlayers.map(n => ({ name: n, label: n })));
+  row.innerHTML = pills.map(p => {
+    const active = (_chatTarget === p.name) ? ' active' : '';
+    const onclick = p.name ? `setChatTarget('${escapeHtml(p.name)}')` : 'clearChatTarget()';
+    return `<button class="chat-pill${active}" onclick="${onclick}">${escapeHtml(p.label)}</button>`;
+  }).join('');
+}
 
 function setChatTarget(name) {
   _chatTarget = name;
@@ -2217,18 +2229,33 @@ function setChatTarget(name) {
   document.getElementById('chatInput').placeholder = `Message ${name}…`;
   document.getElementById('chatClearTarget').style.display = '';
   document.getElementById('chatInput').focus();
-  // Scroll to chat card
-  document.getElementById('chatFeed').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  renderChatPlayerPills();
 }
 
 function clearChatTarget() {
   _chatTarget = null;
-  document.getElementById('chatTargetLabel').textContent = 'Broadcasting to all players';
+  document.getElementById('chatTargetLabel').textContent = 'World Chat';
   document.getElementById('chatInput').placeholder = 'Message all players…';
   document.getElementById('chatClearTarget').style.display = 'none';
+  renderChatPlayerPills();
 }
 
 async function loadChatMessages() {
+  // Refresh online player pills every ~10s
+  if (Date.now() - _chatPlayersTs > 10000) {
+    _chatPlayersTs = Date.now();
+    const pd = await API.get('/api/players').catch(() => null);
+    if (pd) {
+      const names = (pd.players || []).filter(p => !p.isHost).map(p => p.name).filter(Boolean);
+      if (JSON.stringify(names) !== JSON.stringify(_chatPlayers)) {
+        _chatPlayers = names;
+        // If selected target is no longer online, clear it
+        if (_chatTarget && !_chatPlayers.includes(_chatTarget)) clearChatTarget();
+        renderChatPlayerPills();
+      }
+    }
+  }
+
   const data = await API.get(`/api/chat/messages?since=${_chatLastTs}&limit=100`).catch(() => null);
   if (!data?.messages?.length) return;
 

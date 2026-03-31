@@ -1231,6 +1231,29 @@ body {
 .chat-msg-host .chat-meta { color: var(--accent); }
 .chat-time { font-weight: 400; margin-left: 4px; }
 .chat-text { color: var(--text-primary); line-height: 1.4; }
+.chat-player-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.chat-pill {
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.chat-pill:hover { border-color: var(--accent); color: var(--accent); }
+.chat-pill.active {
+  background: color-mix(in srgb, var(--accent-dark) 30%, var(--bg-tertiary));
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
 .chat-compose-row {
   display: flex;
   gap: 8px;
