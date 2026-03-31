@@ -309,7 +309,7 @@
           <button id="saveConfigBtn" class="btn btn-success btn-sm" onclick="saveConfig()" style="display:none">Save Changes</button>
           <span id="pendingRestartBadge" class="status-badge restarting" style="display:none;cursor:pointer" onclick="showRestartModal('Restart the container to apply your saved changes.')" title="Click to restart">⚠ Restart Pending</span>
           <span id="vncTopbarBadge" class="status-badge" style="display:none;background:rgba(239,68,68,0.15);color:#ef4444">
-            <span class="status-dot" style="background:#ef4444;flex-shrink:0"></span>VNC &middot; On
+            <span class="status-dot" style="background:#ef4444;flex-shrink:0"></span>VNC
           </span>
           <span id="remoteTopbarBadge" class="status-badge running" style="display:none">
             <span class="status-dot running" id="remoteTopbarDot"></span>
@@ -491,14 +491,15 @@
 
               <div class="admin-cmd-row">
                 <span class="admin-cmd-label">Set Weather</span>
-                <select id="worldSetWeather" class="form-input" style="width:150px">
+                <select id="worldSetWeather" class="form-input" style="width:150px" disabled>
                   <option value="sun">Sunny</option>
                   <option value="rain">Rain</option>
                   <option value="storm">Storm</option>
                   <option value="snow">Snow</option>
                   <option value="wind">Wind</option>
                 </select>
-                <button class="btn btn-sm btn-primary" onclick="worldCmd('world_setweather', document.getElementById('worldSetWeather').value)">Set</button>
+                <button class="btn btn-sm btn-primary" disabled title="Requires Dependencies mod Phase 2">Set</button>
+                <span class="detail-note" style="margin-left:4px">Requires mod update</span>
               </div>
 
               <div class="admin-cmd-row">
@@ -592,11 +593,19 @@
               </div>
               <div class="admin-cmd-row" style="align-items:flex-start;flex-wrap:wrap;gap:6px">
                 <span class="admin-cmd-label" style="padding-top:8px">Give Item</span>
-                <div style="display:flex;gap:6px;flex:1;flex-wrap:wrap">
-                  <input type="text" id="adminItemName" class="form-input" placeholder="Item name (e.g. Honey)" style="flex:2;min-width:120px">
-                  <input type="number" id="adminItemQty" class="form-input" placeholder="Qty" min="1" value="1" style="width:70px">
-                  <button class="btn btn-sm btn-primary" onclick="sendAdminGiveItem()">Give</button>
+                <div style="display:flex;gap:6px;flex:1;flex-wrap:wrap;align-items:flex-start">
+                  <div style="flex:2;min-width:180px;display:flex;flex-direction:column;gap:4px">
+                    <input type="text" id="adminItemSearch" class="form-input" placeholder="Search items…" oninput="filterAdminItems(this.value)" style="width:100%">
+                    <select id="adminItemSelect" class="form-input" size="5" style="width:100%">
+                      <option value="" disabled>— filter above to select —</option>
+                    </select>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+                    <input type="number" id="adminItemQty" class="form-input" placeholder="Qty" min="1" value="1" style="width:70px">
+                    <button class="btn btn-sm btn-primary" onclick="sendAdminGiveItem()">Give</button>
+                  </div>
                 </div>
+                <span class="detail-note" style="width:100%;margin-top:2px">Gives item to host. Per-farmhand requires Dependencies mod Phase 2.</span>
               </div>
             </div>
             <div id="adminCmdResult" style="display:none;margin-top:12px;font-size:13px;padding:8px;border-radius:6px"></div>

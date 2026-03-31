@@ -1643,7 +1643,7 @@ function updateDashboardUI(data) {
     `<span class="status-orb ${statusClass}"></span>`;
   document.getElementById('serverStatus').className = `status-badge ${statusClass}`;
   document.getElementById('serverStatus').innerHTML =
-    `<span class="status-dot ${statusClass}"></span><span id="serverStatusText">Server &middot; ${statusText}</span>`;
+    `<span class="status-dot ${statusClass}"></span>Server`;
 
   isTransitioning = starting;
   // Update config tab server status badge (live — same style as header)
@@ -1802,11 +1802,9 @@ async function loadFarm() {
     ).join('');
 
     ccEl.innerHTML = `
-      <div style="margin-bottom:12px">
-        <strong>${cc.completedRooms}/${cc.totalRooms} Rooms Complete</strong>
-        <div class="progress-bar" style="margin-top:6px">
-          <div class="progress-fill" style="width:${cc.percentComplete}%;${cc.percentComplete === 100 ? 'background:var(--accent)' : ''}"></div>
-        </div>
+      <div style="margin-bottom:8px;font-weight:600;color:var(--text-primary)">${cc.completedRooms}/${cc.totalRooms} Rooms Complete</div>
+      <div class="progress-bar" style="margin-bottom:12px">
+        <div class="progress-fill" style="width:${cc.percentComplete}%;${cc.percentComplete === 100 ? 'background:var(--accent)' : ''}"></div>
       </div>
       <div class="details-grid">${roomsHtml}</div>
     `;
@@ -2182,6 +2180,190 @@ async function removeBlocklistEntry(value) {
   else showToast('Failed to remove entry', 'error');
 }
 
+// ─── SDV Item List (qualified IDs for player_add command) ─────────
+const SDV_ITEMS = [
+  // Books
+  { id:'Book_AnimalCatalogue',  name:'Animal Catalogue',           cat:'Books' },
+  { id:'Book_Artifact',         name:'Treasure Appraisal Guide',   cat:'Books' },
+  { id:'Book_Bombs',            name:'Dwarvish Safety Manual',     cat:'Books' },
+  { id:'Book_Crabbing',         name:'The Art O\'Crabbing',        cat:'Books' },
+  { id:'Book_Defense',          name:'Jack Be Nimble, Jack Be Thick', cat:'Books' },
+  { id:'Book_Diamonds',         name:'The Diamond Hunter',         cat:'Books' },
+  { id:'Book_Friendship',       name:'Friendship 101',             cat:'Books' },
+  { id:'Book_Grass',            name:'Ol\' Slitherlegs',           cat:'Books' },
+  { id:'Book_Horse',            name:'Horse: The Book',            cat:'Books' },
+  { id:'Book_Marlon',           name:'Mapping Cave Systems',       cat:'Books' },
+  { id:'Book_Mystery',          name:'Book of Mysteries',          cat:'Books' },
+  { id:'Book_PriceCatalogue',   name:'Price Catalogue',            cat:'Books' },
+  { id:'Book_QueenOfSauce',     name:'Queen of Sauce Cookbook',    cat:'Books' },
+  { id:'Book_Roe',              name:'Jewels of the Sea',          cat:'Books' },
+  { id:'Book_Speed',            name:'Way of the Wind pt. 1',      cat:'Books' },
+  { id:'Book_Speed2',           name:'Way of the Wind pt. 2',      cat:'Books' },
+  { id:'Book_Trash',            name:'The Alleyway Buffet',        cat:'Books' },
+  { id:'Book_Void',             name:'Monster Compendium',         cat:'Books' },
+  { id:'Book_WildSeeds',        name:'Raccoon Journal',            cat:'Books' },
+  { id:'Book_Woodcutting',      name:'Woody\'s Secret',            cat:'Books' },
+  { id:'PurpleBook',            name:'Book of Stars',              cat:'Books' },
+  { id:'SkillBook_0',           name:'Stardew Valley Almanac',     cat:'Books' },
+  { id:'SkillBook_1',           name:'Bait and Bobber',            cat:'Books' },
+  { id:'SkillBook_2',           name:'Woodcutter\'s Weekly',       cat:'Books' },
+  { id:'SkillBook_3',           name:'Mining Monthly',             cat:'Books' },
+  { id:'SkillBook_4',           name:'Combat Quarterly',           cat:'Books' },
+  // Fishing
+  { id:'SpecificBait',  name:'Bait',           cat:'Fishing' },
+  { id:'CaveJelly',     name:'Cave Jelly',      cat:'Fishing' },
+  { id:'ChallengeBait', name:'Challenge Bait',  cat:'Fishing' },
+  { id:'DeluxeBait',    name:'Deluxe Bait',     cat:'Fishing' },
+  { id:'Goby',          name:'Goby',            cat:'Fishing' },
+  { id:'GoldenBobber',  name:'Golden Bobber',   cat:'Fishing' },
+  { id:'TroutDerbyTag', name:'Golden Tag',      cat:'Fishing' },
+  { id:'RiverJelly',    name:'River Jelly',     cat:'Fishing' },
+  { id:'SeaJelly',      name:'Sea Jelly',       cat:'Fishing' },
+  { id:'SmokedFish',    name:'Smoked Fish',     cat:'Fishing' },
+  { id:'SonarBobber',   name:'Sonar Bobber',    cat:'Fishing' },
+  // Mining — gems & bars
+  { id:'60',  name:'Emerald',         cat:'Mining' },
+  { id:'62',  name:'Aquamarine',      cat:'Mining' },
+  { id:'64',  name:'Ruby',            cat:'Mining' },
+  { id:'66',  name:'Amethyst',        cat:'Mining' },
+  { id:'68',  name:'Topaz',           cat:'Mining' },
+  { id:'70',  name:'Jade',            cat:'Mining' },
+  { id:'72',  name:'Diamond',         cat:'Mining' },
+  { id:'74',  name:'Prismatic Shard', cat:'Mining' },
+  { id:'80',  name:'Quartz',          cat:'Mining' },
+  { id:'82',  name:'Fire Quartz',     cat:'Mining' },
+  { id:'84',  name:'Frozen Tear',     cat:'Mining' },
+  { id:'86',  name:'Earth Crystal',   cat:'Mining' },
+  { id:'330', name:'Clay',            cat:'Mining' },
+  { id:'334', name:'Copper Bar',      cat:'Mining' },
+  { id:'335', name:'Iron Bar',        cat:'Mining' },
+  { id:'336', name:'Gold Bar',        cat:'Mining' },
+  { id:'337', name:'Iridium Bar',     cat:'Mining' },
+  { id:'338', name:'Refined Quartz',  cat:'Mining' },
+  { id:'378', name:'Copper Ore',      cat:'Mining' },
+  { id:'380', name:'Iron Ore',        cat:'Mining' },
+  { id:'382', name:'Coal',            cat:'Mining' },
+  { id:'384', name:'Gold Ore',        cat:'Mining' },
+  { id:'386', name:'Iridium Ore',     cat:'Mining' },
+  { id:'535', name:'Geode',           cat:'Mining' },
+  { id:'536', name:'Frozen Geode',    cat:'Mining' },
+  { id:'537', name:'Magma Geode',     cat:'Mining' },
+  { id:'749', name:'Omni Geode',      cat:'Mining' },
+  { id:'848', name:'Cinder Shard',    cat:'Mining' },
+  { id:'909', name:'Radioactive Ore', cat:'Mining' },
+  { id:'910', name:'Radioactive Bar', cat:'Mining' },
+  { id:'CalicoEgg',    name:'Calico Egg',  cat:'Mining' },
+  { id:'VolcanoGoldNode', name:'Gold Stone', cat:'Mining' },
+  // Farming — crops & animal products
+  { id:'24',  name:'Parsnip',           cat:'Farming' },
+  { id:'91',  name:'Banana',            cat:'Farming' },
+  { id:'174', name:'Egg (White)',        cat:'Farming' },
+  { id:'176', name:'Large Egg (White)', cat:'Farming' },
+  { id:'180', name:'Egg (Brown)',        cat:'Farming' },
+  { id:'182', name:'Large Egg (Brown)', cat:'Farming' },
+  { id:'184', name:'Milk',              cat:'Farming' },
+  { id:'186', name:'Large Milk',        cat:'Farming' },
+  { id:'188', name:'Green Bean',        cat:'Farming' },
+  { id:'190', name:'Cauliflower',       cat:'Farming' },
+  { id:'192', name:'Potato',            cat:'Farming' },
+  { id:'248', name:'Garlic',            cat:'Farming' },
+  { id:'250', name:'Kale',              cat:'Farming' },
+  { id:'251', name:'Tea Sapling',       cat:'Farming' },
+  { id:'252', name:'Rhubarb',           cat:'Farming' },
+  { id:'254', name:'Melon',             cat:'Farming' },
+  { id:'256', name:'Tomato',            cat:'Farming' },
+  { id:'258', name:'Blueberry',         cat:'Farming' },
+  { id:'260', name:'Hot Pepper',        cat:'Farming' },
+  { id:'262', name:'Wheat',             cat:'Farming' },
+  { id:'264', name:'Radish',            cat:'Farming' },
+  { id:'266', name:'Red Cabbage',       cat:'Farming' },
+  { id:'268', name:'Starfruit',         cat:'Farming' },
+  { id:'270', name:'Corn',              cat:'Farming' },
+  { id:'272', name:'Eggplant',          cat:'Farming' },
+  { id:'274', name:'Artichoke',         cat:'Farming' },
+  { id:'276', name:'Pumpkin',           cat:'Farming' },
+  { id:'278', name:'Bok Choy',          cat:'Farming' },
+  { id:'280', name:'Yam',               cat:'Farming' },
+  { id:'282', name:'Cranberries',       cat:'Farming' },
+  { id:'284', name:'Beet',              cat:'Farming' },
+  { id:'289', name:'Ostrich Egg',       cat:'Farming' },
+  { id:'292', name:'Mahogany Seed',     cat:'Farming' },
+  { id:'297', name:'Grass Starter',     cat:'Farming' },
+  { id:'300', name:'Amaranth',          cat:'Farming' },
+  { id:'304', name:'Hops',              cat:'Farming' },
+  { id:'305', name:'Void Egg',          cat:'Farming' },
+  { id:'306', name:'Mayonnaise',        cat:'Farming' },
+  { id:'307', name:'Duck Mayonnaise',   cat:'Farming' },
+  { id:'308', name:'Void Mayonnaise',   cat:'Farming' },
+  { id:'340', name:'Honey',             cat:'Farming' },
+  { id:'347', name:'Rare Seed',         cat:'Farming' },
+  { id:'400', name:'Strawberry',        cat:'Farming' },
+  { id:'421', name:'Sunflower',         cat:'Farming' },
+  { id:'423', name:'Rice',              cat:'Farming' },
+  { id:'424', name:'Cheese',            cat:'Farming' },
+  { id:'426', name:'Goat Cheese',       cat:'Farming' },
+  { id:'428', name:'Cloth',             cat:'Farming' },
+  { id:'430', name:'Truffle',           cat:'Farming' },
+  { id:'432', name:'Truffle Oil',       cat:'Farming' },
+  { id:'436', name:'Goat Milk',         cat:'Farming' },
+  { id:'438', name:'Large Goat Milk',   cat:'Farming' },
+  { id:'440', name:'Wool',              cat:'Farming' },
+  { id:'442', name:'Duck Egg',          cat:'Farming' },
+  { id:'444', name:'Duck Feather',      cat:'Farming' },
+  { id:'447', name:'Rabbit\'s Foot',    cat:'Farming' },
+  { id:'454', name:'Ancient Fruit',     cat:'Farming' },
+  { id:'69',  name:'Banana Sapling',    cat:'Farming' },
+  { id:'73',  name:'Golden Walnut',     cat:'Farming' },
+  { id:'802', name:'Cactus Seeds',      cat:'Farming' },
+  { id:'803', name:'Iridium Milk',      cat:'Farming' },
+  { id:'829', name:'Mango',             cat:'Farming' },
+  { id:'835', name:'Mango Sapling',     cat:'Farming' },
+  { id:'CarrotSeeds',       name:'Carrot Seeds',        cat:'Farming' },
+  { id:'DriedFruit',        name:'Dried Fruit',         cat:'Farming' },
+  { id:'DriedMushrooms',    name:'Dried Mushrooms',     cat:'Farming' },
+  { id:'MixedFlowerSeeds',  name:'Mixed Flower Seeds',  cat:'Farming' },
+  { id:'MysticTreeSeed',    name:'Mystic Tree Seed',    cat:'Farming' },
+  { id:'Powdermelon',       name:'Powdermelon',         cat:'Farming' },
+  // Miscellaneous
+  { id:'71',  name:'Trimmed Lucky Purple Shorts', cat:'Misc' },
+  { id:'166', name:'Treasure Chest',              cat:'Misc' },
+  { id:'261', name:'Warp Totem: Desert',          cat:'Misc' },
+  { id:'275', name:'Artifact Trove',              cat:'Misc' },
+  { id:'326', name:'Dwarvish Translation Guide',  cat:'Misc' },
+  { id:'341', name:'Tea Set',                     cat:'Misc' },
+  { id:'535', name:'Geode',                       cat:'Misc' },
+  { id:'749', name:'Omni Geode',                  cat:'Misc' },
+  { id:'Moss',                  name:'Moss',                   cat:'Misc' },
+  { id:'Gold Coin',             name:'Gold Coin',              cat:'Misc' },
+  { id:'Golden Animal Cracker', name:'Golden Animal Cracker',  cat:'Misc' },
+  { id:'Golden Mystery Box',    name:'Golden Mystery Box',     cat:'Misc' },
+  { id:'Prize Ticket',          name:'Prize Ticket',           cat:'Misc' },
+  { id:'Stardrop Tea',          name:'Stardrop Tea',           cat:'Misc' },
+  { id:'Tent Kit',              name:'Tent Kit',               cat:'Misc' },
+  { id:'Treasure Totem',        name:'Treasure Totem',         cat:'Misc' },
+  { id:'Pet License',           name:'Pet License',            cat:'Misc' },
+  { id:'Butterfly Powder',      name:'Butterfly Powder',       cat:'Misc' },
+  { id:'Blue Grass Starter',    name:'Blue Grass Starter',     cat:'Misc' },
+];
+
+function initAdminItemSelect() {
+  filterAdminItems('');
+  const search = document.getElementById('adminItemSearch');
+  if (search) search.value = '';
+}
+
+function filterAdminItems(query) {
+  const sel = document.getElementById('adminItemSelect');
+  if (!sel) return;
+  const q = (query || '').toLowerCase().trim();
+  const matches = q
+    ? SDV_ITEMS.filter(i => i.name.toLowerCase().includes(q) || i.id.toLowerCase().includes(q))
+    : SDV_ITEMS;
+  sel.innerHTML = matches.length
+    ? matches.map(i => `<option value="(O)${i.id}">[${i.cat}] ${i.name}</option>`).join('')
+    : '<option value="" disabled>No items found</option>';
+}
+
 // ─── Admin Controls Modal ─────────────────────────────────────────
 
 let _lastPlayersData = { players: [] };
@@ -2196,6 +2378,7 @@ function openAdminModal(player) {
   });
   const qty = document.getElementById('adminItemQty'); if (qty) qty.value = '1';
   const res = document.getElementById('adminCmdResult'); if (res) res.style.display = 'none';
+  initAdminItemSelect();
   document.getElementById('adminModal').style.display = '';
 }
 
@@ -2212,10 +2395,12 @@ async function sendAdminCmd(base, value) {
 }
 
 async function sendAdminGiveItem() {
-  const name = document.getElementById('adminItemName').value.trim();
-  const qty  = document.getElementById('adminItemQty').value || '1';
-  if (!name || !_adminPlayer) return;
-  const command = `player_add "${_adminPlayer.name}" "${name}" ${qty}`;
+  const sel    = document.getElementById('adminItemSelect');
+  const itemId = sel?.value;
+  const qty    = parseInt(document.getElementById('adminItemQty').value || '1', 10) || 1;
+  if (!itemId) { _showAdminResult(false, '', 'Select an item first'); return; }
+  // player_add <qualifiedItemId> <count>  — gives to host player
+  const command = `player_add ${itemId} ${qty}`;
   const data = await API.post('/api/players/admin-command', { command }).catch(() => null);
   _showAdminResult(data?.success, command, data?.error);
 }
@@ -2230,10 +2415,12 @@ function _showAdminResult(success, command, error) {
   setTimeout(() => { el.style.display = 'none'; }, 4000);
   // Clear all inputs on success
   if (success) {
-    ['adminSetMoney','adminSetHealth','adminSetMaxHealth','adminSetStamina','adminSetMaxStamina','adminItemName'].forEach(id => {
+    ['adminSetMoney','adminSetHealth','adminSetMaxHealth','adminSetStamina','adminSetMaxStamina'].forEach(id => {
       const inp = document.getElementById(id); if (inp) inp.value = '';
     });
     const qty = document.getElementById('adminItemQty'); if (qty) qty.value = '1';
+    const search = document.getElementById('adminItemSearch'); if (search) search.value = '';
+    filterAdminItems('');
   }
 }
 
@@ -3737,7 +3924,7 @@ function _updateRemoteBadge() {
     remTopbar.style.display = lastRemoteData?.configured ? '' : 'none';
     remTopbar.className     = `status-badge ${orbClass}`;
     if (remTopbarDot) remTopbarDot.className  = `status-dot ${orbClass}`;
-    if (remTopbarTxt) remTopbarTxt.textContent = `Remote \u00b7 ${text}`;
+    if (remTopbarTxt) remTopbarTxt.textContent = 'Remote';
   }
 
   renderQuickActions();
