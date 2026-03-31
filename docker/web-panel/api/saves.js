@@ -441,7 +441,7 @@ function triggerPreStopBackup() {
     ensureDir(config.BACKUPS_DIR);
     const slug       = getFarmSlug();
     const timestamp  = makeTimestamp();
-    const backupPath = path.join(config.BACKUPS_DIR, `${slug}-auto-backup-${timestamp}.zip`);
+    const backupPath = path.join(config.BACKUPS_DIR, `${slug}-pre-stop-${timestamp}.zip`);
     const child = spawn('zip', [
       '-r', backupPath,
       path.basename(config.SAVES_DIR),

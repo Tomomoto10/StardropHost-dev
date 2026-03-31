@@ -432,6 +432,17 @@ body {
 }
 .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(167,139,250,0.1); }
 .input-sm { padding: 5px 10px; font-size: 13px; }
+.form-input {
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+}
+.form-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(167,139,250,0.1); }
+.form-input option { background: var(--bg-secondary); color: var(--text-primary); }
 
 .form-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
@@ -511,7 +522,8 @@ body {
 
 .console-term-output {
   height: unset !important;
-  flex: 0 0 180px;
+  flex: 1;
+  min-height: 0;
   margin-bottom: 0;
 }
 

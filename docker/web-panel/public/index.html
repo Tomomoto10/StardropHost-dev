@@ -442,12 +442,6 @@
               <div class="empty-state">Loading live data...</div>
             </div>
           </div>
-          <div class="card" id="farm-cc-card">
-            <h3>Community Center</h3>
-            <div id="farmCCData">
-              <div class="empty-state">Loading save data...</div>
-            </div>
-          </div>
           <div class="card" id="farm-info-card">
             <h3>Farm Info</h3>
             <div id="farmInfoData">
@@ -456,8 +450,12 @@
           </div>
 
           <div class="card" id="farm-admin-card">
-            <h3>World Controls</h3>
-            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 14px">Commands sent directly to the running game via SMAPI.</p>
+            <details>
+            <summary style="cursor:pointer;font-size:16px;font-weight:600;color:var(--text-primary);padding:2px 0;list-style:none;display:flex;align-items:center;gap:8px">
+              <svg class="icon" style="flex-shrink:0"><use href="#icon-settings"></use></svg>
+              World Controls
+            </summary>
+            <p style="font-size:13px;color:var(--text-secondary);margin:10px 0 14px">Commands sent directly to the running game via SMAPI.</p>
             <div style="display:flex;flex-direction:column;gap:0">
 
               <div class="admin-cmd-row">
@@ -506,7 +504,7 @@
                 <span class="admin-cmd-label">Freeze Time</span>
                 <button class="btn btn-sm" id="worldFreezeBtn" onclick="toggleWorldFreeze()">Toggle Freeze</button>
                 <span id="worldFreezeState" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
-                <span class="detail-note" style="margin-left:auto">Only for debugging when no players are online</span>
+                <span class="detail-note" style="margin-left:8px">Only for debugging when no players are online</span>
               </div>
 
               <div class="admin-cmd-row" style="border-bottom:none">
@@ -518,6 +516,14 @@
 
             </div>
             <div id="worldCmdResult" style="display:none;margin-top:10px;font-size:13px;padding:8px;border-radius:6px"></div>
+            </details>
+          </div>
+
+          <div class="card" id="farm-cc-card">
+            <h3>Community Center</h3>
+            <div id="farmCCData">
+              <div class="empty-state">Loading save data...</div>
+            </div>
           </div>
 
         </section>
@@ -545,12 +551,12 @@
             <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">Block by player name or IP address. Blocked players are kicked on connection.</p>
             <div id="blocklistEntries" style="margin-bottom:12px"></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">
-              <select id="blocklistTypeInput" class="form-input" style="width:90px">
+              <select id="blocklistTypeInput" class="form-input dark-input" style="width:90px">
                 <option value="name">Name</option>
                 <option value="ip">IP</option>
               </select>
-              <input id="blocklistValueInput" type="text" class="form-input" placeholder="Player name or IP address" style="flex:1;min-width:160px">
-              <input id="blocklistDescInput" type="text" class="form-input" placeholder="Reason (optional)" style="flex:2;min-width:140px">
+              <input id="blocklistValueInput" type="text" class="form-input dark-input" placeholder="Player name or IP address" style="flex:1;min-width:160px">
+              <input id="blocklistDescInput" type="text" class="form-input dark-input" placeholder="Reason (optional)" style="flex:2;min-width:140px">
               <button class="btn btn-primary btn-sm" onclick="addBlocklistEntry()">Block</button>
             </div>
             <div id="blocklistMsg" style="display:none;margin-top:8px;font-size:13px"></div>
@@ -790,6 +796,17 @@
 
           <div id="configContainer"></div>
           <div id="advancedHolder"></div>
+          <div class="card" style="margin-top:16px">
+            <h3>Feedback &amp; Support</h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+              <div style="font-size:13px;color:var(--text-secondary)">Found a bug or have a feature request? Open an issue on GitHub.</div>
+              <a href="https://github.com/Tomomoto10/StardropHost-dev/issues" target="_blank" rel="noopener noreferrer" class="btn btn-sm">
+                <svg class="icon"><use href="#icon-globe"></use></svg>
+                Report / Request
+              </a>
+            </div>
+          </div>
+
           <div class="card" style="margin-top:16px;border-color:#ef444433">
             <h3 style="color:#ef4444">Danger Zone</h3>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
@@ -928,10 +945,9 @@
               <ol class="remote-steps">
                 <li>In the playit.gg dashboard, go to <strong>Agents</strong> → <strong>Add Agent</strong></li>
                 <li>Name your agent (e.g. <code>StardropHost-1</code>) then press <strong>Next</strong></li>
-                <li>A setup page will appear — copy the <strong>64-character SECRET_KEY</strong> shown on the page<br>
+                <li>A setup page will appear — copy the <strong>full docker compose snippet</strong> shown on the page<br>
                   <em style="color:var(--text-muted);font-size:12px">*You may need to click <strong>Exit Wizard</strong> if the screen doesn't refresh after this step</em></li>
-                <li>Open <strong>Docker Compose Example</strong> below, replace <code>YOUR_SECRET_KEY</code> with your copied key, then copy the full block of text</li>
-                <li>Paste the compose snippet into the <strong>Compose Entry</strong> card below and click <strong>Apply &amp; Connect</strong></li>
+                <li>Paste the copied compose snippet directly into the <strong>Compose Entry</strong> card below and click <strong>Apply &amp; Connect</strong></li>
                 <li>The agent will show <strong>Connected</strong> in the playit.gg Agents tab once running</li>
                 <li>Continue to <strong>Tunnel Setup</strong> below</li>
               </ol>

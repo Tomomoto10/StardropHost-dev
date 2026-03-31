@@ -2588,7 +2588,7 @@ function renderChatPlayerPills() {
   const worldActive = (_chatTarget === null) ? ' active' : '';
   let html = `<button class="chat-pill${worldActive}" onclick="clearChatTarget()">World Chat</button>`;
   if (_chatPlayers.length > 0) {
-    html += `<span class="chat-dm-separator">DMs</span>`;
+    html += `<span class="chat-dm-separator">Private Chats</span>`;
     for (const name of _chatPlayers) {
       const active = (_chatTarget === name) ? ' active' : '';
       html += `<button class="chat-pill chat-pill-dm${active}" onclick="setChatTarget('${escapeHtml(name)}')">${escapeHtml(name)}</button>`;
@@ -2601,7 +2601,7 @@ function setChatTarget(name) {
   _chatTarget = name;
   _chatLastTs = 0;
   const label = document.getElementById('chatTargetLabel');
-  label.textContent = `DM — ${name}`;
+  label.textContent = `Private Chat — ${name}`;
   label.classList.add('dm-active');
   document.getElementById('chatInput').placeholder = `Message ${name}…`;
   document.getElementById('chatInput').focus();
