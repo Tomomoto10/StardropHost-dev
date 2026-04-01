@@ -61,25 +61,6 @@ function saveNameIpMap(map) {
   try { fs.writeFileSync(NAME_IP_MAP_FILE, JSON.stringify(map, null, 2), 'utf-8'); } catch {}
 }
 
-// Parse name→IP pairs from SMAPI join messages and persist to name-ip-map.json
-function syncNameIpMapFromLog() {
-  try {
-    if (!fs.existsSync(config.SMAPI_LOG)) return;
-    const content = fs.readFileSync(config.SMAPI_LOG, 'utf-8');
-    const map = loadNameIpMap();
-    let changed = false;
-    // Matches: "PlayerName (192.168.x.x) has joined" in game log lines
-    const re = /\]\s+(.+?) \((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\) has joined/g;
-    let m;
-    while ((m = re.exec(content)) !== null) {
-      const name = m[1].trim();
-      const ip   = m[2];
-      if (name && ip && map[name] !== ip) { map[name] = ip; changed = true; }
-    }
-    if (changed) saveNameIpMap(map);
-  } catch {}
-}
-
 // -- Player history (24h at 5min intervals) --
 const playerHistory = [];
 const MAX_PLAYER_HISTORY = 288;
@@ -252,7 +233,6 @@ function getPlayers(req, res) {
   const bannedIds   = new Set(bans.map(b => b.id).filter(Boolean));
   const bannedNames = new Set(bans.map(b => b.name).filter(Boolean));
   const security   = loadSecurity();
-  syncNameIpMapFromLog();
   const nameIpMap  = loadNameIpMap();
 
   // Enforce blocklist / allowlist — only checks players not yet cleared this session
