@@ -5,7 +5,7 @@
  */
 
 const fs = require('fs');
-const { spawn, execSync } = require('child_process');
+const { spawn, execSync, spawnSync } = require('child_process');
 const config = require('../server');
 
 // -- Only one terminal session at a time --
@@ -35,9 +35,11 @@ function sendToWs(ws, type, data) {
 }
 
 function getSmapiPid() {
+  // Must use spawnSync (not execSync) — execSync wraps in 'sh -c' which puts the pattern string
+  // in the shell process cmdline, causing pgrep to self-match and always return a PID.
   try {
-    const pids = execSync('pgrep -f StardewModdingAPI', { encoding: 'utf-8' })
-      .trim().split('\n').filter(Boolean);
+    const result = spawnSync('pgrep', ['-f', 'StardewModdingAPI'], { encoding: 'utf-8' });
+    const pids   = (result.stdout || '').trim().split('\n').filter(Boolean);
     return pids[0] || null;
   } catch {
     return null;

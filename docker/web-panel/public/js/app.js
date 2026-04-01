@@ -1320,8 +1320,14 @@ function init() {
     document.getElementById('logOutput').innerHTML = '';
   };
 
-  document.getElementById('logDownload').onclick = downloadLogs;
-  document.getElementById('logUpdateDownload').onclick = downloadUpdateLog;
+  // Close download dropdown when clicking outside
+  document.addEventListener('click', e => {
+    const dd = document.getElementById('logDlDropdown');
+    if (dd && !dd.contains(e.target)) {
+      const menu = document.getElementById('logDlMenu');
+      if (menu) menu.style.display = 'none';
+    }
+  });
 
   document.querySelectorAll('.log-filter').forEach(btn => {
     btn.onclick = () => {
@@ -1883,6 +1889,29 @@ function formatGameTime(t) {
 }
 
 // ─── Logs ────────────────────────────────────────────────────────
+
+function toggleLogDlMenu() {
+  const menu = document.getElementById('logDlMenu');
+  if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+async function downloadSmapiLog() {
+  try {
+    const data = await API.get('/api/logs?type=all&lines=10000');
+    if (!data?.lines?.length) { showToast('No logs to download', 'warn'); return; }
+    const text = data.lines.map(l => l.text).join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob),
+      download: `smapi-log-${Date.now()}.txt`,
+    });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch {
+    showToast('Failed to download SMAPI log', 'error');
+  }
+}
+
 async function downloadUpdateLog() {
   const btn = document.getElementById('logUpdateDownload');
   if (btn) { btn.disabled = true; btn.textContent = 'Downloading...'; }
@@ -2050,7 +2079,7 @@ async function loadPlayers() {
       <div class="player-card">
         <div class="player-avatar">${icon('players', 'icon')}</div>
         <div class="player-body">
-          <div class="player-name">${escapeHtml(p.name)}</div>
+          <div class="player-name">${escapeHtml(p.name)}${p.knownIp ? `<span class="player-ip">${escapeHtml(p.knownIp)}</span>` : ''}</div>
           ${p.location ? `<div class="player-info">${escapeHtml(p.location)}</div>` : ''}
           ${renderPlayerStats(p, sw)}
         </div>
@@ -3435,6 +3464,28 @@ async function setVncOneTimePassword() {
 }
 
 // ─── Mods ────────────────────────────────────────────────────────
+function _renderModItem(m) {
+  return `
+    <div class="mod-item">
+      <div class="mod-info">
+        <div class="mod-name">${escapeHtml(m.name)}</div>
+        <div class="mod-meta">v${escapeHtml(m.version)} · ${escapeHtml(m.author || '')}</div>
+        ${m.description ? `<div class="mod-meta">${escapeHtml(m.description)}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${m.pendingInstall
+          ? '<span class="mod-badge" style="background:#f59e0b22;color:#f59e0b;border-color:#f59e0b55">Pending Install</span>'
+          : ''}
+        ${m.isCustom && !m.isBundled
+          ? `<button class="btn btn-sm mod-delete-btn" style="color:#ef4444;border-color:#ef4444"
+               data-folder="${escapeHtml(m.folder)}" data-name="${escapeHtml(m.name)}">
+               ${icon('trash', 'icon')} Delete</button>`
+          : ''}
+      </div>
+    </div>
+  `;
+}
+
 async function loadMods() {
   const data = await API.get('/api/mods');
   if (!data) return;
@@ -3442,33 +3493,23 @@ async function loadMods() {
   const badge = document.getElementById('smapi-version-badge');
   if (badge) badge.textContent = data.smapiVersion ? `SMAPI v${data.smapiVersion}` : '';
 
-  const list = document.getElementById('modsList');
   setText('modUploadStatus', '');
 
-  if (!data.mods?.length) {
-    list.innerHTML = '<div class="empty-state">No mods found</div>';
-    return;
+  const bundled = (data.mods || []).filter(m => m.isBundled);
+  const custom  = (data.mods || []).filter(m => !m.isBundled);
+
+  const bundledList = document.getElementById('modsListBundled');
+  if (bundledList) {
+    bundledList.innerHTML = bundled.length
+      ? bundled.map(_renderModItem).join('')
+      : '<div class="empty-state">No bundled mods found</div>';
   }
 
-  list.innerHTML = data.mods.map(m => `
-    <div class="mod-item">
-      <div class="mod-info">
-        <div class="mod-name">${escapeHtml(m.name)}</div>
-        <div class="mod-meta">v${escapeHtml(m.version)} · ${escapeHtml(m.author || '')} · ${escapeHtml(m.id)}</div>
-        ${m.description ? `<div class="mod-meta">${escapeHtml(m.description)}</div>` : ''}
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        ${m.pendingInstall
-          ? '<span class="mod-badge" style="background:#f59e0b22;color:#f59e0b;border-color:#f59e0b55">Pending Install</span>'
-          : `<span class="mod-badge ${m.isCustom ? 'custom' : ''}">${m.isCustom ? 'Custom' : 'Bundled'}</span>`}
-        ${m.isCustom
-          ? `<button class="btn btn-sm mod-delete-btn" style="color:#ef4444;border-color:#ef4444"
-               data-folder="${escapeHtml(m.folder)}" data-name="${escapeHtml(m.name)}">
-               ${icon('trash', 'icon')} Delete</button>`
-          : ''}
-      </div>
-    </div>
-  `).join('');
+  const list = document.getElementById('modsList');
+  if (!list) return;
+  list.innerHTML = custom.length
+    ? custom.map(_renderModItem).join('')
+    : '<div class="empty-state">No user mods installed</div>';
 
   list.querySelectorAll('.mod-delete-btn').forEach(btn => {
     btn.onclick = () => deleteMod(btn.dataset.folder, btn.dataset.name);
@@ -3482,20 +3523,26 @@ async function handleModUpload(input) {
   if (file.size > 50 * 1024 * 1024) { showToast('File too large (max 50MB)', 'error'); return; }
 
   setText('modUploadStatus', 'Uploading...');
-  const data = await API.upload('/api/mods/upload', file);
-  setText('modUploadStatus', '');
-  input.value = '';
+  try {
+    const data = await API.upload('/api/mods/upload', file);
+    setText('modUploadStatus', '');
+    input.value = '';
 
-  if (data?.success) {
-    const msg = data.hasManifest
-      ? 'Mod installed. Restart the server to load it.'
-      : !data.hasManifest
-        ? 'Uploaded but no manifest.json found — check archive structure.'
-        : 'Uploaded but auto-install failed. Restart may still install it.';
-    showToast(msg, 'success');
-    loadMods();
-  } else {
-    showToast(data?.error || 'Upload failed', 'error');
+    if (data?.success) {
+      const msg = data.hasManifest
+        ? 'Mod installed. Restart the server to load it.'
+        : data.autoInstallFailed
+          ? 'Uploaded but auto-install failed. Restart may still install it.'
+          : 'Uploaded but no manifest.json found — check archive structure.';
+      showToast(msg, 'success');
+      loadMods();
+    } else {
+      showToast(data?.error || 'Upload failed', 'error');
+    }
+  } catch (e) {
+    setText('modUploadStatus', '');
+    input.value = '';
+    showToast('Upload failed: ' + (e.message || 'network error'), 'error');
   }
 }
 

@@ -230,14 +230,6 @@ function collectStatus(req = null) {
       status.cpu = Math.round((parseFloat(cpuAll) / cores) * 10) / 10;
     } catch {}
 
-    // Use total system memory usage (MemTotal - MemAvailable) — includes Xvfb, Node, scripts etc.
-    try {
-      const meminfo     = fs.readFileSync('/proc/meminfo', 'utf-8');
-      const totalKB     = parseInt(meminfo.match(/MemTotal:\s+(\d+)/)?.[1]     || '0', 10);
-      const availableKB = parseInt(meminfo.match(/MemAvailable:\s+(\d+)/)?.[1] || '0', 10);
-      if (totalKB > 0) status.memory.used = Math.round((totalKB - availableKB) / 1024);
-    } catch {}
-
     if (status.uptime === 0) {
       try {
         const startTime = execSync(`stat -c %Y /proc/${pidStr} 2>/dev/null`, { encoding: 'utf-8' }).trim();
@@ -248,8 +240,29 @@ function collectStatus(req = null) {
     // pgrep found nothing — SMAPI not running; override stale status/live file data
     status.gameRunning = false;
     status.cpu = 0;
-    status.memory.used = 0;
     if (status.live) status.live.serverState = 'offline';
+  }
+
+  // -- Container memory (always read — shows usage even when game is stopped) --
+  // Prefer cgroup values (container-accurate) over /proc/meminfo (host totals).
+  try {
+    // cgroups v2
+    const cgUsed = parseInt(fs.readFileSync('/sys/fs/cgroup/memory.current', 'utf-8').trim(), 10);
+    if (cgUsed > 0) status.memory.used = Math.round(cgUsed / 1024 / 1024);
+  } catch {
+    try {
+      // cgroups v1
+      const cgUsed = parseInt(fs.readFileSync('/sys/fs/cgroup/memory/memory.usage_in_bytes', 'utf-8').trim(), 10);
+      if (cgUsed > 0) status.memory.used = Math.round(cgUsed / 1024 / 1024);
+    } catch {
+      // Fallback: system-level MemTotal - MemAvailable (only accurate without a limit)
+      try {
+        const meminfo     = fs.readFileSync('/proc/meminfo', 'utf-8');
+        const totalKB     = parseInt(meminfo.match(/MemTotal:\s+(\d+)/)?.[1]     || '0', 10);
+        const availableKB = parseInt(meminfo.match(/MemAvailable:\s+(\d+)/)?.[1] || '0', 10);
+        if (totalKB > 0) status.memory.used = Math.round((totalKB - availableKB) / 1024);
+      } catch {}
+    }
   }
 
   // -- Container memory limit --
@@ -270,12 +283,29 @@ function collectStatus(req = null) {
     if (envLimitMB > 0) {
       status.memory.limit = envLimitMB;
     } else {
-      // No limit set — fall back to host total from /proc/meminfo
+      // Try cgroup memory limit first (accurate inside container)
       try {
-        const meminfo = fs.readFileSync('/proc/meminfo', 'utf-8');
-        const totalKB = parseInt(meminfo.match(/MemTotal:\s+(\d+)/)?.[1] || '0', 10);
-        if (totalKB > 0) status.memory.limit = Math.round(totalKB / 1024);
-      } catch {}
+        const cgLimit = parseInt(fs.readFileSync('/sys/fs/cgroup/memory.max', 'utf-8').trim(), 10);
+        if (cgLimit > 0 && cgLimit < Number.MAX_SAFE_INTEGER) {
+          status.memory.limit = Math.round(cgLimit / 1024 / 1024);
+        }
+      } catch {
+        try {
+          const cgLimit = parseInt(fs.readFileSync('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'utf-8').trim(), 10);
+          // cgroups v1 uses a huge sentinel value when no limit is set
+          if (cgLimit > 0 && cgLimit < 9007199254740992) {
+            status.memory.limit = Math.round(cgLimit / 1024 / 1024);
+          }
+        } catch {}
+      }
+      // Final fallback — host total from /proc/meminfo
+      if (status.memory.limit === 2048) {
+        try {
+          const meminfo = fs.readFileSync('/proc/meminfo', 'utf-8');
+          const totalKB = parseInt(meminfo.match(/MemTotal:\s+(\d+)/)?.[1] || '0', 10);
+          if (totalKB > 0) status.memory.limit = Math.round(totalKB / 1024);
+        } catch {}
+      }
     }
   }
 

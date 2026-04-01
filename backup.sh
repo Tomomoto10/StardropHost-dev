@@ -21,8 +21,8 @@ BOLD='\033[1m'
 SAVES_DIR="./data/saves"
 BACKUP_DIR="./data/backups"
 MAX_BACKUPS=7
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="stardrop-backup-$TIMESTAMP.tar.gz"
+TIMESTAMP=$(date -u '+%Y-%m-%dT%H-%M-%S')
+BACKUP_FILE="stardrop-manual-backup-$TIMESTAMP.zip"
 
 # -- Output Helpers --
 print_success() { echo -e "${GREEN}✅ $1${NC}"; }
@@ -60,7 +60,7 @@ create_backup() {
 
     print_info "Creating backup: $BACKUP_FILE"
 
-    tar -czf "$BACKUP_DIR/$BACKUP_FILE" -C data saves
+    (cd data && zip -r "$BACKUP_DIR/$BACKUP_FILE" saves) 2>/dev/null
 
     backup_size=$(du -h "$BACKUP_DIR/$BACKUP_FILE" | cut -f1)
     print_success "Backup created: $BACKUP_FILE ($backup_size)"
@@ -68,11 +68,11 @@ create_backup() {
 
 # -- Cleanup old backups --
 cleanup_old_backups() {
-    backup_count=$(ls -1 "$BACKUP_DIR"/stardrop-backup-*.tar.gz 2>/dev/null | wc -l)
+    backup_count=$(ls -1 "$BACKUP_DIR"/stardrop-manual-backup-*.zip 2>/dev/null | wc -l)
 
     if [ "$backup_count" -gt "$MAX_BACKUPS" ]; then
         print_info "Cleaning up old backups (keeping last $MAX_BACKUPS)..."
-        ls -t "$BACKUP_DIR"/stardrop-backup-*.tar.gz | tail -n +$((MAX_BACKUPS + 1)) | xargs rm -f
+        ls -t "$BACKUP_DIR"/stardrop-manual-backup-*.zip | tail -n +$((MAX_BACKUPS + 1)) | xargs rm -f
         print_success "Old backups removed"
     fi
 }
@@ -87,7 +87,7 @@ list_backups() {
         return
     fi
 
-    ls -lth "$BACKUP_DIR"/stardrop-backup-*.tar.gz | awk '{
+    ls -lth "$BACKUP_DIR"/stardrop-manual-backup-*.zip 2>/dev/null | awk '{
         size = $5
         date = $6 " " $7 " " $8
         file = $9
@@ -111,7 +111,7 @@ show_restore_instructions() {
     echo -e "     ${CYAN}mv data/saves data/saves.old${NC}"
     echo ""
     echo "  3. Extract backup:"
-    echo -e "     ${CYAN}tar -xzf data/backups/BACKUP_FILE -C data${NC}"
+    echo -e "     ${CYAN}unzip data/backups/BACKUP_FILE -d data${NC}"
     echo ""
     echo "  4. Start the server:"
     echo -e "     ${CYAN}docker compose up -d${NC}"

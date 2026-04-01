@@ -489,15 +489,14 @@
 
               <div class="admin-cmd-row">
                 <span class="admin-cmd-label">Set Weather</span>
-                <select id="worldSetWeather" class="form-input" style="width:150px" disabled>
+                <select id="worldSetWeather" class="form-input" style="width:150px">
                   <option value="sun">Sunny</option>
                   <option value="rain">Rain</option>
                   <option value="storm">Storm</option>
                   <option value="snow">Snow</option>
                   <option value="wind">Wind</option>
                 </select>
-                <button class="btn btn-sm btn-primary" disabled title="Requires Dependencies mod Phase 2">Set</button>
-                <span class="detail-note" style="margin-left:4px">Requires mod update</span>
+                <button class="btn btn-sm btn-primary" onclick="worldCmd('world_setweather', document.getElementById('worldSetWeather').value)">Set</button>
               </div>
 
               <div class="admin-cmd-row">
@@ -730,19 +729,33 @@
 
         <!-- ── Mods ───────────────────────────────────────────── -->
         <section id="page-mods" class="page">
+          <div class="card" style="margin-bottom:16px">
+            <div class="section-header">
+              <h3>Bundled Mods</h3>
+              <span id="smapi-version-badge" style="font-size:0.8rem;opacity:0.6;margin-left:0;padding-left:0"></span>
+            </div>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px;line-height:1.6">
+              These mods are built into StardropHost and are required for the server to function. They cannot be removed.
+            </p>
+            <div id="modsListBundled" class="mods-list">
+              <div class="empty-state">Loading...</div>
+            </div>
+          </div>
           <div class="card">
             <div class="section-header">
-              <h3>Installed Mods</h3>
-              <span id="smapi-version-badge" style="font-size:0.8rem;opacity:0.6;margin-right:auto;padding-left:10px"></span>
+              <h3>User Installed Mods</h3>
               <button class="btn btn-primary btn-sm" type="button" onclick="document.getElementById('modFileInput').click()">
                 <svg class="icon"><use href="#icon-package"></use></svg>
                 Upload Mod
               </button>
             </div>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px;line-height:1.6">
+              Upload mods as <code>.zip</code> files. Only <strong>server-side mods</strong> are supported — mods that run on the host and don't require clients to install anything. Client-side mods (visual, UI, or input mods) will not work here.
+            </p>
             <input type="file" id="modFileInput" accept=".zip" style="display:none" onchange="handleModUpload(this)">
             <div id="modUploadStatus" class="save-upload-status"></div>
             <div id="modsList" class="mods-list">
-              <div class="empty-state">Loading...</div>
+              <div class="empty-state">No user mods installed</div>
             </div>
           </div>
         </section>
@@ -759,14 +772,18 @@
               </div>
               <input type="text" id="logSearch" class="input input-sm" placeholder="Search logs...">
               <div class="log-controls">
-                <button class="btn btn-sm" id="logUpdateDownload" type="button" title="Download update log">
-                  <svg class="icon"><use href="#icon-download"></use></svg>
-                  Update Log
-                </button>
-                <button class="btn btn-sm" id="logDownload" type="button" title="Download all logs">
-                  <svg class="icon"><use href="#icon-download"></use></svg>
-                  Download
-                </button>
+                <div class="log-dl-dropdown" id="logDlDropdown">
+                  <button class="btn btn-sm" type="button" onclick="toggleLogDlMenu()" title="Download logs">
+                    <svg class="icon"><use href="#icon-download"></use></svg>
+                    Download
+                    <svg class="icon" style="width:12px;height:12px;margin-left:2px"><use href="#icon-chevron-down"></use></svg>
+                  </button>
+                  <div class="log-dl-menu" id="logDlMenu" style="display:none">
+                    <button type="button" onclick="downloadLogs(); toggleLogDlMenu()">Current View</button>
+                    <button type="button" id="logSmApiDownloadBtn" onclick="downloadSmapiLog(); toggleLogDlMenu()">Full SMAPI Log</button>
+                    <button type="button" id="logUpdateDownload" onclick="downloadUpdateLog(); toggleLogDlMenu()">Update Log</button>
+                  </div>
+                </div>
                 <button class="btn btn-sm" id="logClear" type="button" title="Clear display">
                   <svg class="icon"><use href="#icon-trash"></use></svg>
                   Clear
