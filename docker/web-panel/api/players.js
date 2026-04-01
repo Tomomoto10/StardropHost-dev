@@ -10,6 +10,7 @@ const config = require('../server');
 // -- Security config (blocklist + allowlist + mode) --
 const SECURITY_FILE    = path.join(config.DATA_DIR, 'security.json');
 const NAME_IP_MAP_FILE = path.join(config.DATA_DIR, 'name-ip-map.json');
+const IP_LOCKS_FILE    = path.join(config.DATA_DIR, 'ip-locks.json');
 // Legacy file — migrated on first write to security.json
 const LEGACY_BLOCKLIST = path.join(config.DATA_DIR, 'ip-blocklist.json');
 
@@ -62,10 +63,22 @@ function saveNameIpMap(map) {
   try { fs.writeFileSync(NAME_IP_MAP_FILE, JSON.stringify(map, null, 2), 'utf-8'); } catch {}
 }
 
+function loadIpLocks() {
+  try {
+    if (fs.existsSync(IP_LOCKS_FILE))
+      return new Set(JSON.parse(fs.readFileSync(IP_LOCKS_FILE, 'utf-8')));
+  } catch {}
+  return new Set();
+}
+
+function saveIpLocks(set) {
+  try { fs.writeFileSync(IP_LOCKS_FILE, JSON.stringify([...set], null, 2), 'utf-8'); } catch {}
+}
+
 // Build name→IP map from chat.log join messages (written by the mod)
 const CHAT_LOG = '/home/steam/.local/share/stardrop/chat.log';
 
-function syncNameIpMapFromChat(onlineNames) {
+function syncNameIpMapFromChat(onlineNames, lockedNames) {
   try {
     if (!fs.existsSync(CHAT_LOG)) return;
     const lines = fs.readFileSync(CHAT_LOG, 'utf-8').trim().split('\n').filter(Boolean);
@@ -78,7 +91,7 @@ function syncNameIpMapFromChat(onlineNames) {
         if (m) {
           const name = m[1].trim(), ip = m[2];
           // Only update if this player is currently online — avoids re-adding removed entries
-          if (name && ip && onlineNames.has(name)) {
+          if (name && ip && onlineNames.has(name) && !lockedNames.has(name)) {
             const existing = Array.isArray(map[name]) ? map[name] : (map[name] ? [map[name]] : []);
             if (!existing.includes(ip)) { map[name] = [...existing, ip]; changed = true; }
           }
@@ -87,6 +100,26 @@ function syncNameIpMapFromChat(onlineNames) {
     }
     if (changed) saveNameIpMap(map);
   } catch {}
+}
+
+// Returns the most recent join IP for each name in onlineNames (last match wins)
+function getLatestIpsFromChat(onlineNames) {
+  const result = {};
+  try {
+    if (!fs.existsSync(CHAT_LOG)) return result;
+    const lines = fs.readFileSync(CHAT_LOG, 'utf-8').trim().split('\n').filter(Boolean);
+    for (const line of lines) {
+      try {
+        const msg = JSON.parse(line);
+        const m = msg.message?.match(/^(.+?) \((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\) has joined/);
+        if (m) {
+          const name = m[1].trim(), ip = m[2];
+          if (onlineNames.has(name)) result[name] = ip;
+        }
+      } catch {}
+    }
+  } catch {}
+  return result;
 }
 
 // -- Player history (24h at 5min intervals) --
@@ -260,13 +293,27 @@ function getPlayers(req, res) {
   const bans       = loadBans();
   const bannedIds   = new Set(bans.map(b => b.id).filter(Boolean));
   const bannedNames = new Set(bans.map(b => b.name).filter(Boolean));
-  const security   = loadSecurity();
-  syncNameIpMapFromChat(new Set(players.map(p => p.name).filter(Boolean)));
+  const security      = loadSecurity();
+  const ipLocks       = loadIpLocks();
+  const onlineNameSet = new Set(players.map(p => p.name).filter(Boolean));
+  syncNameIpMapFromChat(onlineNameSet, ipLocks);
   const nameIpMap  = loadNameIpMap();
+  const latestIps  = getLatestIpsFromChat(onlineNameSet);
 
   // Enforce blocklist / allowlist — only checks players not yet cleared this session
   for (const p of players) {
     if (securityCheckedIds.has(p.id)) continue;
+
+    // IP lock: kick if joining from an IP not in their known list
+    if (ipLocks.has(p.name)) {
+      const currentIp = latestIps[p.name];
+      const knownIps  = Array.isArray(nameIpMap[p.name]) ? nameIpMap[p.name] : (nameIpMap[p.name] ? [nameIpMap[p.name]] : []);
+      if (currentIp && !knownIps.includes(currentIp)) {
+        sendConsoleCommand(`kick "${p.name}"`);
+        continue;
+      }
+    }
+
     const raw = nameIpMap[p.name];
     const playerIps = Array.isArray(raw) ? raw : (raw ? [raw] : []);
     const blocked = security.blocklist.some(e =>
@@ -303,6 +350,7 @@ function getPlayers(req, res) {
     separateWallets: _separateWallets,
     security,
     nameIpMap,
+    ipLocks: [...ipLocks],
   });
 }
 
@@ -498,6 +546,29 @@ function adminCommand(req, res) {
   else res.status(500).json({ error: 'Failed to send command — is the server running?' });
 }
 
+function getIpLocks(req, res) {
+  res.json({ ipLocks: [...loadIpLocks()] });
+}
+
+function addIpLock(req, res) {
+  const { name } = req.body || {};
+  if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name is required' });
+  const locks = loadIpLocks();
+  locks.add(name.trim());
+  saveIpLocks(locks);
+  invalidateSecurityCache();
+  res.json({ success: true, ipLocks: [...locks] });
+}
+
+function removeIpLock(req, res) {
+  const name = decodeURIComponent(req.params.name);
+  const locks = loadIpLocks();
+  locks.delete(name);
+  saveIpLocks(locks);
+  invalidateSecurityCache();
+  res.json({ success: true, ipLocks: [...locks] });
+}
+
 module.exports = {
   getPlayers,
   kickPlayer,
@@ -516,4 +587,7 @@ module.exports = {
   updateNameIpEntry,
   deleteNameIpEntry,
   adminCommand,
+  getIpLocks,
+  addIpLock,
+  removeIpLock,
 };

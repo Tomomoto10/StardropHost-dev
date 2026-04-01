@@ -2157,6 +2157,7 @@ async function loadPlayers() {
 
   // Security
   renderSecurity(data.security || { mode: 'block', blocklist: [], allowlist: [] }, data.nameIpMap || {});
+  _renderNameIpMap(data.nameIpMap || {}, data.ipLocks || []);
 }
 
 async function kickPlayer(btn, id, name) {
@@ -2213,7 +2214,7 @@ function renderSecurity(security, nameIpMap) {
 
   _renderSecurityList('blocklistEntries', security.blocklist || [], 'block', nameIpMap);
   _renderSecurityList('allowlistEntries', security.allowlist || [], 'allow', nameIpMap);
-  _renderNameIpMap(nameIpMap);
+  _renderNameIpMap(nameIpMap, _lastPlayersData?.ipLocks || []);
 }
 
 function _renderSecurityList(elId, list, listType, nameIpMap) {
@@ -2239,23 +2240,33 @@ function _renderSecurityList(elId, list, listType, nameIpMap) {
   }).join('');
 }
 
-function _renderNameIpMap(map) {
+function _renderNameIpMap(map, ipLocks) {
   const el = document.getElementById('knownIpsEntries');
   if (!el) return;
+  const locks = ipLocks || [];
   const entries = Object.entries(map);
   if (!entries.length) {
     el.innerHTML = '<div class="security-empty">No players recorded yet. IPs are captured automatically when players join.</div>';
     return;
   }
-  el.innerHTML = entries.flatMap(([name, ips]) => {
+  el.innerHTML = entries.map(([name, ips]) => {
     const ipList = Array.isArray(ips) ? ips : (ips ? [ips] : []);
-    return ipList.map(ip => `
-    <div class="sec-entry">
+    const isLocked = locks.includes(name);
+    const lockBtn = isLocked
+      ? `<button class="btn btn-sm" style="color:#fbbf24;border-color:#fbbf24" onclick="removeIpLock('${escapeHtml(name)}')">🔒 Unlock</button>`
+      : `<button class="btn btn-sm" onclick="addIpLock('${escapeHtml(name)}')">🔓 Lock</button>`;
+    const ipBadges = ipList.map(ip =>
+      `<span class="sec-known-ip">${escapeHtml(ip)}
+        <button class="btn btn-sm btn-danger" style="padding:1px 6px;font-size:11px;margin-left:4px" onclick="deleteNameIp('${escapeHtml(name)}','${escapeHtml(ip)}')">✕</button>
+      </span>`
+    ).join(' ');
+    return `
+    <div class="sec-entry" style="${isLocked ? 'border-left:2px solid #fbbf24;padding-left:8px' : ''}">
       <span class="sec-badge sec-badge-name">Name</span>
       <span class="sec-value">${escapeHtml(name)}</span>
-      <span class="sec-known-ip">${escapeHtml(ip)}</span>
-      <button class="btn btn-sm btn-danger" onclick="deleteNameIp('${escapeHtml(name)}','${escapeHtml(ip)}')">Remove</button>
-    </div>`);
+      ${ipBadges || '<span style="font-size:11px;color:var(--text-muted)">no IPs recorded</span>'}
+      ${lockBtn}
+    </div>`;
   }).join('');
 }
 
@@ -2309,7 +2320,7 @@ async function updateNameIp(name) {
   const ip = document.getElementById(`nipm-ip-${name}`)?.value.trim();
   if (!ip) return;
   const data = await API.put(`/api/players/name-ip-map/${encodeURIComponent(name)}`, { ip }).catch(() => null);
-  if (data?.success) _renderNameIpMap(data.nameIpMap);
+  if (data?.success) _renderNameIpMap(data.nameIpMap, _lastPlayersData?.ipLocks || []);
   else showToast('Failed to update IP', 'error');
 }
 
@@ -2317,8 +2328,28 @@ async function deleteNameIp(name, ip) {
   if (!confirm(`Remove ${name} (${ip}) from known IPs?`)) return;
   const url = `/api/players/name-ip-map/${encodeURIComponent(name)}?ip=${encodeURIComponent(ip)}`;
   const data = await API.del(url).catch(() => null);
-  if (data?.success) _renderNameIpMap(data.nameIpMap);
+  if (data?.success) _renderNameIpMap(data.nameIpMap, _lastPlayersData?.ipLocks || []);
   else showToast('Failed to remove entry', 'error');
+}
+
+async function addIpLock(name) {
+  if (!confirm(`Lock "${name}" to their known IPs? Anyone joining as "${name}" from a different IP will be kicked.`)) return;
+  const data = await API.post('/api/players/ip-locks', { name }).catch(() => null);
+  if (data?.success) {
+    _lastPlayersData.ipLocks = data.ipLocks;
+    _renderNameIpMap(_lastPlayersData?.nameIpMap || {}, data.ipLocks);
+    showToast(`${name} locked to known IPs`, 'success');
+  } else showToast('Failed to add lock', 'error');
+}
+
+async function removeIpLock(name) {
+  if (!confirm(`Unlock "${name}"? They will be able to join from any IP again.`)) return;
+  const data = await API.del(`/api/players/ip-locks/${encodeURIComponent(name)}`).catch(() => null);
+  if (data?.success) {
+    _lastPlayersData.ipLocks = data.ipLocks;
+    _renderNameIpMap(_lastPlayersData?.nameIpMap || {}, data.ipLocks);
+    showToast(`${name} unlocked`, 'success');
+  } else showToast('Failed to remove lock', 'error');
 }
 
 function _secMsg(el, text, ok) {

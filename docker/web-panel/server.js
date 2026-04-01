@@ -98,6 +98,9 @@ app.delete('/api/players/allowlist/:value',    auth.verifyMiddleware, playersAPI
 app.get( '/api/players/name-ip-map',           auth.verifyMiddleware, playersAPI.getNameIpMap);
 app.put( '/api/players/name-ip-map/:name',     auth.verifyMiddleware, playersAPI.updateNameIpEntry);
 app.delete('/api/players/name-ip-map/:name',   auth.verifyMiddleware, playersAPI.deleteNameIpEntry);
+app.get(   '/api/players/ip-locks',            auth.verifyMiddleware, playersAPI.getIpLocks);
+app.post(  '/api/players/ip-locks',            auth.verifyMiddleware, playersAPI.addIpLock);
+app.delete('/api/players/ip-locks/:name',      auth.verifyMiddleware, playersAPI.removeIpLock);
 app.post('/api/players/admin-command',         auth.verifyMiddleware, playersAPI.adminCommand);
 
 // -- Saves --
