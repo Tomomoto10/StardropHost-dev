@@ -26,11 +26,17 @@ function loadSecurity() {
   try {
     if (fs.existsSync(SECURITY_FILE)) {
       const raw = JSON.parse(fs.readFileSync(SECURITY_FILE, 'utf-8'));
-      return {
+      const sec = {
         mode:      raw.mode || 'block',
         blocklist: (raw.blocklist || []).map(normaliseEntry).filter(e => e.value),
         allowlist: (raw.allowlist || []).map(normaliseEntry).filter(e => e.value),
       };
+      // Allow mode with empty allowlist blocks everyone — almost certainly accidental, reset to block
+      if (sec.mode === 'allow' && sec.allowlist.length === 0) {
+        sec.mode = 'block';
+        saveSecurity(sec);
+      }
+      return sec;
     }
     // Migrate from legacy ip-blocklist.json
     if (fs.existsSync(LEGACY_BLOCKLIST)) {
@@ -64,7 +70,7 @@ function saveNameIpMap(map) {
 // Build name→IP map from chat.log join messages (written by the mod)
 const CHAT_LOG = '/home/steam/.local/share/stardrop/chat.log';
 
-function syncNameIpMapFromChat() {
+function syncNameIpMapFromChat(onlineNames) {
   try {
     if (!fs.existsSync(CHAT_LOG)) return;
     const lines = fs.readFileSync(CHAT_LOG, 'utf-8').trim().split('\n').filter(Boolean);
@@ -76,7 +82,8 @@ function syncNameIpMapFromChat() {
         const m = msg.message && msg.message.match(/^(.+?) \((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\) has joined/);
         if (m) {
           const name = m[1].trim(), ip = m[2];
-          if (name && ip && map[name] !== ip) { map[name] = ip; changed = true; }
+          // Only update if this player is currently online — avoids re-adding removed entries
+          if (name && ip && onlineNames.has(name) && map[name] !== ip) { map[name] = ip; changed = true; }
         }
       } catch {}
     }
@@ -256,7 +263,7 @@ function getPlayers(req, res) {
   const bannedIds   = new Set(bans.map(b => b.id).filter(Boolean));
   const bannedNames = new Set(bans.map(b => b.name).filter(Boolean));
   const security   = loadSecurity();
-  syncNameIpMapFromChat();
+  syncNameIpMapFromChat(new Set(players.map(p => p.name).filter(Boolean)));
   const nameIpMap  = loadNameIpMap();
 
   // Enforce blocklist / allowlist — only checks players not yet cleared this session
