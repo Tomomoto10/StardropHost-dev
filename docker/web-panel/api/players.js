@@ -61,6 +61,29 @@ function saveNameIpMap(map) {
   try { fs.writeFileSync(NAME_IP_MAP_FILE, JSON.stringify(map, null, 2), 'utf-8'); } catch {}
 }
 
+// Build name→IP map from chat.log join messages (written by the mod)
+const CHAT_LOG = '/home/steam/.local/share/stardrop/chat.log';
+
+function syncNameIpMapFromChat() {
+  try {
+    if (!fs.existsSync(CHAT_LOG)) return;
+    const lines = fs.readFileSync(CHAT_LOG, 'utf-8').trim().split('\n').filter(Boolean);
+    const map = loadNameIpMap();
+    let changed = false;
+    for (const line of lines) {
+      try {
+        const msg = JSON.parse(line);
+        const m = msg.message && msg.message.match(/^(.+?) \((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\) has joined/);
+        if (m) {
+          const name = m[1].trim(), ip = m[2];
+          if (name && ip && map[name] !== ip) { map[name] = ip; changed = true; }
+        }
+      } catch {}
+    }
+    if (changed) saveNameIpMap(map);
+  } catch {}
+}
+
 // -- Player history (24h at 5min intervals) --
 const playerHistory = [];
 const MAX_PLAYER_HISTORY = 288;
@@ -233,6 +256,7 @@ function getPlayers(req, res) {
   const bannedIds   = new Set(bans.map(b => b.id).filter(Boolean));
   const bannedNames = new Set(bans.map(b => b.name).filter(Boolean));
   const security   = loadSecurity();
+  syncNameIpMapFromChat();
   const nameIpMap  = loadNameIpMap();
 
   // Enforce blocklist / allowlist — only checks players not yet cleared this session
