@@ -2100,8 +2100,8 @@ async function loadPlayers() {
     recentCard.style.display = 'none';
   }
 
-  // Blocklist
-  renderBlocklist(data.blocklist || []);
+  // Security
+  renderSecurity(data.security || { mode: 'block', blocklist: [], allowlist: [] }, data.nameIpMap || {});
 }
 
 async function kickPlayer(btn, id, name) {
@@ -2133,54 +2133,143 @@ async function deleteRecentPlayer(btn, id) {
   loadPlayers();
 }
 
-// ─── Block List ───────────────────────────────────────────────────
+// ─── Security (Block List / Allow List) ───────────────────────────
 
-function renderBlocklist(list) {
-  const el = document.getElementById('blocklistEntries');
+let _securityMode = 'block';
+
+function renderSecurity(security, nameIpMap) {
+  _securityMode = security.mode || 'block';
+
+  const blockBtn = document.getElementById('secModeBlockBtn');
+  const allowBtn = document.getElementById('secModeAllowBtn');
+  const modeDesc = document.getElementById('secModeDesc');
+  const badge    = document.getElementById('allowlistBadge');
+  if (blockBtn) blockBtn.classList.toggle('active', _securityMode === 'block');
+  if (allowBtn) allowBtn.classList.toggle('active', _securityMode === 'allow');
+  if (modeDesc) modeDesc.textContent = _securityMode === 'block'
+    ? 'Block List Mode — everyone can join except blocked players.'
+    : 'Allow List Mode — only players on the Allow List can join.';
+  if (badge) {
+    badge.textContent          = _securityMode === 'allow' ? 'Active' : 'Inactive in Block Mode';
+    badge.style.background     = _securityMode === 'allow' ? 'rgba(34,197,94,0.15)' : 'var(--bg-tertiary)';
+    badge.style.color          = _securityMode === 'allow' ? '#22c55e' : 'var(--text-muted)';
+  }
+
+  _renderSecurityList('blocklistEntries', security.blocklist || [], 'block', nameIpMap);
+  _renderSecurityList('allowlistEntries', security.allowlist || [], 'allow', nameIpMap);
+  _renderNameIpMap(nameIpMap);
+}
+
+function _renderSecurityList(elId, list, listType, nameIpMap) {
+  const el = document.getElementById(elId);
   if (!el) return;
   if (!list.length) {
-    el.innerHTML = '<div style="font-size:13px;color:var(--text-muted)">No blocked players.</div>';
+    el.innerHTML = '<div class="security-empty">No entries.</div>';
     return;
   }
   el.innerHTML = list.map(e => {
     const badge = e.type === 'ip'
-      ? '<span class="blocklist-badge blocklist-badge-ip">IP</span>'
-      : '<span class="blocklist-badge blocklist-badge-name">Name</span>';
-    return `
-    <div class="blocklist-entry">
+      ? '<span class="sec-badge sec-badge-ip">IP</span>'
+      : '<span class="sec-badge sec-badge-name">Name</span>';
+    const knownIp = (e.type === 'name' && nameIpMap[e.value])
+      ? `<span class="sec-known-ip">${escapeHtml(nameIpMap[e.value])}</span>` : '';
+    const desc = e.description ? `<span class="sec-desc">${escapeHtml(e.description)}</span>` : '';
+    return `<div class="sec-entry">
       ${badge}
-      <span class="blocklist-ip">${escapeHtml(e.value)}</span>
-      <span class="blocklist-desc">${escapeHtml(e.description || '—')}</span>
-      <button class="btn btn-sm btn-danger" onclick="removeBlocklistEntry('${escapeHtml(e.value)}')">Remove</button>
+      <span class="sec-value">${escapeHtml(e.value)}</span>
+      ${knownIp}${desc}
+      <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="removeSecurityEntry('${listType}','${escapeHtml(e.value)}')">Remove</button>
     </div>`;
   }).join('');
 }
 
-async function addBlocklistEntry() {
-  const type  = document.getElementById('blocklistTypeInput').value;
-  const value = document.getElementById('blocklistValueInput')?.value.trim() || document.getElementById('blocklistIpInput')?.value.trim() || '';
-  const desc  = document.getElementById('blocklistDescInput').value.trim();
-  const msg   = document.getElementById('blocklistMsg');
-  if (!value) { msg.textContent = 'Enter a player name or IP.'; msg.style.color = '#ef4444'; msg.style.display = ''; return; }
-
-  const data = await API.post('/api/players/blocklist', { type, value, description: desc }).catch(() => null);
-  if (data?.success) {
-    const valEl = document.getElementById('blocklistValueInput') || document.getElementById('blocklistIpInput');
-    if (valEl) valEl.value = '';
-    document.getElementById('blocklistDescInput').value = '';
-    msg.textContent = `${value} blocked.`; msg.style.color = 'var(--accent)'; msg.style.display = '';
-    renderBlocklist(data.blocklist);
-    setTimeout(() => { msg.style.display = 'none'; }, 3000);
-  } else {
-    msg.textContent = data?.error || 'Failed to add entry.'; msg.style.color = '#ef4444'; msg.style.display = '';
+function _renderNameIpMap(map) {
+  const el = document.getElementById('knownIpsEntries');
+  if (!el) return;
+  const entries = Object.entries(map);
+  if (!entries.length) {
+    el.innerHTML = '<div class="security-empty">No players recorded yet. IPs are captured automatically when players join.</div>';
+    return;
   }
+  el.innerHTML = entries.map(([name, ip]) => `
+    <div class="sec-entry">
+      <span class="sec-badge sec-badge-name">Name</span>
+      <span class="sec-value">${escapeHtml(name)}</span>
+      <span class="sec-known-ip">${escapeHtml(ip)}</span>
+      <input type="text" class="form-input" id="nipm-ip-${escapeHtml(name)}" value="${escapeHtml(ip)}"
+        style="width:130px;padding:4px 8px;font-size:12px" placeholder="IP">
+      <button class="btn btn-sm" onclick="updateNameIp('${escapeHtml(name)}')">Update</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteNameIp('${escapeHtml(name)}')">Remove</button>
+    </div>`).join('');
 }
 
-async function removeBlocklistEntry(value) {
-  if (!confirm(`Remove "${value}" from block list?`)) return;
-  const data = await API.del(`/api/players/blocklist/${encodeURIComponent(value)}`).catch(() => null);
-  if (data?.success) renderBlocklist(data.blocklist);
+async function setSecurityMode(mode) {
+  const data = await API.put('/api/players/security/mode', { mode }).catch(() => null);
+  if (data?.success) renderSecurity(data.security, _lastPlayersData?.nameIpMap || {});
+  else showToast('Failed to update mode', 'error');
+}
+
+async function addBlocklistEntry() {
+  const type  = document.getElementById('blocklistTypeInput').value;
+  const value = document.getElementById('blocklistValueInput').value.trim();
+  const desc  = document.getElementById('blocklistDescInput').value.trim();
+  const msg   = document.getElementById('blocklistMsg');
+  if (!value) { _secMsg(msg, 'Enter a player name or IP.', false); return; }
+  const data = await API.post('/api/players/blocklist', { type, value, description: desc }).catch(() => null);
+  if (data?.success) {
+    document.getElementById('blocklistValueInput').value = '';
+    document.getElementById('blocklistDescInput').value  = '';
+    _secMsg(msg, `${value} blocked.`, true);
+    renderSecurity(data.security, _lastPlayersData?.nameIpMap || {});
+  } else { _secMsg(msg, data?.error || 'Failed.', false); }
+}
+
+async function addAllowlistEntry() {
+  const type  = document.getElementById('allowlistTypeInput').value;
+  const value = document.getElementById('allowlistValueInput').value.trim();
+  const desc  = document.getElementById('allowlistDescInput').value.trim();
+  const msg   = document.getElementById('allowlistMsg');
+  if (!value) { _secMsg(msg, 'Enter a player name or IP.', false); return; }
+  const data = await API.post('/api/players/allowlist', { type, value, description: desc }).catch(() => null);
+  if (data?.success) {
+    document.getElementById('allowlistValueInput').value = '';
+    document.getElementById('allowlistDescInput').value  = '';
+    _secMsg(msg, `${value} added to allow list.`, true);
+    renderSecurity(data.security, _lastPlayersData?.nameIpMap || {});
+  } else { _secMsg(msg, data?.error || 'Failed.', false); }
+}
+
+async function removeSecurityEntry(listType, value) {
+  if (!confirm(`Remove "${value}" from the ${listType === 'block' ? 'block' : 'allow'} list?`)) return;
+  const endpoint = listType === 'block'
+    ? `/api/players/blocklist/${encodeURIComponent(value)}`
+    : `/api/players/allowlist/${encodeURIComponent(value)}`;
+  const data = await API.del(endpoint).catch(() => null);
+  if (data?.success) renderSecurity(data.security, _lastPlayersData?.nameIpMap || {});
   else showToast('Failed to remove entry', 'error');
+}
+
+async function updateNameIp(name) {
+  const ip = document.getElementById(`nipm-ip-${name}`)?.value.trim();
+  if (!ip) return;
+  const data = await API.put(`/api/players/name-ip-map/${encodeURIComponent(name)}`, { ip }).catch(() => null);
+  if (data?.success) _renderNameIpMap(data.nameIpMap);
+  else showToast('Failed to update IP', 'error');
+}
+
+async function deleteNameIp(name) {
+  if (!confirm(`Remove ${name} from known IPs?`)) return;
+  const data = await API.del(`/api/players/name-ip-map/${encodeURIComponent(name)}`).catch(() => null);
+  if (data?.success) _renderNameIpMap(data.nameIpMap);
+  else showToast('Failed to remove entry', 'error');
+}
+
+function _secMsg(el, text, ok) {
+  if (!el) return;
+  el.textContent  = text;
+  el.style.color  = ok ? 'var(--accent)' : '#ef4444';
+  el.style.display = '';
+  if (ok) setTimeout(() => { el.style.display = 'none'; }, 3000);
 }
 
 // ─── SDV Item List (qualified IDs for player_add command) ─────────
@@ -2649,16 +2738,18 @@ function renderChatText(raw) {
 }
 
 async function loadChatMessages() {
-  // Refresh online player pills every ~10s
+  // Refresh player pills every ~10s — include online AND recent players
   if (Date.now() - _chatPlayersTs > 10000) {
     _chatPlayersTs = Date.now();
     const pd = await API.get('/api/players').catch(() => null);
     if (pd) {
-      const names = (pd.players || []).filter(p => !p.isHost).map(p => p.name).filter(Boolean);
-      if (JSON.stringify(names) !== JSON.stringify(_chatPlayers)) {
-        _chatPlayers = names;
-        // If selected target is no longer online, clear it
-        if (_chatTarget && !_chatPlayers.includes(_chatTarget)) clearChatTarget();
+      const onlineNames = (pd.players || []).filter(p => !p.isHost).map(p => p.name).filter(Boolean);
+      const recentNames = (pd.recentPlayers || []).map(p => p.name).filter(Boolean);
+      // Merge: online first, then recent, deduplicated
+      const merged = [...new Set([...onlineNames, ...recentNames])];
+      if (JSON.stringify(merged) !== JSON.stringify(_chatPlayers)) {
+        _chatPlayers = merged;
+        // Never auto-clear DM target — let user navigate away manually
         renderChatPlayerPills();
       }
     }
@@ -2668,14 +2759,13 @@ async function loadChatMessages() {
 
   const data = await API.get(`/api/chat/messages?since=${_chatLastTs}&limit=100`).catch(() => null);
 
-  const feed  = document.getElementById('chatFeed');
+  const feed = document.getElementById('chatFeed');
   if (!feed) return;
 
   if (!data?.messages?.length) {
-    // On first load with no messages, set correct empty state
     if (wasFirstLoad) {
       const emptyMsg = _chatTarget
-        ? `No messages with ${escapeHtml(_chatTarget)} yet.`
+        ? `No private messages with ${escapeHtml(_chatTarget)} yet.`
         : 'No messages yet — chat from connected players will appear here.';
       feed.innerHTML = `<div class="empty-state" id="chatEmpty">${emptyMsg}</div>`;
     }
@@ -2690,34 +2780,44 @@ async function loadChatMessages() {
     if (msg.ts <= _chatLastTs) continue;
     _chatLastTs = msg.ts;
 
-    // DM filter — when targeting a player, show only their messages and host DMs to them
-    if (_chatTarget && msg.from !== _chatTarget && msg.to !== _chatTarget) continue;
+    const isDm = msg.to && msg.to !== 'all';
+
+    if (_chatTarget) {
+      // DM view: show messages to/from this player only
+      if (msg.from !== _chatTarget && msg.to !== _chatTarget) continue;
+    } else {
+      // World chat view: hide private messages — they belong in DM tabs only
+      if (isDm) continue;
+    }
 
     const el = document.createElement('div');
     el.className = 'chat-msg' + (msg.isHost ? ' chat-msg-host' : '');
 
     const time = new Date(msg.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     let meta;
-    if (msg.isHost && msg.to && msg.to !== 'all') {
-      meta = `<span class="chat-dm-sent">→ ${escapeHtml(msg.to)}</span>`;
+    if (_chatTarget && msg.isHost && isDm) {
+      // In DM tab: host message shows as "You" with recipient tag
+      meta = `<span class="chat-dm-sent">You → ${escapeHtml(msg.to)}</span>`;
+    } else if (_chatTarget && !msg.isHost && msg.from === _chatTarget) {
+      // In DM tab: player's message
+      meta = escapeHtml(msg.from);
     } else {
       meta = escapeHtml(msg.from);
     }
+
     el.innerHTML = `<span class="chat-meta">${meta} <span class="chat-time">${time}</span></span><span class="chat-text">${renderChatText(msg.message)}</span>`;
     feed.appendChild(el);
     renderedCount++;
   }
 
-  // If DM filter removed everything and feed is now empty, show empty state
   if (renderedCount === 0 && !feed.querySelector('.chat-msg')) {
     const emptyMsg = _chatTarget
-      ? `No messages with ${escapeHtml(_chatTarget)} yet.`
+      ? `No private messages with ${escapeHtml(_chatTarget)} yet.`
       : 'No messages yet — chat from connected players will appear here.';
     feed.innerHTML = `<div class="empty-state" id="chatEmpty">${emptyMsg}</div>`;
     return;
   }
 
-  // Scroll to bottom on first load (initial render), or when already near the bottom
   if (wasFirstLoad || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80) {
     feed.scrollTop = feed.scrollHeight;
   }

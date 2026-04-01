@@ -19,6 +19,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -68,6 +69,15 @@ namespace StardropHostDependencies
         private string?   _lastSkippedEventId = null;
         private DateTime? _lastSkipTime       = null;
 
+        // ── Security config (blocklist/allowlist from web panel) ────────────────
+        private const string SecurityConfigPath = "/home/steam/web-panel/data/security.json";
+        private const string NameIpMapPath      = "/home/steam/web-panel/data/name-ip-map.json";
+        private const int    SecCacheTtlSeconds = 15;
+
+        private SecurityConfig?            _secConfig        = null;
+        private DateTime                   _secConfigLoadTime = DateTime.MinValue;
+        private Dictionary<string, string> _nameIpMap        = new();
+
         // ── Ban map (name → all bannedUsers keys for this ban: name + IP) ───────
         private const string BanMapPath = "/home/steam/.local/share/stardrop/ban-map.json";
         // bansByName["Tom"] = ["Tom", "192.168.0.140"]
@@ -113,6 +123,7 @@ namespace StardropHostDependencies
         public override void Entry(IModHelper helper)
         {
             _instance = this;
+            LoadNameIpMap();
             // Headless server optimisations — disable rendering, sound, and input.
             // Approach from JunimoServer (MIT): patch at MonoGame level using SuppressDraw()
             // so frame presentation is suppressed, not just the game's draw method.
@@ -924,15 +935,126 @@ namespace StardropHostDependencies
         // Fired for every player message. Host's own messages are NOT raised here
         // (SMAPI raises this only for remote players), so host messages are logged
         // explicitly in OnSayCommand / OnTellCommand.
+        // sourceFarmer == 0 for system/server messages (e.g. join/leave notifications).
         public static void ReceiveChatMessage_Postfix(long sourceFarmer, string message)
         {
             try
             {
+                // Detect join messages: "PlayerName (192.168.0.1) has joined."
+                // These are system messages with sourceFarmer == 0 that contain the player IP.
+                if (sourceFarmer == 0)
+                {
+                    var joinMatch = Regex.Match(
+                        message, @"^(.+?) \((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\)");
+                    if (joinMatch.Success)
+                        _instance?.OnPlayerJoinDetected(joinMatch.Groups[1].Value, joinMatch.Groups[2].Value);
+                }
+
                 var farmer = Game1.getFarmerMaybeOffline(sourceFarmer);
                 string name = farmer?.Name ?? $"#{sourceFarmer}";
                 _instance?.AppendChatLog(name, message, false);
             }
             catch { }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // SECURITY — blocklist / allowlist enforcement
+        // ════════════════════════════════════════════════════════════════════
+
+        private void LoadNameIpMap()
+        {
+            try
+            {
+                if (File.Exists(NameIpMapPath))
+                    _nameIpMap = JsonSerializer.Deserialize<Dictionary<string, string>>(
+                        File.ReadAllText(NameIpMapPath)) ?? new();
+            }
+            catch { _nameIpMap = new(); }
+        }
+
+        private void SaveNameIpMap()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(NameIpMapPath)!);
+                File.WriteAllText(NameIpMapPath, JsonSerializer.Serialize(_nameIpMap));
+            }
+            catch { }
+        }
+
+        private SecurityConfig LoadSecurityConfig()
+        {
+            if (_secConfig != null && (DateTime.Now - _secConfigLoadTime).TotalSeconds < SecCacheTtlSeconds)
+                return _secConfig;
+            try
+            {
+                _secConfig = File.Exists(SecurityConfigPath)
+                    ? JsonSerializer.Deserialize<SecurityConfig>(File.ReadAllText(SecurityConfigPath), _chatJsonOpts) ?? new()
+                    : new();
+            }
+            catch { _secConfig = new(); }
+            _secConfigLoadTime = DateTime.Now;
+            return _secConfig;
+        }
+
+        private void OnPlayerJoinDetected(string name, string ip)
+        {
+            // Always update name→IP tracking so the web panel can show it.
+            _nameIpMap[name] = ip;
+            SaveNameIpMap();
+
+            var sec = LoadSecurityConfig();
+
+            if (sec.Mode == "allow")
+            {
+                bool allowed = sec.Allowlist.Any(e =>
+                    (e.Type == "name" && e.Value.Equals(name, StringComparison.OrdinalIgnoreCase)) ||
+                    (e.Type == "ip"   && e.Value == ip));
+                if (!allowed)
+                {
+                    Monitor.Log($"[Security] '{name}' ({ip}) not in allow list — kicking.", LogLevel.Info);
+                    KickPlayerByName(name);
+                }
+                return;
+            }
+
+            // Block mode (default)
+            bool blocked = sec.Blocklist.Any(e =>
+                (e.Type == "name" && e.Value.Equals(name, StringComparison.OrdinalIgnoreCase)) ||
+                (e.Type == "ip"   && e.Value == ip));
+
+            // IP-alias check: if this IP was previously used by a blocked name, block them too.
+            if (!blocked)
+            {
+                var blockedNames = sec.Blocklist
+                    .Where(e => e.Type == "name")
+                    .Select(e => e.Value)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                blocked = _nameIpMap.Any(kv =>
+                    kv.Value == ip &&
+                    blockedNames.Contains(kv.Key) &&
+                    !kv.Key.Equals(name, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (blocked)
+            {
+                Monitor.Log($"[Security] '{name}' ({ip}) matched block list — kicking.", LogLevel.Info);
+                KickPlayerByName(name);
+            }
+        }
+
+        private void KickPlayerByName(string name)
+        {
+            foreach (var farmer in Game1.getAllFarmers())
+            {
+                if (!farmer.IsMainPlayer && farmer.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                {
+                    Monitor.Log($"[Security] Kicking '{farmer.Name}' (ID: {farmer.UniqueMultiplayerID}).", LogLevel.Info);
+                    Game1.server?.kick(farmer.UniqueMultiplayerID);
+                    return;
+                }
+            }
+            Monitor.Log($"[Security] Could not find '{name}' in farmer list to kick.", LogLevel.Warn);
         }
 
         private void OnSayCommand(string cmd, string[] args)
@@ -1003,6 +1125,31 @@ namespace StardropHostDependencies
 
             public void Reset() => _counter = _initial;
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECURITY CONFIG — matches security.json written by web panel
+    // ════════════════════════════════════════════════════════════════════════
+
+    internal sealed class SecurityConfig
+    {
+        [JsonPropertyName("mode")]
+        public string Mode { get; set; } = "block";
+
+        [JsonPropertyName("blocklist")]
+        public List<SecurityEntry> Blocklist { get; set; } = new();
+
+        [JsonPropertyName("allowlist")]
+        public List<SecurityEntry> Allowlist { get; set; } = new();
+    }
+
+    internal sealed class SecurityEntry
+    {
+        [JsonPropertyName("type")]
+        public string Type { get; set; } = "name";
+
+        [JsonPropertyName("value")]
+        public string Value { get; set; } = "";
     }
 
     // ════════════════════════════════════════════════════════════════════════

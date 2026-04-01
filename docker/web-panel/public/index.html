@@ -544,22 +544,62 @@
             <div id="recentPlayersList" class="players-list"></div>
           </div>
 
+          <!-- Security mode toggle -->
           <div class="card">
-            <div class="section-header" style="margin-bottom:12px">
-              <h3>Block List</h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+              <div>
+                <h3 style="margin:0 0 4px">Connection Security</h3>
+                <p id="secModeDesc" style="font-size:13px;color:var(--text-secondary);margin:0"></p>
+              </div>
+              <div class="toggle-group" id="secModeToggle">
+                <button id="secModeBlockBtn" class="btn btn-sm active" onclick="setSecurityMode('block')">Block List Mode</button>
+                <button id="secModeAllowBtn" class="btn btn-sm" onclick="setSecurityMode('allow')">Allow List Mode</button>
+              </div>
             </div>
-            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">Block by player name or IP address. Blocked players are kicked on connection.</p>
+          </div>
+
+          <!-- Block List -->
+          <div class="card">
+            <h3>Block List</h3>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">Players matching a name or IP are kicked on connection. IP aliases of blocked names are also caught.</p>
             <div id="blocklistEntries" style="margin-bottom:12px"></div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">
-              <select id="blocklistTypeInput" class="form-input dark-input" style="width:90px">
+            <div class="security-entry-form">
+              <select id="blocklistTypeInput" class="form-input">
                 <option value="name">Name</option>
                 <option value="ip">IP</option>
               </select>
-              <input id="blocklistValueInput" type="text" class="form-input dark-input" placeholder="Player name or IP address" style="flex:1;min-width:160px">
-              <input id="blocklistDescInput" type="text" class="form-input dark-input" placeholder="Reason (optional)" style="flex:2;min-width:140px">
-              <button class="btn btn-primary btn-sm" onclick="addBlocklistEntry()">Block</button>
+              <input id="blocklistValueInput" type="text" class="form-input" placeholder="Player name or IP address">
+              <input id="blocklistDescInput" type="text" class="form-input" placeholder="Reason (optional)">
+              <button class="btn btn-danger btn-sm" onclick="addBlocklistEntry()">Block</button>
             </div>
-            <div id="blocklistMsg" style="display:none;margin-top:8px;font-size:13px"></div>
+            <div id="blocklistMsg" class="security-msg" style="display:none"></div>
+          </div>
+
+          <!-- Allow List -->
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+              <h3 style="margin:0">Allow List</h3>
+              <span id="allowlistBadge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--bg-tertiary);color:var(--text-muted)">Inactive in Block Mode</span>
+            </div>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">Only players on this list can join when Allow List Mode is active.</p>
+            <div id="allowlistEntries" style="margin-bottom:12px"></div>
+            <div class="security-entry-form">
+              <select id="allowlistTypeInput" class="form-input">
+                <option value="name">Name</option>
+                <option value="ip">IP</option>
+              </select>
+              <input id="allowlistValueInput" type="text" class="form-input" placeholder="Player name or IP address">
+              <input id="allowlistDescInput" type="text" class="form-input" placeholder="Note (optional)">
+              <button class="btn btn-success btn-sm" onclick="addAllowlistEntry()">Allow</button>
+            </div>
+            <div id="allowlistMsg" class="security-msg" style="display:none"></div>
+          </div>
+
+          <!-- Known Player IPs -->
+          <div class="card" id="knownIpsCard">
+            <h3>Known Player IPs</h3>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">Automatically recorded when players join. Used for IP-alias blocking. You can manually update a friend's IP if it changes.</p>
+            <div id="knownIpsEntries"></div>
           </div>
 
         </section>

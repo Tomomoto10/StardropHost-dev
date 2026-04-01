@@ -86,10 +86,18 @@ app.post('/api/players/ban',         auth.verifyMiddleware, playersAPI.banPlayer
 app.post('/api/players/unban',       auth.verifyMiddleware, playersAPI.unbanPlayer);
 app.post('/api/players/admin',       auth.verifyMiddleware, playersAPI.grantAdmin);
 app.post('/api/players/recent/delete',  auth.verifyMiddleware, playersAPI.deleteRecentPlayer);
-app.get( '/api/players/blocklist',      auth.verifyMiddleware, playersAPI.getBlocklist);
-app.post('/api/players/blocklist',      auth.verifyMiddleware, playersAPI.addBlocklistEntry);
-app.delete('/api/players/blocklist/:ip',auth.verifyMiddleware, playersAPI.removeBlocklistEntry);
-app.post('/api/players/admin-command',  auth.verifyMiddleware, playersAPI.adminCommand);
+app.get( '/api/players/security',              auth.verifyMiddleware, playersAPI.getSecurity);
+app.put( '/api/players/security/mode',         auth.verifyMiddleware, playersAPI.setSecurityMode);
+app.get( '/api/players/blocklist',             auth.verifyMiddleware, playersAPI.getBlocklist);
+app.post('/api/players/blocklist',             auth.verifyMiddleware, playersAPI.addBlocklistEntry);
+app.delete('/api/players/blocklist/:value',    auth.verifyMiddleware, playersAPI.removeBlocklistEntry);
+app.get( '/api/players/allowlist',             auth.verifyMiddleware, playersAPI.getSecurity);
+app.post('/api/players/allowlist',             auth.verifyMiddleware, playersAPI.addAllowlistEntry);
+app.delete('/api/players/allowlist/:value',    auth.verifyMiddleware, playersAPI.removeAllowlistEntry);
+app.get( '/api/players/name-ip-map',           auth.verifyMiddleware, playersAPI.getNameIpMap);
+app.put( '/api/players/name-ip-map/:name',     auth.verifyMiddleware, playersAPI.updateNameIpEntry);
+app.delete('/api/players/name-ip-map/:name',   auth.verifyMiddleware, playersAPI.deleteNameIpEntry);
+app.post('/api/players/admin-command',         auth.verifyMiddleware, playersAPI.adminCommand);
 
 // -- Saves --
 const savesAPI = require('./api/saves');

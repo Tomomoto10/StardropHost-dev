@@ -646,25 +646,55 @@ body {
 
 .farm-player-dot { color: var(--accent); }
 
-/* ─── Blocklist ───────────────────────────────────────────────── */
+/* ─── Security (Block/Allow lists) ────────────────────────────── */
 
-.blocklist-badge { display:inline-flex; align-items:center; font-size:10px; padding:1px 5px; border-radius:4px; font-weight:600; }
-.blocklist-badge-ip   { background:rgba(96,165,250,0.15); color:#60a5fa; border:1px solid rgba(96,165,250,0.3); }
-.blocklist-badge-name { background:rgba(167,139,250,0.15); color:var(--accent); border:1px solid rgba(167,139,250,0.3); }
+/* Fix browser default white background on <select> */
+select.form-input {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a78bfa' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  cursor: pointer;
+}
 
-.blocklist-entry {
+.sec-badge { display:inline-flex; align-items:center; font-size:10px; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; }
+.sec-badge-ip   { background:rgba(96,165,250,0.15);  color:#60a5fa;       border:1px solid rgba(96,165,250,0.3); }
+.sec-badge-name { background:rgba(167,139,250,0.15); color:var(--accent); border:1px solid rgba(167,139,250,0.3); }
+
+.sec-entry {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 8px 10px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
   border-radius: 6px;
   margin-bottom: 6px;
   font-size: 13px;
+  flex-wrap: wrap;
 }
-.blocklist-ip   { font-weight: 600; font-family: monospace; min-width: 120px; }
-.blocklist-desc { flex: 1; color: var(--text-secondary); }
+.sec-value    { font-weight: 600; font-family: monospace; }
+.sec-known-ip { font-size: 11px; color: var(--text-muted); font-family: monospace; }
+.sec-desc     { flex: 1; color: var(--text-secondary); font-size: 12px; min-width: 60px; }
+.security-empty { font-size:13px; color:var(--text-muted); padding:4px 0; }
+.security-msg   { margin-top:8px; font-size:13px; }
+
+.security-entry-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.security-entry-form select.form-input { width: 90px; flex-shrink: 0; }
+.security-entry-form input.form-input:nth-of-type(1) { flex: 1; min-width: 150px; }
+.security-entry-form input.form-input:nth-of-type(2) { flex: 2; min-width: 120px; }
+
+/* Mode toggle group */
+.toggle-group { display:flex; gap:4px; }
+.toggle-group .btn { opacity:0.55; }
+.toggle-group .btn.active { opacity:1; }
 
 /* ─── Admin Controls Modal ────────────────────────────────────── */
 

@@ -5,28 +5,60 @@
 
 const fs   = require('fs');
 const path = require('path');
-const http = require('http');
 const config = require('../server');
 
-// -- IP Blocklist --
-const BLOCKLIST_FILE = path.join(config.DATA_DIR, 'ip-blocklist.json');
+// -- Security config (blocklist + allowlist + mode) --
+const SECURITY_FILE    = path.join(config.DATA_DIR, 'security.json');
+const NAME_IP_MAP_FILE = path.join(config.DATA_DIR, 'name-ip-map.json');
+// Legacy file — migrated on first write to security.json
+const LEGACY_BLOCKLIST = path.join(config.DATA_DIR, 'ip-blocklist.json');
 
-function loadBlocklist() {
-  try {
-    if (!fs.existsSync(BLOCKLIST_FILE)) return [];
-    const raw = JSON.parse(fs.readFileSync(BLOCKLIST_FILE, 'utf-8'));
-    // Normalise legacy entries that only had an 'ip' field
-    return raw.map(e => ({
-      type:        e.type || 'ip',
-      value:       e.value || e.ip || '',
-      description: e.description || '',
-      addedAt:     e.addedAt || '',
-    })).filter(e => e.value);
-  } catch { return []; }
+function normaliseEntry(e) {
+  return {
+    type:        e.type || 'name',
+    value:       (e.value || e.ip || '').trim(),
+    description: (e.description || '').trim(),
+    addedAt:     e.addedAt || new Date().toISOString(),
+  };
 }
 
-function saveBlocklist(list) {
-  try { fs.writeFileSync(BLOCKLIST_FILE, JSON.stringify(list, null, 2), 'utf-8'); } catch {}
+function loadSecurity() {
+  try {
+    if (fs.existsSync(SECURITY_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(SECURITY_FILE, 'utf-8'));
+      return {
+        mode:      raw.mode || 'block',
+        blocklist: (raw.blocklist || []).map(normaliseEntry).filter(e => e.value),
+        allowlist: (raw.allowlist || []).map(normaliseEntry).filter(e => e.value),
+      };
+    }
+    // Migrate from legacy ip-blocklist.json
+    if (fs.existsSync(LEGACY_BLOCKLIST)) {
+      const old = JSON.parse(fs.readFileSync(LEGACY_BLOCKLIST, 'utf-8'));
+      if (Array.isArray(old)) {
+        const sec = { mode: 'block', blocklist: old.map(normaliseEntry).filter(e => e.value), allowlist: [] };
+        saveSecurity(sec);
+        return sec;
+      }
+    }
+  } catch {}
+  return { mode: 'block', blocklist: [], allowlist: [] };
+}
+
+function saveSecurity(sec) {
+  try { fs.writeFileSync(SECURITY_FILE, JSON.stringify(sec, null, 2), 'utf-8'); } catch {}
+}
+
+function loadNameIpMap() {
+  try {
+    if (fs.existsSync(NAME_IP_MAP_FILE))
+      return JSON.parse(fs.readFileSync(NAME_IP_MAP_FILE, 'utf-8'));
+  } catch {}
+  return {};
+}
+
+function saveNameIpMap(map) {
+  try { fs.writeFileSync(NAME_IP_MAP_FILE, JSON.stringify(map, null, 2), 'utf-8'); } catch {}
 }
 
 // -- Player history (24h at 5min intervals) --
@@ -42,26 +74,23 @@ const playerSnapshots = new Map(); // id → rich player data from live-status.j
 const recentPlayers   = new Map(); // id → { ...playerData, lastSeen } — persists until manually deleted
 
 // -- Ban list --
-const BAN_LIST_FILE = require('path').join(config.DATA_DIR, 'bans.json');
+const BAN_LIST_FILE = path.join(config.DATA_DIR, 'bans.json');
 
 function loadBans() {
   try {
-    if (fs.existsSync(BAN_LIST_FILE)) {
+    if (fs.existsSync(BAN_LIST_FILE))
       return JSON.parse(fs.readFileSync(BAN_LIST_FILE, 'utf-8'));
-    }
   } catch {}
   return [];
 }
 
 function saveBans(bans) {
-  try {
-    fs.writeFileSync(BAN_LIST_FILE, JSON.stringify(bans, null, 2), 'utf-8');
-  } catch {}
+  try { fs.writeFileSync(BAN_LIST_FILE, JSON.stringify(bans, null, 2), 'utf-8'); } catch {}
 }
 
 // -- Parse players from SMAPI log --
 // BUG FIX: Player IDs are large negative numbers (e.g. -3472295406447050512)
-// Updated regex from \w+ to [-0-9]+ to match actual numeric IDs
+// Regex uses [-0-9]+ to match actual numeric IDs
 function parsePlayersFromLogs() {
   const now = Date.now();
   if (now - lastLogParse < 10000) return connectedPlayers;
@@ -74,7 +103,6 @@ function parsePlayersFromLogs() {
     const players = new Map();
 
     for (const line of lines) {
-      // Join patterns - IDs are numeric
       const joinMatch =
         line.match(/Received connection for vanilla player ([-0-9]+)/i) ||
         line.match(/Approved request for farmhand ([-0-9]+)/i) ||
@@ -84,16 +112,10 @@ function parsePlayersFromLogs() {
 
       if (joinMatch) {
         const id = joinMatch[1];
-        players.set(id, {
-          id,
-          name: formatPlayerId(id),
-          joinedAt: new Date().toISOString(),
-          isOnline: true,
-        });
+        players.set(id, { id, name: formatPlayerId(id), joinedAt: new Date().toISOString(), isOnline: true });
         continue;
       }
 
-      // Leave patterns
       const leaveMatch =
         line.match(/farmhand ([-0-9]+) disconnected/i) ||
         line.match(/client ([-0-9]+) disconnected/i) ||
@@ -101,16 +123,12 @@ function parsePlayersFromLogs() {
         line.match(/connection ([-0-9]+) disconnected/i) ||
         line.match(/player ([-0-9]+) disconnected/i);
 
-      if (leaveMatch) {
-        players.delete(leaveMatch[1]);
-      }
+      if (leaveMatch) players.delete(leaveMatch[1]);
     }
 
     connectedPlayers = Array.from(players.values());
     lastLogParse = now;
-  } catch {
-    // Keep last known state
-  }
+  } catch {}
 
   return connectedPlayers;
 }
@@ -127,26 +145,23 @@ function getPlayersFromLiveStatus() {
         const online = live.players
           .filter(p => p.isOnline && !p.isHost)
           .map(p => ({
-            id:           p.uniqueId,
-            name:         p.name || formatPlayerId(p.uniqueId),
-            joinedAt:     null,
-            isOnline:     true,
-            health:       p.health,
-            maxHealth:    p.maxHealth,
-            stamina:      Math.floor(p.stamina ?? 0),
-            maxStamina:   Math.floor(p.maxStamina ?? 0),
-            money:        p.money,
-            totalEarned:  p.totalEarned,
-            daysPlayed:   p.daysPlayed,
-            location:     p.locationName,
-            skills:       p.skills,
-            tileX:        p.tileX,
-            tileY:        p.tileY,
+            id:          p.uniqueId,
+            name:        p.name || formatPlayerId(p.uniqueId),
+            joinedAt:    null,
+            isOnline:    true,
+            health:      p.health,
+            maxHealth:   p.maxHealth,
+            stamina:     Math.floor(p.stamina ?? 0),
+            maxStamina:  Math.floor(p.maxStamina ?? 0),
+            money:       p.money,
+            totalEarned: p.totalEarned,
+            daysPlayed:  p.daysPlayed,
+            location:    p.locationName,
+            skills:      p.skills,
+            tileX:       p.tileX,
+            tileY:       p.tileY,
           }));
-
-        // Update snapshots for all currently online players
         for (const p of online) playerSnapshots.set(p.id, p);
-
         return online;
       }
     }
@@ -154,10 +169,8 @@ function getPlayersFromLiveStatus() {
   return null;
 }
 
-// -- Format a numeric player ID for display --
 function formatPlayerId(id) {
   if (!id) return 'Player';
-  // Show last 6 digits of the numeric ID as a short identifier
   const str = String(id).replace('-', '');
   return `Farmhand #${str.slice(-6)}`;
 }
@@ -175,18 +188,11 @@ function getOnlineCount() {
 
 // -- Record player count history every 5 minutes --
 setInterval(() => {
-  playerHistory.push({
-    timestamp: new Date().toISOString(),
-    count: getOnlineCount(),
-  });
+  playerHistory.push({ timestamp: new Date().toISOString(), count: getOnlineCount() });
   if (playerHistory.length > MAX_PLAYER_HISTORY) playerHistory.shift();
 }, 5 * 60 * 1000);
 
 // -- Send SMAPI console command --
-// Writes to the named pipe created by crash-monitor.sh before each SMAPI launch.
-// crash-monitor opens SMAPI with `<> smapi-stdin` (read+write) so the pipe stays
-// open and never sends EOF to SMAPI. Node.js appends a command line and SMAPI
-// reads it from stdin exactly as if it were typed in a terminal.
 const SMAPI_STDIN = '/home/steam/web-panel/data/smapi-stdin';
 
 function sendConsoleCommand(command) {
@@ -195,21 +201,17 @@ function sendConsoleCommand(command) {
     const input = command.endsWith('\n') ? command : `${command}\n`;
     fs.appendFileSync(SMAPI_STDIN, input);
     return true;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 // -- Route Handlers --
 
 function getPlayers(req, res) {
-  // Prefer live-status.json data (richer, from StardropDashboard mod)
   const livePlayers = getPlayersFromLiveStatus();
   const logPlayers  = parsePlayersFromLogs();
   const players     = livePlayers || logPlayers;
   const online      = getOnlineCount();
 
-  // Detect disconnects: players in snapshots but not currently online → move to recent
   const onlineIds = new Set(players.map(p => p.id));
   for (const [id, snapshot] of playerSnapshots) {
     if (!onlineIds.has(id)) {
@@ -218,30 +220,37 @@ function getPlayers(req, res) {
     }
   }
 
-  const bans = loadBans();
+  const bans       = loadBans();
   const bannedIds   = new Set(bans.map(b => b.id).filter(Boolean));
   const bannedNames = new Set(bans.map(b => b.name).filter(Boolean));
+  const security   = loadSecurity();
+  const nameIpMap  = loadNameIpMap();
+
+  // Attach known IP to each online player
+  const playersWithIp = players.map(p => ({
+    ...p,
+    knownIp: nameIpMap[p.name] || null,
+  }));
 
   res.json({
     online: Math.max(online, players.length),
     max: 8,
-    players,
+    players: playersWithIp,
     recentPlayers:   Array.from(recentPlayers.values()).sort((a, b) => b.lastSeen - a.lastSeen),
     history:         playerHistory,
     bannedIds:       Array.from(bannedIds),
     bannedNames:     Array.from(bannedNames),
     separateWallets: _separateWallets,
-    blocklist:       loadBlocklist(),
+    security,
+    nameIpMap,
   });
 }
 
 function kickPlayer(req, res) {
   const { id, name } = req.body;
   if (!id && !name) return res.status(400).json({ error: 'Player id or name is required' });
-
-  const target = name || id;
+  const target  = name || id;
   const success = sendConsoleCommand(`kick ${target}`);
-
   if (success) res.json({ success: true, message: `Kicked ${target}` });
   else res.status(500).json({ error: 'Failed to send kick command — is the server running?' });
 }
@@ -249,19 +258,13 @@ function kickPlayer(req, res) {
 function banPlayer(req, res) {
   const { id, name } = req.body;
   if (!id && !name) return res.status(400).json({ error: 'Player id or name is required' });
-
   const target = name || id;
-
-  // Record ban locally for UI (unban button on recent players)
-  const bans = loadBans();
+  const bans   = loadBans();
   if (!bans.find(b => b.id === id || b.name === name)) {
     bans.push({ id, name, bannedAt: new Date().toISOString() });
     saveBans(bans);
   }
-
-  // Send to SMAPI — mod calls Game1.server.ban() which kicks + adds to bannedUsers
   const success = sendConsoleCommand(`ban ${target}`);
-
   if (success) res.json({ success: true, message: `Banned ${target}` });
   else res.status(500).json({ error: 'Failed to send ban command — is the server running?' });
 }
@@ -269,15 +272,10 @@ function banPlayer(req, res) {
 function unbanPlayer(req, res) {
   const { id, name } = req.body;
   if (!id && !name) return res.status(400).json({ error: 'Player id or name is required' });
-
-  // Remove from local tracking
   const bans = loadBans().filter(b => b.id !== id && b.name !== name);
   saveBans(bans);
-
-  // Send to SMAPI — mod removes from Game1.bannedUsers
   const target = name || id;
   sendConsoleCommand(`unban ${target}`);
-
   res.json({ success: true, message: `Unbanned ${target}` });
 }
 
@@ -290,52 +288,117 @@ function deleteRecentPlayer(req, res) {
 
 function grantAdmin(req, res) {
   const { id, name } = req.body;
-  if (!id && !name) {
-    return res.status(400).json({ error: 'Player id or name is required' });
-  }
-
-  const target = name || id;
+  if (!id && !name) return res.status(400).json({ error: 'Player id or name is required' });
+  const target  = name || id;
   const success = sendConsoleCommand(`admin ${target}`);
+  if (success) res.json({ success: true, message: `Admin granted to ${target}` });
+  else res.status(500).json({ error: 'Failed to send admin command' });
+}
 
-  if (success) {
-    res.json({ success: true, message: `Admin granted to ${target}` });
-  } else {
-    res.status(500).json({ error: 'Failed to send admin command' });
-  }
+// -- Security routes --
+
+function getSecurity(req, res) {
+  res.json({ security: loadSecurity(), nameIpMap: loadNameIpMap() });
+}
+
+function setSecurityMode(req, res) {
+  const { mode } = req.body || {};
+  if (mode !== 'block' && mode !== 'allow')
+    return res.status(400).json({ error: 'mode must be "block" or "allow"' });
+  const sec  = loadSecurity();
+  sec.mode   = mode;
+  saveSecurity(sec);
+  res.json({ success: true, security: sec });
 }
 
 // -- Blocklist routes --
 
 function getBlocklist(req, res) {
-  res.json({ blocklist: loadBlocklist() });
+  const sec = loadSecurity();
+  res.json({ blocklist: sec.blocklist, mode: sec.mode });
 }
 
 function addBlocklistEntry(req, res) {
   const { type, value, description } = req.body || {};
-  if (!value || typeof value !== 'string') return res.status(400).json({ error: 'Name or IP is required' });
-  const entryType  = (type === 'ip') ? 'ip' : 'name';
-  const trimmed    = value.trim();
-  if (entryType === 'ip' && !/^[\d.:a-fA-F/]+$/.test(trimmed)) {
+  if (!value || typeof value !== 'string')
+    return res.status(400).json({ error: 'Name or IP is required' });
+
+  const entryType = (type === 'ip') ? 'ip' : 'name';
+  const trimmed   = value.trim();
+  if (entryType === 'ip' && !/^[\d.:a-fA-F/]+$/.test(trimmed))
     return res.status(400).json({ error: 'Invalid IP format' });
-  }
 
-  const list = loadBlocklist();
-  if (list.find(e => e.value === trimmed)) return res.status(409).json({ error: 'Already in blocklist' });
+  const sec = loadSecurity();
+  if (sec.blocklist.find(e => e.value === trimmed))
+    return res.status(409).json({ error: 'Already in block list' });
 
-  list.push({ type: entryType, value: trimmed, description: (description || '').trim(), addedAt: new Date().toISOString() });
-  saveBlocklist(list);
-  // Attempt enforcement via SMAPI (best-effort)
-  if (entryType === 'ip') sendConsoleCommand(`ban ${trimmed}`);
-  else sendConsoleCommand(`kick "${trimmed}"`);
-  res.json({ success: true, blocklist: list });
+  sec.blocklist.push({ type: entryType, value: trimmed, description: (description || '').trim(), addedAt: new Date().toISOString() });
+  saveSecurity(sec);
+
+  // Best-effort: kick if player is currently online by that name
+  if (entryType === 'name') sendConsoleCommand(`kick "${trimmed}"`);
+
+  res.json({ success: true, security: sec });
 }
 
 function removeBlocklistEntry(req, res) {
-  const raw  = req.params.ip;   // URL param named :ip but carries name or IP
-  const val  = decodeURIComponent(raw);
-  const list = loadBlocklist().filter(e => e.value !== val);
-  saveBlocklist(list);
-  res.json({ success: true, blocklist: list });
+  const val = decodeURIComponent(req.params.value);
+  const sec = loadSecurity();
+  sec.blocklist = sec.blocklist.filter(e => e.value !== val);
+  saveSecurity(sec);
+  res.json({ success: true, security: sec });
+}
+
+// -- Allowlist routes --
+
+function addAllowlistEntry(req, res) {
+  const { type, value, description } = req.body || {};
+  if (!value || typeof value !== 'string')
+    return res.status(400).json({ error: 'Name or IP is required' });
+
+  const entryType = (type === 'ip') ? 'ip' : 'name';
+  const trimmed   = value.trim();
+
+  const sec = loadSecurity();
+  if (sec.allowlist.find(e => e.value === trimmed))
+    return res.status(409).json({ error: 'Already in allow list' });
+
+  sec.allowlist.push({ type: entryType, value: trimmed, description: (description || '').trim(), addedAt: new Date().toISOString() });
+  saveSecurity(sec);
+  res.json({ success: true, security: sec });
+}
+
+function removeAllowlistEntry(req, res) {
+  const val = decodeURIComponent(req.params.value);
+  const sec = loadSecurity();
+  sec.allowlist = sec.allowlist.filter(e => e.value !== val);
+  saveSecurity(sec);
+  res.json({ success: true, security: sec });
+}
+
+// -- Name→IP map routes (written by mod on player join, readable/editable by panel) --
+
+function getNameIpMap(req, res) {
+  res.json({ nameIpMap: loadNameIpMap() });
+}
+
+function updateNameIpEntry(req, res) {
+  const name = decodeURIComponent(req.params.name);
+  const { ip } = req.body || {};
+  if (!ip || typeof ip !== 'string') return res.status(400).json({ error: 'ip is required' });
+  if (!/^[\d.]+$/.test(ip.trim())) return res.status(400).json({ error: 'Invalid IP format' });
+  const map = loadNameIpMap();
+  map[name] = ip.trim();
+  saveNameIpMap(map);
+  res.json({ success: true, nameIpMap: map });
+}
+
+function deleteNameIpEntry(req, res) {
+  const name = decodeURIComponent(req.params.name);
+  const map  = loadNameIpMap();
+  delete map[name];
+  saveNameIpMap(map);
+  res.json({ success: true, nameIpMap: map });
 }
 
 // -- Admin command (host-targeted SMAPI commands) --
@@ -350,13 +413,10 @@ const ALLOWED_ADMIN_COMMANDS = new Set([
 function adminCommand(req, res) {
   const { command } = req.body || {};
   if (!command || typeof command !== 'string') return res.status(400).json({ error: 'command is required' });
-
   const cmd  = command.trim();
   const base = cmd.split(/\s+/)[0].toLowerCase();
-  if (!ALLOWED_ADMIN_COMMANDS.has(base)) {
+  if (!ALLOWED_ADMIN_COMMANDS.has(base))
     return res.status(403).json({ error: `Command '${base}' is not permitted` });
-  }
-
   const success = sendConsoleCommand(cmd);
   if (success) res.json({ success: true });
   else res.status(500).json({ error: 'Failed to send command — is the server running?' });
@@ -369,8 +429,15 @@ module.exports = {
   unbanPlayer,
   grantAdmin,
   deleteRecentPlayer,
+  getSecurity,
+  setSecurityMode,
   getBlocklist,
   addBlocklistEntry,
   removeBlocklistEntry,
+  addAllowlistEntry,
+  removeAllowlistEntry,
+  getNameIpMap,
+  updateNameIpEntry,
+  deleteNameIpEntry,
   adminCommand,
 };
