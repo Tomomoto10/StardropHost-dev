@@ -2199,8 +2199,8 @@ function renderSecurity(security, nameIpMap) {
   const blockBtn  = document.getElementById('secModeBlockBtn');
   const allowBtn  = document.getElementById('secModeAllowBtn');
   const modeDesc  = document.getElementById('secModeDesc');
-  const blockCard = document.getElementById('blocklistCard');
-  const allowCard = document.getElementById('allowlistCard');
+  const blockSection = document.getElementById('blocklistSection');
+  const allowSection = document.getElementById('allowlistSection');
 
   if (blockBtn) blockBtn.classList.toggle('active', _securityMode === 'block');
   if (allowBtn) allowBtn.classList.toggle('active', _securityMode === 'allow');
@@ -2208,9 +2208,9 @@ function renderSecurity(security, nameIpMap) {
     ? 'Block List Mode — everyone can join except blocked players.'
     : '<strong>Allow List Mode — only players on this list can join. If the list is empty, nobody can join.</strong>';
 
-  // Show only the relevant card
-  if (blockCard) blockCard.style.display = _securityMode === 'block' ? '' : 'none';
-  if (allowCard) allowCard.style.display = _securityMode === 'allow' ? '' : 'none';
+  // Show only the relevant section within the card
+  if (blockSection) blockSection.style.display = _securityMode === 'block' ? '' : 'none';
+  if (allowSection) allowSection.style.display = _securityMode === 'allow' ? '' : 'none';
 
   _renderSecurityList('blocklistEntries', security.blocklist || [], 'block', nameIpMap);
   _renderSecurityList('allowlistEntries', security.allowlist || [], 'allow', nameIpMap);
@@ -3263,8 +3263,9 @@ async function loadConfig() {
   if (containerTop) containerTop.innerHTML = '';
   if (advHolder)    advHolder.innerHTML    = '';
 
-  const TOP_GROUPS      = new Set(['Server']);
-  const ADVANCED_GROUPS = new Set(['VNC & Display', 'Stability', 'Monitoring']);
+  const TOP_GROUPS        = new Set(['Server']);
+  const ADVANCED_GROUPS   = new Set(['VNC & Display', 'Stability', 'Monitoring']);
+  const COLLAPSIBLE_GROUPS = new Set(['Backup', 'Performance']);
 
   const deferredTzPickers = [];
 
@@ -3273,16 +3274,29 @@ async function loadConfig() {
 
     const target = (containerTop && TOP_GROUPS.has(group.name)) ? containerTop : container;
 
-    const card = document.createElement('div');
-    card.className = 'card config-group';
-    card.innerHTML = `<div class="config-group-title">${escapeHtml(group.name)}</div>`;
+    let card, rowTarget;
+    if (COLLAPSIBLE_GROUPS.has(group.name)) {
+      card = document.createElement('details');
+      card.className = 'card admin-cred-details';
+      const sum = document.createElement('summary');
+      sum.textContent = group.name;
+      card.appendChild(sum);
+      rowTarget = document.createElement('div');
+      rowTarget.style.paddingTop = '12px';
+      card.appendChild(rowTarget);
+    } else {
+      card = document.createElement('div');
+      card.className = 'card config-group';
+      card.innerHTML = `<div class="config-group-title">${escapeHtml(group.name)}</div>`;
+      rowTarget = card;
+    }
 
     for (const item of group.items) {
       const row = _buildConfigRow(item);
       if (item.type === 'timezone') {
         deferredTzPickers.push({ id: `cfg-tz-${item.key}`, value: item.value || item.default || 'UTC', key: item.key });
       }
-      card.appendChild(row);
+      rowTarget.appendChild(row);
     }
 
     // Server group: prepend status indicators + update notifications + actions
@@ -3320,7 +3334,7 @@ async function loadConfig() {
       statusRow.innerHTML =
         `<div><div class="config-label">Server Status</div></div>
          <div class="config-value" style="gap:8px">
-           <span id="configServerStatusBadge" style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--text-primary)">
+           <span id="configServerStatusBadge" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);font-weight:500">
              <span class="status-dot ${statusCls}"></span>${escapeHtml(statusText)}
            </span>
            <button id="serverToggleBtn" class="btn btn-sm ${running ? 'btn-danger' : 'btn-success'}" type="button"
@@ -3339,7 +3353,7 @@ async function loadConfig() {
       remoteRow.innerHTML =
         `<div><div class="config-label">Remote Status</div></div>
          <div class="config-value" style="gap:8px">
-           <span id="configRemoteStatusBadge" style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--text-primary)">
+           <span id="configRemoteStatusBadge" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);font-weight:500">
              <span class="status-dot ${remCls}"></span>${escapeHtml(remText)}
            </span>
            ${remBtnHtml}
@@ -3387,11 +3401,44 @@ async function loadConfig() {
     details.className = 'advanced-details';
 
     const summary = document.createElement('summary');
-    summary.innerHTML = `Advanced Settings <span style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:6px">VNC · Stability · Monitoring</span>`;
+    summary.innerHTML = `Advanced Settings <span style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:6px">Admin · VNC · Stability · Monitoring</span>`;
     details.appendChild(summary);
 
     const advInner = document.createElement('div');
     advInner.style.cssText = 'padding-top:12px;display:flex;flex-direction:column;gap:12px';
+
+    // Admin credentials card
+    const adminCard = document.createElement('details');
+    adminCard.className = 'card admin-cred-details';
+    adminCard.id = 'adminCredCard';
+    adminCard.innerHTML = `
+      <summary>Change Admin Credentials</summary>
+      <div style="margin-top:14px">
+        <div style="margin-bottom:10px">
+          <label class="config-label" for="newUsername">New Username <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <div style="margin-top:6px"><input type="text" id="newUsername" class="input" placeholder="Leave blank to keep current" style="width:100%;max-width:300px"></div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label class="config-label" for="oldPassword">Current Password</label>
+          <div style="margin-top:6px"><input type="password" id="oldPassword" class="input" placeholder="Required to confirm changes" style="width:100%;max-width:300px"></div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label class="config-label" for="newPassword">New Password</label>
+          <div style="margin-top:6px"><input type="password" id="newPassword" class="input" placeholder="Minimum 8 characters" style="width:100%;max-width:300px"></div>
+        </div>
+        <div style="margin-bottom:14px">
+          <label class="config-label" for="confirmNewPassword">Confirm New Password</label>
+          <div style="margin-top:6px"><input type="password" id="confirmNewPassword" class="input" placeholder="Re-enter new password" style="width:100%;max-width:300px"></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;padding:10px 12px;background:var(--bg-tertiary);border-radius:6px;line-height:1.7">
+          <div style="font-weight:600;margin-bottom:2px">Requirements</div>
+          <div>• Username: at least 3 characters (letters, numbers, _ . -)</div>
+          <div>• Password: minimum 8 characters</div>
+          <div>• New passwords must match</div>
+        </div>
+        <button class="btn btn-primary" type="button" onclick="changePassword()">Update Credentials</button>
+      </div>`;
+    advInner.appendChild(adminCard);
 
     // VNC card — loadVnc() fills #vncPanel after we append to DOM
     const vncCard = document.createElement('div');

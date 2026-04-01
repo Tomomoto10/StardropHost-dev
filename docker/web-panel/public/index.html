@@ -531,9 +531,9 @@
             <div id="recentPlayersList" class="players-list"></div>
           </div>
 
-          <!-- Security mode toggle -->
+          <!-- Connection Security (combined card) -->
           <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
               <div>
                 <h3 style="margin:0 0 4px">Connection Security</h3>
                 <p id="secModeDesc" style="font-size:13px;color:var(--text-secondary);margin:0"></p>
@@ -543,42 +543,38 @@
                 <button id="secModeAllowBtn" class="btn btn-sm" onclick="setSecurityMode('allow')">Allow List Mode</button>
               </div>
             </div>
-          </div>
 
-          <!-- Block List -->
-          <div class="card" id="blocklistCard">
-            <h3>Block List</h3>
-            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">Players matching a name or IP are kicked on connection. IP aliases of blocked names are also caught.</p>
-            <div id="blocklistEntries" style="margin-bottom:12px"></div>
-            <div class="security-entry-form">
-              <select id="blocklistTypeInput" class="form-input">
-                <option value="name">Name</option>
-                <option value="ip">IP</option>
-              </select>
-              <input id="blocklistValueInput" type="text" class="form-input" placeholder="Player name or IP address">
-              <input id="blocklistDescInput" type="text" class="form-input" placeholder="Reason (optional)">
-              <button class="btn btn-danger btn-sm" onclick="addBlocklistEntry()">Block</button>
+            <!-- Block List section -->
+            <div id="blocklistSection">
+              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">Players matching a name or IP are kicked on connection. IP aliases of blocked names are also caught.</p>
+              <div id="blocklistEntries" style="margin-bottom:12px"></div>
+              <div class="security-entry-form">
+                <select id="blocklistTypeInput" class="form-input">
+                  <option value="name">Name</option>
+                  <option value="ip">IP</option>
+                </select>
+                <input id="blocklistValueInput" type="text" class="form-input" placeholder="Player name or IP address">
+                <input id="blocklistDescInput" type="text" class="form-input" placeholder="Reason (optional)">
+                <button class="btn btn-danger btn-sm" onclick="addBlocklistEntry()">Block</button>
+              </div>
+              <div id="blocklistMsg" class="security-msg" style="display:none"></div>
             </div>
-            <div id="blocklistMsg" class="security-msg" style="display:none"></div>
-          </div>
 
-          <!-- Allow List -->
-          <div class="card" id="allowlistCard" style="display:none">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
-              <h3 style="margin:0">Allow List</h3>
+            <!-- Allow List section -->
+            <div id="allowlistSection" style="display:none">
+              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">Only players on this list can join when Allow List Mode is active.</p>
+              <div id="allowlistEntries" style="margin-bottom:12px"></div>
+              <div class="security-entry-form">
+                <select id="allowlistTypeInput" class="form-input">
+                  <option value="name">Name</option>
+                  <option value="ip">IP</option>
+                </select>
+                <input id="allowlistValueInput" type="text" class="form-input" placeholder="Player name or IP address">
+                <input id="allowlistDescInput" type="text" class="form-input" placeholder="Note (optional)">
+                <button class="btn btn-success btn-sm" onclick="addAllowlistEntry()">Allow</button>
+              </div>
+              <div id="allowlistMsg" class="security-msg" style="display:none"></div>
             </div>
-            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">Only players on this list can join when Allow List Mode is active.</p>
-            <div id="allowlistEntries" style="margin-bottom:12px"></div>
-            <div class="security-entry-form">
-              <select id="allowlistTypeInput" class="form-input">
-                <option value="name">Name</option>
-                <option value="ip">IP</option>
-              </select>
-              <input id="allowlistValueInput" type="text" class="form-input" placeholder="Player name or IP address">
-              <input id="allowlistDescInput" type="text" class="form-input" placeholder="Note (optional)">
-              <button class="btn btn-success btn-sm" onclick="addAllowlistEntry()">Allow</button>
-            </div>
-            <div id="allowlistMsg" class="security-msg" style="display:none"></div>
           </div>
 
           <!-- Known Player IPs -->
@@ -801,44 +797,6 @@
         <section id="page-config" class="page">
           <div id="configContainerTop"></div>
 
-          <!-- Change Admin Credentials — collapsible, sits below Server card -->
-          <details class="card admin-cred-details" id="adminCredCard" style="margin-top:16px">
-            <summary>Change Admin Credentials</summary>
-            <div style="margin-top:14px">
-              <div style="margin-bottom:10px">
-                <label class="config-label" for="newUsername">New Username <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
-                <div style="margin-top:6px">
-                  <input type="text" id="newUsername" class="input" placeholder="Leave blank to keep current" style="width:100%;max-width:300px">
-                </div>
-              </div>
-              <div style="margin-bottom:10px">
-                <label class="config-label" for="oldPassword">Current Password</label>
-                <div style="margin-top:6px">
-                  <input type="password" id="oldPassword" class="input" placeholder="Required to confirm changes" style="width:100%;max-width:300px">
-                </div>
-              </div>
-              <div style="margin-bottom:10px">
-                <label class="config-label" for="newPassword">New Password</label>
-                <div style="margin-top:6px">
-                  <input type="password" id="newPassword" class="input" placeholder="Minimum 8 characters" style="width:100%;max-width:300px">
-                </div>
-              </div>
-              <div style="margin-bottom:14px">
-                <label class="config-label" for="confirmNewPassword">Confirm New Password</label>
-                <div style="margin-top:6px">
-                  <input type="password" id="confirmNewPassword" class="input" placeholder="Re-enter new password" style="width:100%;max-width:300px">
-                </div>
-              </div>
-              <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;padding:10px 12px;background:var(--bg-tertiary);border-radius:6px;line-height:1.7">
-                <div style="font-weight:600;margin-bottom:2px">Requirements</div>
-                <div>• Username: at least 3 characters (letters, numbers, _ . -)</div>
-                <div>• Password: minimum 8 characters</div>
-                <div>• New passwords must match</div>
-              </div>
-              <button class="btn btn-primary" type="button" onclick="changePassword()">Update Credentials</button>
-            </div>
-          </details>
-
           <div id="configContainer"></div>
           <div id="advancedHolder"></div>
           <div class="card" style="margin-top:16px">
@@ -855,22 +813,17 @@
             </div>
           </div>
 
-          <div class="card" style="margin-top:16px;border-color:#ef444433">
-            <details>
-              <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px">
-                <h3 style="color:#ef4444;margin:0">Danger Zone</h3>
-                <svg class="icon" style="color:#ef4444;flex-shrink:0;transition:transform 0.2s" id="dangerZoneChevron"><use href="#icon-chevron-down"></use></svg>
-              </summary>
-              <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-                <div>
-                  <div style="font-weight:500;margin-bottom:4px">Delete Farm &amp; Restart Setup</div>
-                  <div style="font-size:13px;color:var(--text-secondary)">Permanently deletes all save data and relaunches the setup wizard. Game files and mods are kept.</div>
-                </div>
-                <button class="btn" style="color:#ef4444;border-color:#ef4444;white-space:nowrap;flex-shrink:0"
-                  type="button" onclick="openFactoryResetModal()">Delete Farm &amp; Restart Setup</button>
+          <details class="card admin-cred-details danger-zone-details" style="margin-top:16px">
+            <summary>Danger Zone</summary>
+            <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+              <div>
+                <div style="font-weight:500;margin-bottom:4px">Delete Farm &amp; Restart Setup</div>
+                <div style="font-size:13px;color:var(--text-secondary)">Permanently deletes all save data and relaunches the setup wizard. Game files and mods are kept.</div>
               </div>
-            </details>
-          </div>
+              <button class="btn" style="color:#ef4444;border-color:#ef4444;white-space:nowrap;flex-shrink:0"
+                type="button" onclick="openFactoryResetModal()">Delete Farm &amp; Restart Setup</button>
+            </div>
+          </details>
 
         </section>
 

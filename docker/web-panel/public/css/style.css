@@ -1523,10 +1523,10 @@ select.form-input {
 }
 .advanced-details[open] > summary::before { transform: rotate(90deg); }
 
-/* ── Admin credentials collapsible ───────────────────────────── */
+/* ── Collapsible card (admin creds, backup, performance) ─────── */
 .admin-cred-details > summary {
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   list-style: none;
   user-select: none;
@@ -1536,6 +1536,7 @@ select.form-input {
   padding-bottom: 0;
 }
 .admin-cred-details > summary::-webkit-details-marker { display: none; }
+.admin-cred-details > summary::marker { display: none; }
 .admin-cred-details > summary::before {
   content: '▸';
   font-size: 11px;
@@ -1546,5 +1547,6 @@ select.form-input {
 .admin-cred-details[open] > summary::before { transform: rotate(90deg); }
 
 /* ── Danger Zone collapsible ──────────────────────────────────── */
-details:has(#dangerZoneChevron) summary::-webkit-details-marker { display: none; }
-details:has(#dangerZoneChevron)[open] #dangerZoneChevron { transform: rotate(180deg); }
+.danger-zone-details { border-color: #ef444433; }
+.danger-zone-details > summary { color: #ef4444; }
+.danger-zone-details > summary::before { color: #ef4444; }
