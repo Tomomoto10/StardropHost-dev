@@ -73,6 +73,10 @@ let lastLogParse = 0;
 const playerSnapshots = new Map(); // id → rich player data from live-status.json
 const recentPlayers   = new Map(); // id → { ...playerData, lastSeen } — persists until manually deleted
 
+// -- Security check cache — only check new arrivals, not every poll --
+const securityCheckedIds = new Set(); // IDs that have already passed the security check
+function invalidateSecurityCache() { securityCheckedIds.clear(); } // call when blocklist/allowlist changes
+
 // -- Ban list --
 const BAN_LIST_FILE = path.join(config.DATA_DIR, 'bans.json');
 
@@ -219,6 +223,7 @@ function getPlayers(req, res) {
     if (!onlineIds.has(id)) {
       recentPlayers.set(id, { ...snapshot, lastSeen: Date.now() });
       playerSnapshots.delete(id);
+      securityCheckedIds.delete(id); // allow re-check if they rejoin
     }
   }
 
@@ -228,8 +233,9 @@ function getPlayers(req, res) {
   const security   = loadSecurity();
   const nameIpMap  = loadNameIpMap();
 
-  // Enforce blocklist / allowlist on every poll cycle (catches players who joined since last check)
+  // Enforce blocklist / allowlist — only checks players not yet cleared this session
   for (const p of players) {
+    if (securityCheckedIds.has(p.id)) continue;
     const playerIp = nameIpMap[p.name] || null;
     const blocked = security.blocklist.some(e =>
       (e.type === 'name' && e.value.toLowerCase() === (p.name || '').toLowerCase()) ||
@@ -242,8 +248,10 @@ function getPlayers(req, res) {
         (e.type === 'name' && e.value.toLowerCase() === (p.name || '').toLowerCase()) ||
         (e.type === 'ip'   && playerIp && e.value === playerIp)
       );
-      if (!allowed) sendConsoleCommand(`kick "${p.name}"`);
+      if (!allowed) { sendConsoleCommand(`kick "${p.name}"`); continue; }
     }
+
+    securityCheckedIds.add(p.id); // passed — don't re-check until they rejoin or list changes
   }
 
   // Attach known IP to each online player
@@ -328,6 +336,7 @@ function setSecurityMode(req, res) {
   const sec  = loadSecurity();
   sec.mode   = mode;
   saveSecurity(sec);
+  invalidateSecurityCache();
   res.json({ success: true, security: sec });
 }
 
@@ -354,6 +363,7 @@ function addBlocklistEntry(req, res) {
 
   sec.blocklist.push({ type: entryType, value: trimmed, description: (description || '').trim(), addedAt: new Date().toISOString() });
   saveSecurity(sec);
+  invalidateSecurityCache(); // re-check all online players on next poll
 
   // Best-effort: kick if player is currently online by that name
   if (entryType === 'name') sendConsoleCommand(`kick "${trimmed}"`);
@@ -366,6 +376,7 @@ function removeBlocklistEntry(req, res) {
   const sec = loadSecurity();
   sec.blocklist = sec.blocklist.filter(e => e.value !== val);
   saveSecurity(sec);
+  invalidateSecurityCache();
   res.json({ success: true, security: sec });
 }
 
@@ -385,6 +396,7 @@ function addAllowlistEntry(req, res) {
 
   sec.allowlist.push({ type: entryType, value: trimmed, description: (description || '').trim(), addedAt: new Date().toISOString() });
   saveSecurity(sec);
+  invalidateSecurityCache();
   res.json({ success: true, security: sec });
 }
 
@@ -393,6 +405,7 @@ function removeAllowlistEntry(req, res) {
   const sec = loadSecurity();
   sec.allowlist = sec.allowlist.filter(e => e.value !== val);
   saveSecurity(sec);
+  invalidateSecurityCache();
   res.json({ success: true, security: sec });
 }
 
