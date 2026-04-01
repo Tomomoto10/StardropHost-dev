@@ -2104,7 +2104,7 @@ async function loadPlayers() {
       <div class="player-card">
         <div class="player-avatar">${icon('players', 'icon')}</div>
         <div class="player-body">
-          <div class="player-name">${escapeHtml(p.name)}${p.knownIp ? `<span class="player-ip">${escapeHtml(p.knownIp)}</span>` : ''}</div>
+          <div class="player-name">${escapeHtml(p.name)}${p.knownIps?.length ? p.knownIps.map(ip => `<span class="player-ip">${escapeHtml(ip)}</span>`).join('') : ''}</div>
           ${p.location ? `<div class="player-info">${escapeHtml(p.location)}</div>` : ''}
           ${renderPlayerStats(p, sw)}
         </div>
@@ -2202,9 +2202,9 @@ function renderSecurity(security, nameIpMap) {
 
   if (blockBtn) blockBtn.classList.toggle('active', _securityMode === 'block');
   if (allowBtn) allowBtn.classList.toggle('active', _securityMode === 'allow');
-  if (modeDesc) modeDesc.textContent = _securityMode === 'block'
+  if (modeDesc) modeDesc.innerHTML = _securityMode === 'block'
     ? 'Block List Mode — everyone can join except blocked players.'
-    : 'Allow List Mode — only players on the Allow List can join. Empty list blocks everyone.';
+    : '<strong>Allow List Mode — only players on this list can join. If the list is empty, nobody can join.</strong>';
 
   // Show only the relevant card
   if (blockCard) blockCard.style.display = _securityMode === 'block' ? '' : 'none';
@@ -2246,16 +2246,16 @@ function _renderNameIpMap(map) {
     el.innerHTML = '<div class="security-empty">No players recorded yet. IPs are captured automatically when players join.</div>';
     return;
   }
-  el.innerHTML = entries.map(([name, ip]) => `
+  el.innerHTML = entries.map(([name, ips]) => {
+    const ipList = Array.isArray(ips) ? ips : (ips ? [ips] : []);
+    return `
     <div class="sec-entry">
       <span class="sec-badge sec-badge-name">Name</span>
       <span class="sec-value">${escapeHtml(name)}</span>
-      <span class="sec-known-ip">${escapeHtml(ip)}</span>
-      <input type="text" class="form-input" id="nipm-ip-${escapeHtml(name)}" value="${escapeHtml(ip)}"
-        style="width:130px;padding:4px 8px;font-size:12px" placeholder="IP">
-      <button class="btn btn-sm" onclick="updateNameIp('${escapeHtml(name)}')">Update</button>
+      <span>${ipList.map(ip => `<span class="sec-known-ip">${escapeHtml(ip)}</span>`).join(' ')}</span>
       <button class="btn btn-sm btn-danger" onclick="deleteNameIp('${escapeHtml(name)}')">Remove</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 async function setSecurityMode(mode) {

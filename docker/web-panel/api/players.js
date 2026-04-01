@@ -83,7 +83,10 @@ function syncNameIpMapFromChat(onlineNames) {
         if (m) {
           const name = m[1].trim(), ip = m[2];
           // Only update if this player is currently online — avoids re-adding removed entries
-          if (name && ip && onlineNames.has(name) && map[name] !== ip) { map[name] = ip; changed = true; }
+          if (name && ip && onlineNames.has(name)) {
+            const existing = Array.isArray(map[name]) ? map[name] : (map[name] ? [map[name]] : []);
+            if (!existing.includes(ip)) { map[name] = [...existing, ip]; changed = true; }
+          }
         }
       } catch {}
     }
@@ -269,17 +272,18 @@ function getPlayers(req, res) {
   // Enforce blocklist / allowlist — only checks players not yet cleared this session
   for (const p of players) {
     if (securityCheckedIds.has(p.id)) continue;
-    const playerIp = nameIpMap[p.name] || null;
+    const raw = nameIpMap[p.name];
+    const playerIps = Array.isArray(raw) ? raw : (raw ? [raw] : []);
     const blocked = security.blocklist.some(e =>
       (e.type === 'name' && e.value.toLowerCase() === (p.name || '').toLowerCase()) ||
-      (e.type === 'ip'   && playerIp && e.value === playerIp)
+      (e.type === 'ip'   && playerIps.includes(e.value))
     );
     if (blocked) { sendConsoleCommand(`ban "${p.name}"`); continue; }
 
     if (security.mode === 'allow') {
       const allowed = security.allowlist.some(e =>
         (e.type === 'name' && e.value.toLowerCase() === (p.name || '').toLowerCase()) ||
-        (e.type === 'ip'   && playerIp && e.value === playerIp)
+        (e.type === 'ip'   && playerIps.includes(e.value))
       );
       if (!allowed) { sendConsoleCommand(`kick "${p.name}"`); continue; }
     }
@@ -290,7 +294,7 @@ function getPlayers(req, res) {
   // Attach known IP to each online player
   const playersWithIp = players.map(p => ({
     ...p,
-    knownIp: nameIpMap[p.name] || null,
+    knownIps: (() => { const v = nameIpMap[p.name]; return Array.isArray(v) ? v : (v ? [v] : []); })(),
   }));
 
   res.json({
