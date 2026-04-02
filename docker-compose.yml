@@ -82,7 +82,7 @@ services:
       - ./data/logs:/home/steam/.local/share/stardrop/logs:rw
       - ./data/backups:/home/steam/.local/share/stardrop/backups:rw
       - ./data/panel:/home/steam/web-panel/data:rw
-      - ./data/custom-mods:/home/steam/custom-mods:ro
+      - ./data/custom-mods:/home/steam/custom-mods:rw
       - ${PWD}/..:/host-parent:ro
     deploy:
       resources:
