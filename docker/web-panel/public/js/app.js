@@ -3717,7 +3717,7 @@ async function loadMods() {
   if (!list) return;
   list.innerHTML = custom.length
     ? custom.map(_renderModItem).join('')
-    : '<div class="empty-state">No user mods installed</div>';
+    : '<div class="mod-item"><div class="mod-info"><div class="mod-name" style="color:var(--text-secondary)">No user mods installed</div></div></div>';
 
   list.querySelectorAll('.mod-delete-btn').forEach(btn => {
     btn.onclick = () => deleteMod(btn.dataset.folder, btn.dataset.name);
@@ -3743,6 +3743,7 @@ async function handleModUpload(input) {
           ? 'Uploaded but auto-install failed. Restart may still install it.'
           : 'Uploaded but no manifest.json found — check archive structure.';
       showToast(msg, 'success');
+      showRestartModal('Mod uploaded. Restart the server to load it.');
       loadMods();
     } else {
       showToast(data?.error || 'Upload failed', 'error');
@@ -3759,6 +3760,7 @@ async function deleteMod(folder, name) {
   const data = await API.del(`/api/mods/${encodeURIComponent(folder)}`);
   if (data?.success) {
     showToast('Mod deleted. Restart the server to unload it.', 'success');
+    showRestartModal('Mod removed. Restart the server to unload it.');
     loadMods();
   } else {
     showToast(data?.error || 'Delete failed', 'error');
