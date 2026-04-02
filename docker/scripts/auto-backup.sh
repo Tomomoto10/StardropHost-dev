@@ -107,14 +107,6 @@ do_backup() {
     return 0
 }
 
-# Wait for game to initialise
-log "Waiting for game to initialize..."
-sleep 60
-
-# Initial backup on startup
-log "Running startup backup..."
-do_backup
-
 # Main loop - check every 5 minutes
 while true; do
     NOW=$(date +%s)

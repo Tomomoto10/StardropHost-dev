@@ -490,7 +490,7 @@ function restartServer(req, res) {
       encoding: 'utf-8',
       timeout: 10000,
     });
-    savesAPI.triggerPreStopBackup();
+    savesAPI.triggerTaggedBackup('restart');
     cachedStatus = null;
 
     res.json({ success: true, message: 'Game restart initiated' });
@@ -508,7 +508,7 @@ function stopServer(req, res) {
     fs.writeFileSync(STOP_FLAG, '');
     spawnSync('sh', ['-lc', 'pkill -f "StardewModdingAPI|Stardew Valley" >/dev/null 2>&1 || true'],
       { encoding: 'utf-8', timeout: 5000 });
-    savesAPI.triggerPreStopBackup();
+    savesAPI.triggerTaggedBackup('stop');
     // Write offline state to live-status.json on disk immediately so "Starting..." shows correctly on next start
     try {
       if (fs.existsSync(config.LIVE_FILE)) {

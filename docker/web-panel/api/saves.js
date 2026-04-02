@@ -440,15 +440,16 @@ function startBackupJob() {
   return getBackupStatusSnapshot();
 }
 
-// -- Pre-stop backup (fire-and-forget, called by status.js on stop/restart) --
+// -- Tagged backup (fire-and-forget, called by status.js on stop/restart) --
+// tag: 'stop' | 'restart' | 'update'
 
-function triggerPreStopBackup() {
+function triggerTaggedBackup(tag) {
   if (!fs.existsSync(config.SAVES_DIR)) return;
   try {
     ensureDir(config.BACKUPS_DIR);
     const slug       = getFarmSlug();
     const timestamp  = makeTimestamp();
-    const backupPath = path.join(config.BACKUPS_DIR, `${slug}-pre-stop-backup-${timestamp}.zip`);
+    const backupPath = path.join(config.BACKUPS_DIR, `${slug}-${tag}-backup-${timestamp}.zip`);
     const child = spawn('zip', [
       '-r', backupPath,
       path.basename(config.SAVES_DIR),
@@ -736,5 +737,5 @@ module.exports = {
   downloadBackup,
   deleteBackup,
   deleteSave,
-  triggerPreStopBackup,
+  triggerTaggedBackup,
 };
