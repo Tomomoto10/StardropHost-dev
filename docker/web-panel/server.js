@@ -5,7 +5,6 @@
 
 const express = require('express');
 const http    = require('http');
-const https   = require('https');
 const fs      = require('fs');
 const path    = require('path');
 const { WebSocketServer } = require('ws');
@@ -45,15 +44,7 @@ module.exports = config;
 // -- Express app --
 const app = express();
 
-// HTTPS: load cert if ENABLE_HTTPS=true and cert files exist in DATA_DIR
-const _sslCert = path.join(DATA_DIR, 'ssl-cert.pem');
-const _sslKey  = path.join(DATA_DIR, 'ssl-key.pem');
-const _useHttps = process.env.ENABLE_HTTPS === 'true' &&
-                  fs.existsSync(_sslCert) && fs.existsSync(_sslKey);
-
-const server = _useHttps
-  ? https.createServer({ key: fs.readFileSync(_sslKey), cert: fs.readFileSync(_sslCert) }, app)
-  : http.createServer(app);
+const server = http.createServer(app);
 
 app.use(express.json({ limit: '75mb' }));
 app.use(express.urlencoded({ extended: false, limit: '75mb' }));
@@ -296,8 +287,7 @@ async function start() {
   await auth.initialize(DATA_DIR);
 
   server.listen(PORT, '0.0.0.0', () => {
-    const proto = _useHttps ? 'https' : 'http';
-    console.log(`[StardropHost] ✅ Web panel running on ${proto}://0.0.0.0:${PORT}`);
+    console.log(`[StardropHost] ✅ Web panel running on http://0.0.0.0:${PORT}`);
   });
 
   panelUpdateAPI.startBackgroundCheck();
