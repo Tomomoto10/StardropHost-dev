@@ -2083,25 +2083,57 @@ function appendTerminalOutput(text) {
 
 // ─── Players ─────────────────────────────────────────────────────
 function renderPlayerStats(p, separateWallets) {
-  const parts = [];
-  if (p.health != null)  parts.push(`❤️ ${p.health}/${p.maxHealth}`);
-  if (p.stamina != null) parts.push(`⚡ ${p.stamina}/${p.maxStamina}`);
-  const statsLine = parts.length ? `<div class="player-info">${parts.join(' &nbsp;·&nbsp; ')}</div>` : '';
+  const cells = [];
 
-  const s = p.skills;
-  const skillsLine = s ? `<div class="player-info" style="font-size:11px;color:var(--text-muted)">
-    🌱${s.farming} ⛏${s.mining} 🌲${s.foraging} 🎣${s.fishing} ⚔️${s.combat} 🍀${s.luck}
-  </div>` : '';
+  if (p.location) cells.push(`
+    <div class="player-stat-cell">
+      <div class="player-stat-label">Location</div>
+      <div class="player-stat-value">${escapeHtml(p.location)}</div>
+    </div>`);
 
-  const moneyLine = separateWallets && p.money != null
-    ? `<div class="player-info">💰 ${p.money.toLocaleString()}g${p.totalEarned != null ? ` · Earned: ${p.totalEarned.toLocaleString()}g` : ''}</div>`
+  if (p.health != null) cells.push(`
+    <div class="player-stat-cell">
+      <div class="player-stat-label">Health</div>
+      <div class="player-stat-value">❤️ ${p.health} / ${p.maxHealth}</div>
+    </div>`);
+
+  if (p.stamina != null) cells.push(`
+    <div class="player-stat-cell">
+      <div class="player-stat-label">Stamina</div>
+      <div class="player-stat-value">⚡ ${Math.round(p.stamina)} / ${p.maxStamina}</div>
+    </div>`);
+
+  if (separateWallets && p.money != null) cells.push(`
+    <div class="player-stat-cell">
+      <div class="player-stat-label">Money</div>
+      <div class="player-stat-value">💰 ${p.money.toLocaleString()}g</div>
+    </div>`);
+
+  if (separateWallets && p.totalEarned != null) cells.push(`
+    <div class="player-stat-cell">
+      <div class="player-stat-label">Total Earned</div>
+      <div class="player-stat-value">${p.totalEarned.toLocaleString()}g</div>
+    </div>`);
+
+  if (p.daysPlayed != null) cells.push(`
+    <div class="player-stat-cell">
+      <div class="player-stat-label">Playtime</div>
+      <div class="player-stat-value">${p.totalPlaytimeHours != null ? `⏱ ${p.totalPlaytimeHours}h · ` : ''}${p.daysPlayed} in-game days</div>
+    </div>`);
+
+  const grid = cells.length
+    ? `<div class="player-stats-grid">${cells.join('')}</div>`
     : '';
 
-  const playtimeLine = p.totalPlaytimeHours != null
-    ? `<div class="player-info" style="font-size:11px;color:var(--text-muted)">⏱ ${p.totalPlaytimeHours}h played · ${p.daysPlayed ?? '--'} in-game days</div>`
-    : (p.daysPlayed != null ? `<div class="player-info" style="font-size:11px;color:var(--text-muted)">${p.daysPlayed} in-game days</div>` : '');
+  const s = p.skills;
+  const skills = s
+    ? `<div class="player-skills-row">
+         <span class="player-stat-label">Skills</span>
+         <span class="player-skills-values">🌱${s.farming} &nbsp;⛏${s.mining} &nbsp;🌲${s.foraging} &nbsp;🎣${s.fishing} &nbsp;⚔️${s.combat} &nbsp;🍀${s.luck}</span>
+       </div>`
+    : '';
 
-  return statsLine + skillsLine + moneyLine + playtimeLine;
+  return grid + skills;
 }
 
 function timeAgo(ms) {
@@ -2129,7 +2161,6 @@ async function loadPlayers() {
         <div class="player-body">
           <div class="player-name">${escapeHtml(p.name)}</div>
           ${(() => { const ips = p.knownIps || []; if (!ips.length) return ''; const current = ips[ips.length - 1]; const others = ips.slice(0, -1); return `<div class="player-ip-line"><span>Current IP: <strong>${escapeHtml(current)}</strong></span>${others.length ? `<span class="player-ip-sep">|</span><span>Other Known: ${others.map(ip => escapeHtml(ip)).join(', ')}</span>` : ''}</div>`; })()}
-          ${p.location ? `<div class="player-info">${escapeHtml(p.location)}</div>` : ''}
           ${renderPlayerStats(p, sw)}
         </div>
         <div class="player-actions">
@@ -3122,6 +3153,8 @@ async function loadSaves() {
   }
 }
 
+let _pendingSaveUpload = null;
+
 async function handleSaveUpload(input) {
   if (!input.files?.[0]) return;
   const file = input.files[0];
@@ -3134,28 +3167,42 @@ async function handleSaveUpload(input) {
   try {
     const reader = new FileReader();
     reader.onload = async () => {
-      const data = await API.post('/api/saves/upload', {
-        filename:     file.name,
-        data:         reader.result.split(',')[1],
-        setAsDefault,
-      });
-      setText('saveUploadStatus', '');
-      input.value = '';
-      if (data?.success) {
-        let msg = 'Save uploaded. Restart the container to apply.';
-        if (data.defaultApplied)  msg = 'Save uploaded and set as active. Restart to apply.';
-        if (data.defaultSkipped)  msg += ' Multiple saves found — active save unchanged.';
-        showToast(msg, 'success');
-        showRestartModal('Save uploaded. Restart the container to apply.');
-        loadSaves();
-      } else {
-        showToast(data?.error || 'Upload failed', 'error');
-      }
+      const base64 = reader.result.split(',')[1];
+      await _doSaveUpload(file.name, base64, setAsDefault, false, input);
     };
     reader.readAsDataURL(file);
   } catch (e) {
     setText('saveUploadStatus', '');
     showToast('Upload failed', 'error');
+  }
+}
+
+async function _doSaveUpload(filename, base64, setAsDefault, overwrite, input) {
+  const data = await API.post('/api/saves/upload', { filename, data: base64, setAsDefault, overwrite });
+  setText('saveUploadStatus', '');
+  if (input) input.value = '';
+
+  if (data?.collision) {
+    const name = data.collisionNames?.[0] || filename;
+    _pendingSaveUpload = { filename, base64, setAsDefault };
+    if (confirm(`A save named "${name}" already exists.\n\nOverwrite it with the uploaded file? A backup will be created automatically.`)) {
+      await _doSaveUpload(filename, base64, setAsDefault, true, null);
+    } else {
+      _pendingSaveUpload = null;
+    }
+    return;
+  }
+
+  if (data?.success) {
+    _pendingSaveUpload = null;
+    let msg = 'Save uploaded. Restart the container to apply.';
+    if (data.defaultApplied) msg = 'Save uploaded and set as active. Restart to apply.';
+    if (data.defaultSkipped) msg += ' Multiple saves found — active save unchanged.';
+    showToast(msg, 'success');
+    showRestartModal('Save uploaded. Restart the container to apply.');
+    loadSaves();
+  } else {
+    showToast(data?.error || 'Upload failed', 'error');
   }
 }
 

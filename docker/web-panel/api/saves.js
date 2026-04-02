@@ -195,15 +195,7 @@ function createOverwriteBackup(saveNames) {
   return backupName;
 }
 
-// Return a free save folder name — appends (1), (2)… if the name already exists
-function findFreeSaveName(baseName) {
-  if (!fs.existsSync(path.join(config.SAVES_DIR, baseName))) return baseName;
-  let n = 1;
-  while (fs.existsSync(path.join(config.SAVES_DIR, `${baseName} (${n})`))) n++;
-  return `${baseName} (${n})`;
-}
-
-function installSaveArchive(zipPath, setAsDefault) {
+function installSaveArchive(zipPath, setAsDefault, overwrite = false) {
   ensureDir(config.SAVES_DIR);
 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stardrop-save-'));
@@ -215,10 +207,24 @@ function installSaveArchive(zipPath, setAsDefault) {
       throw new Error('No valid Stardew Valley save folders found in the archive');
     }
 
-    const importedSaves = [];
+    const collisions = saveDirs
+      .map(d => path.basename(d))
+      .filter(name => fs.existsSync(path.join(config.SAVES_DIR, name)));
+
+    // Return collision info without installing — caller will ask user to confirm
+    if (collisions.length > 0 && !overwrite) {
+      return { collision: true, collisionNames: collisions };
+    }
+
+    // Overwrite confirmed — back up colliding saves then remove them
+    const overwriteBackup = collisions.length > 0 ? createOverwriteBackup(collisions) : '';
+    for (const name of collisions) removePath(path.join(config.SAVES_DIR, name));
+
+    const importedSaves   = [];
+    const overwrittenSaves = [...collisions];
 
     for (const saveDir of saveDirs) {
-      const saveName = findFreeSaveName(path.basename(saveDir));
+      const saveName = path.basename(saveDir);
       const destDir  = path.join(config.SAVES_DIR, saveName);
       runCommand('cp', ['-a', saveDir, destDir], { timeout: 30000 });
       importedSaves.push(saveName);
@@ -236,7 +242,7 @@ function installSaveArchive(zipPath, setAsDefault) {
       defaultSkipped = true;
     }
 
-    return { importedSaves, overwrittenSaves: [], overwriteBackup: null, defaultSaveName, defaultApplied, defaultSkipped };
+    return { collision: false, importedSaves, overwrittenSaves, overwriteBackup, defaultSaveName, defaultApplied, defaultSkipped };
   } finally {
     removePath(tempRoot);
   }
@@ -486,8 +492,17 @@ function getSaves(req, res) {
       };
 
       try {
-        if (fs.existsSync(saveFile)) {
-          const stat      = fs.statSync(saveFile);
+        // Main save file has the same name as the folder (e.g. StardropFarm_12345).
+        // Fall back to scanning for any file matching the save pattern in case the
+        // folder was previously renamed or the name contains special characters.
+        let resolvedSaveFile = saveFile;
+        if (!fs.existsSync(resolvedSaveFile)) {
+          const match = fs.readdirSync(saveDir, { withFileTypes: true })
+            .find(f => f.isFile() && /^[^.]+_\d+$/.test(f.name));
+          if (match) resolvedSaveFile = path.join(saveDir, match.name);
+        }
+        if (fs.existsSync(resolvedSaveFile)) {
+          const stat       = fs.statSync(resolvedSaveFile);
           info.size        = stat.size;
           info.lastModified = stat.mtime.toISOString();
         }
@@ -587,6 +602,7 @@ function uploadSave(req, res) {
     let   filename     = body.filename;
     const data         = body.data;
     const setAsDefault = body.setAsDefault === true || body.setAsDefault === 'true';
+    const overwrite    = body.overwrite    === true || body.overwrite    === 'true';
 
     if (!filename || !data) {
       return res.status(400).json({ error: 'Missing filename or data' });
@@ -605,7 +621,12 @@ function uploadSave(req, res) {
     fs.writeFileSync(tempZip, buffer);
 
     try {
-      const result = installSaveArchive(tempZip, setAsDefault);
+      const result = installSaveArchive(tempZip, setAsDefault, overwrite);
+
+      if (result.collision) {
+        return res.json({ collision: true, collisionNames: result.collisionNames });
+      }
+
       const parts  = [
         result.importedSaves.length === 1
           ? `Imported save ${result.importedSaves[0]}`
