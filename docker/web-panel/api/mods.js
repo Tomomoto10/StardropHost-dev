@@ -145,8 +145,20 @@ function installArchiveToGameMods(zipPath) {
     const installedFolders = [];
 
     for (const manifestDir of manifestDirs) {
-      const folderName = path.basename(manifestDir);
-      const destDir    = path.join(GAME_MODS_DIR, folderName);
+      // If manifest is at the zip root (no subfolder), derive folder name from manifest Name
+      let folderName;
+      if (manifestDir === tempRoot) {
+        try {
+          const manifest = JSON.parse(fs.readFileSync(path.join(manifestDir, 'manifest.json'), 'utf-8'));
+          folderName = (manifest.Name || path.basename(zipPath, '.zip'))
+            .replace(/[^a-zA-Z0-9._\- ]/g, '').trim() || path.basename(zipPath, '.zip');
+        } catch {
+          folderName = path.basename(zipPath, '.zip');
+        }
+      } else {
+        folderName = path.basename(manifestDir);
+      }
+      const destDir = path.join(GAME_MODS_DIR, folderName);
       fs.rmSync(destDir, { recursive: true, force: true });
       fs.cpSync(manifestDir, destDir, { recursive: true });
       installedFolders.push(folderName);
