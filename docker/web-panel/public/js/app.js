@@ -2914,7 +2914,11 @@ async function loadChatMessages() {
     if (msg.ts <= _chatLastTs) continue;
     _chatLastTs = msg.ts;
 
-    const isDm = msg.to && msg.to !== 'all';
+    const isDm    = msg.to && msg.to !== 'all';
+    const isLog   = msg.from === '#0' || msg.from?.startsWith('#');
+
+    // Skip "Unnamed Farmhand" join noise — real join message appears once name resolves
+    if (isLog && msg.message?.includes('Unnamed Farmhand')) continue;
 
     if (_chatTarget) {
       // DM view: show messages to/from this player only
@@ -2922,16 +2926,18 @@ async function loadChatMessages() {
     }
 
     const el = document.createElement('div');
-    el.className = 'chat-msg' + (msg.isHost ? ' chat-msg-host' : '') + (isDm ? ' chat-msg-dm' : '');
+    // System/log messages → right; host DMs → left (amber); host world → right (purple)
+    el.className = 'chat-msg' +
+      (isLog                     ? ' chat-msg-log'  :
+       msg.isHost && !isDm       ? ' chat-msg-host' : '') +
+      (isDm                      ? ' chat-msg-dm'   : '');
 
     const time = new Date(msg.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     let meta;
-    if (msg.isHost && isDm) {
-      // Host DM — show recipient in both world chat and DM tab
+    if (isLog) {
+      meta = 'Log';
+    } else if (msg.isHost && isDm) {
       meta = `<span class="chat-dm-sent">You → ${escapeHtml(msg.to)}</span>`;
-    } else if (_chatTarget && !msg.isHost && msg.from === _chatTarget) {
-      // In DM tab: player's message
-      meta = escapeHtml(msg.from);
     } else {
       meta = escapeHtml(msg.from);
     }

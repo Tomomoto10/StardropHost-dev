@@ -90,6 +90,8 @@ function syncNameIpMapFromChat(onlineNames, lockedNames) {
         const m = msg.message && msg.message.match(/^(.+?) \((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\) has joined/);
         if (m) {
           const name = m[1].trim(), ip = m[2];
+          // Skip unresolved SDV placeholder names
+          if (name === 'Unnamed Farmhand' || name.startsWith('Unnamed')) continue;
           // Only update if this player is currently online — avoids re-adding removed entries
           if (name && ip && onlineNames.has(name) && !lockedNames.has(name)) {
             const existing = Array.isArray(map[name]) ? map[name] : (map[name] ? [map[name]] : []);

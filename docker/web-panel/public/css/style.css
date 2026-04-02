@@ -1303,6 +1303,14 @@ select.form-input {
   align-self: flex-end;
   background: color-mix(in srgb, var(--accent-dark) 25%, var(--bg-tertiary));
 }
+.chat-msg-log {
+  align-self: flex-end;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.chat-msg-log .chat-meta { color: var(--text-muted); font-style: italic; }
 .chat-msg-dm {
   background: color-mix(in srgb, #fbbf24 12%, var(--bg-tertiary));
   border-left: 2px solid rgba(251,191,36,0.35);
