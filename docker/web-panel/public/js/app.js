@@ -2814,6 +2814,8 @@ function setChatTarget(name) {
   document.getElementById('chatInput').focus();
   const feed = document.getElementById('chatFeed');
   if (feed) feed.innerHTML = '<div class="empty-state" id="chatEmpty">Loading…</div>';
+  const colorRow = document.getElementById('chatColorRow');
+  if (colorRow) colorRow.style.display = 'none';
   renderChatPlayerPills();
   loadChatMessages();
 }
@@ -2827,6 +2829,8 @@ function clearChatTarget() {
   document.getElementById('chatInput').placeholder = 'Message all players…';
   const feed = document.getElementById('chatFeed');
   if (feed) feed.innerHTML = '<div class="empty-state" id="chatEmpty">Loading…</div>';
+  const colorRow = document.getElementById('chatColorRow');
+  if (colorRow) colorRow.style.display = '';
   renderChatPlayerPills();
   loadChatMessages();
 }
@@ -2906,7 +2910,7 @@ async function loadChatMessages() {
     }
 
     const el = document.createElement('div');
-    el.className = 'chat-msg' + (msg.isHost ? ' chat-msg-host' : '');
+    el.className = 'chat-msg' + (msg.isHost ? ' chat-msg-host' : '') + (isDm ? ' chat-msg-dm' : '');
 
     const time = new Date(msg.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     let meta;

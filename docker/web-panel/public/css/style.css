@@ -1280,8 +1280,7 @@ select.form-input {
 
 /* ── Chat ──────────────────────────────────────────────────────── */
 .chat-feed {
-  min-height: 220px;
-  max-height: 360px;
+  height: 360px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1304,12 +1303,17 @@ select.form-input {
   align-self: flex-end;
   background: color-mix(in srgb, var(--accent-dark) 25%, var(--bg-tertiary));
 }
+.chat-msg-dm {
+  background: color-mix(in srgb, #fbbf24 12%, var(--bg-tertiary));
+  border-left: 2px solid rgba(251,191,36,0.35);
+}
 .chat-meta {
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 600;
 }
 .chat-msg-host .chat-meta { color: var(--accent); }
+.chat-msg-dm .chat-meta { color: #fbbf24; }
 .chat-time { font-weight: 400; margin-left: 4px; }
 .chat-text { color: var(--text-primary); line-height: 1.4; }
 .chat-player-pills {
