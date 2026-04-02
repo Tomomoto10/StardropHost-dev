@@ -36,7 +36,7 @@ get_farm_slug() {
 const fs = require('fs'), path = require('path');
 const SAVES  = '${SAVE_DIR}/Saves';
 const PREFS  = '${SAVE_DIR}/startup_preferences';
-const MARKER = '${SAVE_DIR}/.selected_save';
+const MARKER = '${SAVE_DIR}/Saves/.selected_save';
 try {
     // Primary: startup_preferences XML
     let saveName = '';
