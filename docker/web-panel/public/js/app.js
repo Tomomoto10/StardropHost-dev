@@ -3344,7 +3344,7 @@ async function loadConfig() {
 
   const TOP_GROUPS        = new Set(['Server', 'Updates']);
   const ADVANCED_GROUPS   = new Set(['VNC & Display', 'Stability', 'Monitoring']);
-  const COLLAPSIBLE_GROUPS = new Set(['Backup', 'Performance']);
+  const COLLAPSIBLE_GROUPS = new Set(['Backup', 'Performance', 'Updates']);
 
   const deferredTzPickers = [];
 
@@ -3443,27 +3443,26 @@ async function loadConfig() {
 
     }
 
-    // Updates card — inject notifs + Check Now button after config items
+    // Updates card — inject dot into summary, notifs + Check Now into rowTarget
     if (group.name === 'Updates') {
-      const titleEl = card.querySelector('.config-group-title');
-      if (titleEl) {
+      const summaryEl = card.querySelector('summary');
+      if (summaryEl) {
         const dot = document.createElement('span');
         dot.id = 'updatesCardDot';
         dot.className = 'notif-dot';
-        dot.style.cssText = 'display:none;background:var(--danger,#ef4444);margin-right:8px;flex-shrink:0';
-        titleEl.style.display = 'flex';
-        titleEl.style.alignItems = 'center';
-        titleEl.insertBefore(dot, titleEl.firstChild);
+        dot.style.cssText = 'display:none;background:var(--danger,#ef4444);margin-right:8px;flex-shrink:0;vertical-align:middle';
+        summaryEl.insertBefore(dot, summaryEl.firstChild);
       }
+
       const cfgPanelNotif = document.createElement('div');
       cfgPanelNotif.id = 'configPanelUpdateNotif';
       cfgPanelNotif.style.display = 'none';
-      card.appendChild(cfgPanelNotif);
+      rowTarget.appendChild(cfgPanelNotif);
 
       const cfgGameNotif = document.createElement('div');
       cfgGameNotif.id = 'configGameUpdateNotif';
       cfgGameNotif.style.display = 'none';
-      card.appendChild(cfgGameNotif);
+      rowTarget.appendChild(cfgGameNotif);
 
       const checkRow = document.createElement('div');
       checkRow.className = 'config-item';
@@ -3473,7 +3472,7 @@ async function loadConfig() {
          <div class="config-value">
            <button class="btn btn-sm btn-secondary" type="button" onclick="checkAllUpdates()">Check Now</button>
          </div>`;
-      card.appendChild(checkRow);
+      rowTarget.appendChild(checkRow);
     }
 
     target.appendChild(card);
