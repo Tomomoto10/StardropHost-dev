@@ -610,6 +610,27 @@ function healthCheck(req, res) {
   });
 }
 
+function getUpdateStatus(req, res) {
+  const statusFile = config.DATA_DIR + '/update-status.json';
+  try {
+    if (!fs.existsSync(statusFile)) return res.json({ active: false });
+    const data = JSON.parse(fs.readFileSync(statusFile, 'utf-8'));
+    res.json({ active: true, ...data });
+  } catch {
+    res.json({ active: false });
+  }
+}
+
+function cancelUpdate(req, res) {
+  const cancelFile = config.DATA_DIR + '/update-cancel';
+  try {
+    fs.writeFileSync(cancelFile, '1');
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to write cancel flag' });
+  }
+}
+
 module.exports = {
   getStatus,
   subscribeStatus,
@@ -619,4 +640,6 @@ module.exports = {
   restartContainer,
   updateServer,
   healthCheck,
+  getUpdateStatus,
+  cancelUpdate,
 };

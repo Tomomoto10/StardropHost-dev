@@ -68,6 +68,8 @@ app.post('/api/server/restart',      auth.verifyMiddleware, statusAPI.restartSer
 app.post('/api/server/update',       auth.verifyMiddleware, statusAPI.updateServer);
 app.post('/api/container/restart',   auth.verifyMiddleware, statusAPI.restartContainer);
 app.get( '/api/server/health',       auth.verifyMiddleware, statusAPI.healthCheck);
+app.get( '/api/server/update-status',auth.verifyMiddleware, statusAPI.getUpdateStatus);
+app.post('/api/server/cancel-update',auth.verifyMiddleware, statusAPI.cancelUpdate);
 
 // -- Logs --
 const logsAPI = require('./api/logs');

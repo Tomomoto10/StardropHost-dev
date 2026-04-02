@@ -31,6 +31,28 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 BOLD='\033[1m'
 
+_UPDATE_STARTED_AT=$(date +%s)
+_UPDATE_STATUS_FILE=""   # set after SCRIPT_DIR is confirmed
+
+write_status() {
+    local step="$1" msg="$2"
+    [ -z "$_UPDATE_STATUS_FILE" ] && return
+    mkdir -p "$(dirname "$_UPDATE_STATUS_FILE")"
+    printf '{"step":"%s","message":"%s","startedAt":%s,"updatedAt":%s}\n' \
+        "$step" "$msg" "$_UPDATE_STARTED_AT" "$(date +%s)" \
+        > "$_UPDATE_STATUS_FILE"
+}
+
+check_cancel() {
+    local cancel_file="$SCRIPT_DIR/data/panel/update-cancel"
+    if [ -f "$cancel_file" ]; then
+        rm -f "$cancel_file" "$_UPDATE_STATUS_FILE"
+        print_warning "Update cancelled by user — restoring containers"
+        $COMPOSE_CMD up -d 2>/dev/null || true
+        exit 0
+    fi
+}
+
 print_header() {
     echo ""
     echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -67,6 +89,7 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
 fi
 
 cd "$SCRIPT_DIR" || { echo -e "${RED}[ERR]  Cannot cd to $SCRIPT_DIR${NC}"; exit 1; }
+_UPDATE_STATUS_FILE="$SCRIPT_DIR/data/panel/update-status.json"
 
 # -- Load .env so compose has all variables before any docker compose command --
 if [ -f "$SCRIPT_DIR/.env" ]; then
@@ -80,6 +103,8 @@ print_header
 print_info "Directory:  $SCRIPT_DIR"
 print_info "Container:  ${CONTAINER_PREFIX}-server"
 echo ""
+
+write_status "started" "Starting update..."
 
 # -- Step 1: Pull latest code from GitHub --
 print_step "Step 1: Pulling latest code from GitHub..."
@@ -135,6 +160,7 @@ else
 fi
 
 # -- Step 2: Rebuild image (incremental) --
+write_status "build" "Building Docker image — dashboard stays online during this step..."
 # Build FIRST while the panel is still running — this is the slow step.
 # The panel stays accessible during the entire build phase.
 print_step "Step 2: Rebuilding Docker image..."
@@ -158,7 +184,10 @@ fi
 
 print_success "Image rebuilt successfully"
 
+check_cancel   # Last chance to cancel before containers go down
+
 # -- Step 3: Stop containers --
+write_status "stopping" "Stopping containers..."
 print_step "Step 3: Stopping containers..."
 
 # Remember whether the server was explicitly stopped via the web panel.
@@ -196,6 +225,7 @@ if [ "$_SMAPI_NEEDS_UPDATE" = "true" ]; then
 fi
 
 # -- Step 4: Start containers --
+write_status "starting" "Starting containers..."
 print_step "Step 4: Starting containers..."
 print_info "Bringing the server and web panel back online..."
 
@@ -206,6 +236,8 @@ if ! $COMPOSE_CMD up -d; then
     echo -e "    ${CYAN}$COMPOSE_CMD logs${NC}"
     exit 1
 fi
+
+rm -f "$_UPDATE_STATUS_FILE"   # Clear status — update complete, panel is back up
 
 # Record installed commit SHA so panel-update.js can compare SHAs (not timestamps)
 if command -v git &>/dev/null && [ -d "$SCRIPT_DIR/.git" ]; then

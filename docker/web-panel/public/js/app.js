@@ -5,6 +5,18 @@
 
 // ─── Auth Check ──────────────────────────────────────────────────
 (function authCheck() {
+  // If an update was started recently, show the update screen instead of loading normally.
+  const _updTs = parseInt(localStorage.getItem('stardrop_updating') || '0', 10);
+  if (_updTs && (Date.now() - _updTs) < 1800000) {
+    // Use DOMContentLoaded to ensure elements exist before manipulating them
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => showUpdateScreen(_updTs));
+    } else {
+      showUpdateScreen(_updTs);
+    }
+    return;
+  }
+
   if (!API.token) { window.location.href = '/login.html'; return; }
   API.get('/api/auth/verify').then(data => {
     if (!data || !data.valid) { window.location.href = '/login.html'; return; }
@@ -3918,30 +3930,138 @@ async function confirmRestart() {
   if (btn) btn.disabled = false;
 }
 
-// Two-phase poll for update: wait for server to go DOWN, then wait for it to come back UP.
-// Unlike container restart (which is instant), update.sh takes minutes — the server stays
-// responsive while git pull + build runs, so we must not reload until it actually disconnects.
-function startUpdateReconnectPolling() {
-  if (containerReconnectPoll) clearInterval(containerReconnectPoll);
-  let wentDown = false;
-  const startedAt = Date.now();
-  containerReconnectPoll = setInterval(async () => {
-    let up = false;
+// ── Update Screen ────────────────────────────────────────────────
+let _updateElapsedTimer  = null;
+let _updateStatusPoll    = null;
+let _updatePanelWentDown = false;
+let _updateLogLines      = [];
+
+function showUpdateScreen(startedAt) {
+  const ts = startedAt || Date.now();
+  localStorage.setItem('stardrop_updating', ts);
+
+  document.getElementById('app').style.display        = 'none';
+  const loader = document.getElementById('app-loader');
+  if (loader) loader.classList.add('hidden');
+  const screen = document.getElementById('update-screen');
+  if (screen) screen.style.display = 'flex';
+
+  _updatePanelWentDown = false;
+  _updateLogLines      = [];
+  _addUpdateLog('Update started');
+
+  _startUpdateElapsedTimer(ts);
+  _startUpdateStatusPoll();
+}
+
+function _startUpdateElapsedTimer(startedAt) {
+  if (_updateElapsedTimer) clearInterval(_updateElapsedTimer);
+  _updateElapsedTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    const el = document.getElementById('updateElapsed');
+    if (el) el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    // Show cancel button after 3 minutes
+    if (elapsed > 180) {
+      const k = document.getElementById('killUpdateBtn');
+      if (k) k.style.display = '';
+    }
+  }, 1000);
+}
+
+function _startUpdateStatusPoll() {
+  if (_updateStatusPoll) clearInterval(_updateStatusPoll);
+  _updateStatusPoll = setInterval(async () => {
+    let panelUp = false;
     try {
       const res = await fetch('/api/auth/status', { cache: 'no-store' });
-      up = res?.ok === true;
-    } catch {}
+      panelUp = res.ok;
+    } catch { panelUp = false; }
 
-    if (!up) {
-      wentDown = true;
-    } else if (wentDown) {
-      clearInterval(containerReconnectPoll);
+    if (panelUp) {
+      if (_updatePanelWentDown) {
+        // Panel came back up — update complete
+        clearInterval(_updateStatusPoll);
+        clearInterval(_updateElapsedTimer);
+        localStorage.removeItem('stardrop_updating');
+        window.location.reload();
+        return;
+      }
+      // Panel still up — fetch step status
+      try {
+        const r  = await fetch('/api/server/update-status', {
+          headers: { 'Authorization': 'Bearer ' + (API.token || '') }, cache: 'no-store' });
+        const d  = await r.json();
+        if (d.active && d.message) _setUpdateStatus(d.message);
+      } catch {}
+    } else {
+      if (!_updatePanelWentDown) {
+        _updatePanelWentDown = true;
+        _setUpdateStatus('Restarting containers...');
+        _addUpdateLog('Dashboard offline — restarting containers');
+      }
+    }
+  }, 2000);
+}
+
+function _setUpdateStatus(msg) {
+  const el = document.getElementById('updateStatusMsg');
+  if (el) el.textContent = msg;
+}
+
+function _addUpdateLog(msg) {
+  _updateLogLines.push(msg);
+  if (_updateLogLines.length > 30) _updateLogLines.shift();
+  const el = document.getElementById('updateLog');
+  if (!el) return;
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  el.innerHTML = _updateLogLines.map(l => `<div>${escapeHtml(time)} ${escapeHtml(l)}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function reloadUpdateScreen() {
+  const btn = document.querySelector('#update-screen button');
+  try {
+    const res = await fetch('/api/auth/status', { cache: 'no-store' });
+    if (res.ok) {
+      localStorage.removeItem('stardrop_updating');
       window.location.reload();
       return;
     }
-    if (Date.now() - startedAt > 300000) { clearInterval(containerReconnectPoll); window.location.reload(); }
-  }, 2000);
+  } catch {}
+  // Not up yet
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = 'Not ready yet — try again in a moment';
+    setTimeout(() => { btn.textContent = orig; }, 3000);
+  }
 }
+
+async function killUpdate() {
+  if (!confirm(
+    'This will attempt to cancel the update and restore the current containers.\n\n' +
+    'The dashboard will go offline briefly then reload. Continue?'
+  )) return;
+
+  _setUpdateStatus('Cancelling update...');
+  _addUpdateLog('Cancel requested by user');
+
+  try {
+    await fetch('/api/server/cancel-update', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + (API.token || ''), 'Content-Type': 'application/json' },
+      cache: 'no-store',
+    });
+    _addUpdateLog('Cancel signal sent — waiting for containers to restore...');
+  } catch {
+    _addUpdateLog('Could not reach panel — update may already be in stop/start phase');
+    _addUpdateLog('If stuck: SSH in and run: docker compose up -d');
+  }
+}
+
+// Legacy alias — kept so any remaining callers don't break
+function startUpdateReconnectPolling() { showUpdateScreen(); }
 
 function startContainerReconnectPolling() {
   closeRestartModal();
@@ -4114,16 +4234,7 @@ async function confirmSelfUpdate() {
   const data = await API.post('/api/server/update').catch(() => null);
   if (data?.success || data?.action === 'update') {
     closeSelfUpdateModal();
-    // Show the full-screen loader with "Updating..." while the container rebuilds
-    const loader = document.getElementById('app-loader');
-    const loaderText = loader?.querySelector('.app-loader-text');
-    if (loaderText) loaderText.textContent = 'Updating StardropHost...';
-    const loaderSub = document.getElementById('app-loader-sub');
-    if (loaderSub) { loaderSub.textContent = 'The dashboard may take up to a minute to load, if it doesn\'t, reload the page.'; loaderSub.style.display = 'block'; }
-    if (loader) loader.classList.remove('hidden');
-    const app = document.getElementById('app');
-    if (app) app.style.display = 'none';
-    startUpdateReconnectPolling();
+    showUpdateScreen(Date.now());
   } else {
     showToast(data?.error || 'Update failed', 'error');
     btn.disabled = false;
