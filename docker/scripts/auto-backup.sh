@@ -34,28 +34,26 @@ LAST_BACKUP_TIME=0
 get_farm_slug() {
     node -e "
 const fs = require('fs'), path = require('path');
-const SAVES  = '${SAVE_DIR}/Saves';
-const PREFS  = '${SAVE_DIR}/startup_preferences';
-const MARKER = '${SAVE_DIR}/Saves/.selected_save';
+const SAVES    = '${SAVE_DIR}/Saves';
+const LIVE     = '/home/steam/.local/share/stardrop/live-status.json';
+function toSlug(name) { return name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_-]/g,'') || 'stardrop'; }
 try {
-    // Primary: startup_preferences XML
-    let saveName = '';
-    if (fs.existsSync(PREFS)) {
-        const m = fs.readFileSync(PREFS, 'utf8').match(/<saveFolderName>([^<]+)<\/saveFolderName>/);
-        if (m) saveName = m[1].trim();
+    // Primary: live-status.json written by StardropDashboard (always up-to-date)
+    if (fs.existsSync(LIVE)) {
+        const live = JSON.parse(fs.readFileSync(LIVE,'utf8'));
+        if (live.farmName) { process.stdout.write(toSlug(live.farmName)); return; }
     }
-    // Fallback: .selected_save marker (game strips saveFolderName on launch)
-    if (!saveName && fs.existsSync(MARKER)) {
-        saveName = fs.readFileSync(MARKER, 'utf8').trim();
+    // Fallback: scan all SaveGameInfo files and pick first farmName found
+    if (fs.existsSync(SAVES)) {
+        for (const dir of fs.readdirSync(SAVES)) {
+            const info = path.join(SAVES, dir, 'SaveGameInfo');
+            if (!fs.existsSync(info)) continue;
+            const m = fs.readFileSync(info,'utf8').match(/<farmName>([^<]+)<\/farmName>/);
+            if (m) { process.stdout.write(toSlug(m[1])); return; }
+        }
     }
-    if (!saveName) { process.stdout.write('stardrop'); return; }
-    // Read SaveGameInfo — small metadata file, much faster than the main save
-    const infoPath = path.join(SAVES, saveName, 'SaveGameInfo');
-    const xml = fs.readFileSync(infoPath, 'utf8');
-    const n = xml.match(/<farmName>([^<]+)<\/farmName>/);
-    const slug = (n ? n[1] : 'stardrop').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
-    process.stdout.write(slug || 'stardrop');
-} catch(e) { process.stdout.write('stardrop'); }
+} catch(e) {}
+process.stdout.write('stardrop');
 " 2>/dev/null || echo "stardrop"
 }
 
