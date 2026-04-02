@@ -752,7 +752,9 @@
               </button>
             </div>
             <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px;line-height:1.6">
-              Upload mods as <code>.zip</code> files. Only <strong>server-side mods</strong> are supported — mods that run on the host and don't require clients to install anything. Client-side mods (visual, UI, or input mods) will not work here.
+              Most Client-side mods (visual, UI, or input mods) will work but the client must also have the mod installed on their system.<br>
+              Many mods are un-tested, but give it a try. <strong>(Make a Save Backup)</strong><br>
+              <em>*Some mods may cause server issues or not work at all.</em>
             </p>
             <input type="file" id="modFileInput" accept=".zip" style="display:none" onchange="handleModUpload(this)">
             <div id="modUploadStatus" class="save-upload-status"></div>
