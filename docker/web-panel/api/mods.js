@@ -317,6 +317,7 @@ function uploadMod(req, res) {
         installedFolders: result.installedFolders,
       });
     } catch (e) {
+      console.error('[Mods] install error:', e.message);
       fs.rmSync(metadataPath, { force: true });
       res.json({
         success:          true,
@@ -330,6 +331,7 @@ function uploadMod(req, res) {
       });
     }
   } catch (e) {
+    console.error('[Mods] upload error:', e.message);
     res.status(500).json({ error: 'Upload failed', details: e.message });
   }
 }
