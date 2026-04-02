@@ -2903,9 +2903,6 @@ async function loadChatMessages() {
     if (_chatTarget) {
       // DM view: show messages to/from this player only
       if (msg.from !== _chatTarget && msg.to !== _chatTarget) continue;
-    } else {
-      // World chat view: hide private messages — they belong in DM tabs only
-      if (isDm) continue;
     }
 
     const el = document.createElement('div');
@@ -2913,8 +2910,8 @@ async function loadChatMessages() {
 
     const time = new Date(msg.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     let meta;
-    if (_chatTarget && msg.isHost && isDm) {
-      // In DM tab: host message shows as "You" with recipient tag
+    if (msg.isHost && isDm) {
+      // Host DM — show recipient in both world chat and DM tab
       meta = `<span class="chat-dm-sent">You → ${escapeHtml(msg.to)}</span>`;
     } else if (_chatTarget && !msg.isHost && msg.from === _chatTarget) {
       // In DM tab: player's message
