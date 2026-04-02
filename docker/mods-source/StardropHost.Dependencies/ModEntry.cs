@@ -195,15 +195,6 @@ namespace StardropHostDependencies
             helper.ConsoleCommands.Add("stardrop_give",        "Give item to a farmhand. Usage: stardrop_give <name> <itemId> <count>",       OnGiveItemCommand);
             helper.ConsoleCommands.Add("stardrop_emote",       "Play emote for a farmhand. Usage: stardrop_emote <name> <emoteId>",          OnEmoteCommand);
 
-            // CropSaver — crops don't die when cabin owner is offline
-            try
-            {
-                harmony.Patch(
-                    AccessTools.Method(typeof(StardewValley.Crop), "Kill"),
-                    prefix: new HarmonyMethod(typeof(ModEntry), nameof(CropKill_Prefix)));
-            }
-            catch (Exception ex) { Monitor.Log($"[CropSaver] Crop.Kill patch failed: {ex.Message}", LogLevel.Warn); }
-
             Monitor.Log("StardropHost.Dependencies loaded.", LogLevel.Info);
         }
 
@@ -1260,29 +1251,6 @@ namespace StardropHostDependencies
             if (!int.TryParse(args[1], out int emoteId)) { Monitor.Log("[Admin] emoteId must be an integer.", LogLevel.Warn); return; }
             farmer.doEmote(emoteId);
             Monitor.Log($"[Admin] Played emote {emoteId} for {farmer.Name}.", LogLevel.Info);
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // CROPSAVER — crops don't die when cabin owner is offline
-        // ════════════════════════════════════════════════════════════════════
-
-        // Prefix on Crop.Kill(). Returns false (skip kill) if the plot's
-        // cabin owner is currently offline.
-        // Crop.Kill(HoeDirt soil) — soil.currentLocation tells us where the crop lives.
-        public static bool CropKill_Prefix(StardewValley.TerrainFeatures.HoeDirt soil)
-        {
-            try
-            {
-                if (!Context.IsMainPlayer || !Context.IsWorldReady) return true;
-                if (soil?.currentLocation is Cabin cabin)
-                {
-                    long ownerId = cabin.getFarmhand()?.UniqueMultiplayerID ?? 0L;
-                    if (ownerId != 0L && !Game1.otherFarmers.ContainsKey(ownerId))
-                        return false; // owner offline — spare the crop
-                }
-            }
-            catch { /* never block the kill on error */ }
-            return true;
         }
 
         // ════════════════════════════════════════════════════════════════════
