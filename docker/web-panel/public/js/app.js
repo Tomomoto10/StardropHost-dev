@@ -1755,10 +1755,12 @@ function updateDashboardUI(data) {
   _renderGameNotif(document.getElementById('gameUpdateNotification'));
   _renderGameNotif(document.getElementById('configGameUpdateNotif'));
 
-  // Config nav badge — show whenever an update is available
+  // Config nav badge + Updates card dot — show whenever an update is available
   const hasUpdate = (liveRunning && data.panelUpdateAvailable) || (liveRunning && data.gameUpdateAvailable);
   const configBadge = document.getElementById('configNavBadge');
   if (configBadge) configBadge.style.display = hasUpdate ? '' : 'none';
+  const updatesCardDot = document.getElementById('updatesCardDot');
+  if (updatesCardDot) updatesCardDot.style.display = hasUpdate ? '' : 'none';
 
 }
 
@@ -3443,6 +3445,16 @@ async function loadConfig() {
 
     // Updates card — inject notifs + Check Now button after config items
     if (group.name === 'Updates') {
+      const titleEl = card.querySelector('.config-group-title');
+      if (titleEl) {
+        const dot = document.createElement('span');
+        dot.id = 'updatesCardDot';
+        dot.className = 'notif-dot';
+        dot.style.cssText = 'display:none;background:var(--danger,#ef4444);margin-right:8px;flex-shrink:0';
+        titleEl.style.display = 'flex';
+        titleEl.style.alignItems = 'center';
+        titleEl.insertBefore(dot, titleEl.firstChild);
+      }
       const cfgPanelNotif = document.createElement('div');
       cfgPanelNotif.id = 'configPanelUpdateNotif';
       cfgPanelNotif.style.display = 'none';
