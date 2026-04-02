@@ -659,6 +659,24 @@ fi
 log_info "Starting status reporter (port: ${METRICS_PORT:-9090})..."
 /home/steam/scripts/status-reporter.sh &
 
+# Generate self-signed SSL cert if ENABLE_HTTPS=true and cert not yet created
+if [ "${ENABLE_HTTPS:-false}" = "true" ]; then
+    SSL_CERT="/home/steam/web-panel/data/ssl-cert.pem"
+    SSL_KEY="/home/steam/web-panel/data/ssl-key.pem"
+    if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
+        log_info "Generating self-signed SSL certificate..."
+        LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
+        openssl req -x509 -newkey rsa:2048 \
+            -keyout "$SSL_KEY" -out "$SSL_CERT" \
+            -days 3650 -nodes \
+            -subj "/CN=StardropHost" \
+            -addext "subjectAltName=IP:${LOCAL_IP},IP:127.0.0.1,DNS:localhost" \
+            2>/dev/null \
+          && log_info "SSL cert generated (IP: ${LOCAL_IP}) — accept the browser warning once to proceed" \
+          || log_warn "SSL cert generation failed — panel will use HTTP"
+    fi
+fi
+
 # Always run through crash-monitor (handles stop/start flag regardless of ENABLE_CRASH_RESTART).
 # crash-monitor respects ENABLE_CRASH_RESTART when deciding whether to auto-restart after a crash.
 log_info "Starting game via crash-monitor..."

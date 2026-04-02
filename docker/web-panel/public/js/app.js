@@ -1304,6 +1304,7 @@ function init() {
   loadBackupStatus();
   renderQuickActions();
   loadPanelVersion();
+  startChatBackgroundPoll();
 
   document.getElementById('logoutBtn').onclick = () => {
     localStorage.removeItem('panel_token');
@@ -1413,6 +1414,10 @@ function navigateTo(page) {
       break;
     case 'chat':
       _chatPlayersTs = 0; // force immediate player refresh on page open
+      // Clear whichever channel is currently visible
+      if (_chatTarget) delete _chatNotifs[_chatTarget];
+      else delete _chatNotifs['world'];
+      _updateChatBadges();
       renderChatPlayerPills();
       initChatColorRow();
       initChatEmoteMenu();
@@ -2679,6 +2684,46 @@ let _chatLastTs      = 0;      // timestamp of newest message we've rendered
 let _chatPollTimer   = null;
 let _chatPlayers     = [];     // cached online player names for pills
 let _chatPlayersTs   = 0;      // last time we fetched players for chat
+
+// Notification state
+let _chatNotifs   = {};    // { world: true, "Tom": true }
+let _chatBgLastTs = 0;
+let _chatBgPoll   = null;
+
+function startChatBackgroundPoll() {
+  if (_chatBgPoll) return;
+  _chatBgPoll = setInterval(_pollChatNotifs, 10000);
+  _pollChatNotifs(); // immediate first check
+}
+
+async function _pollChatNotifs() {
+  const data = await API.get(`/api/chat/messages?since=${_chatBgLastTs}&limit=100`).catch(() => null);
+  if (!data?.messages?.length) return;
+  let changed = false;
+  for (const msg of data.messages) {
+    if (msg.ts <= _chatBgLastTs) continue;
+    _chatBgLastTs = msg.ts;
+    const isDm  = msg.to && msg.to !== 'all';
+    const isLog = !msg.from || msg.from === '#0' || msg.from.startsWith('#');
+    if (isLog) continue;
+    const channel = isDm ? (msg.isHost ? msg.to : msg.from) : 'world';
+    // Don't mark unread if user is already viewing this channel
+    const viewing = currentPage === 'chat' && (
+      (isDm && _chatTarget === channel) || (!isDm && _chatTarget === null)
+    );
+    if (!viewing) { _chatNotifs[channel] = true; changed = true; }
+  }
+  if (changed) _updateChatBadges();
+}
+
+function _updateChatBadges() {
+  const hasAny = Object.values(_chatNotifs).some(Boolean);
+  const sb = document.getElementById('chatNavBadge');
+  const mb = document.getElementById('chatMobNavBadge');
+  if (sb) sb.style.display = hasAny ? '' : 'none';
+  if (mb) mb.style.display = hasAny ? '' : 'none';
+  if (currentPage === 'chat') renderChatPlayerPills();
+}
 let _chatColor       = null;   // null = no color, 'rainbow', or color name string
 let _chatRainbowIdx  = 0;      // cycles per send when rainbow active
 
@@ -2805,12 +2850,14 @@ function renderChatPlayerPills() {
   const row = document.getElementById('chatPlayerPills');
   if (!row) return;
   const worldActive = (_chatTarget === null) ? ' active' : '';
-  let html = `<button class="chat-pill${worldActive}" onclick="clearChatTarget()">World Chat</button>`;
+  const worldDot = _chatNotifs['world'] ? '<span class="notif-dot"></span>' : '';
+  let html = `<button class="chat-pill${worldActive}" onclick="clearChatTarget()">World Chat${worldDot}</button>`;
   if (_chatPlayers.length > 0) {
     html += `<span class="chat-dm-separator">Private Chats</span>`;
     for (const name of _chatPlayers) {
       const active = (_chatTarget === name) ? ' active' : '';
-      html += `<button class="chat-pill chat-pill-dm${active}" onclick="setChatTarget('${escapeHtml(name)}')">${escapeHtml(name)}</button>`;
+      const dot = _chatNotifs[name] ? '<span class="notif-dot"></span>' : '';
+      html += `<button class="chat-pill chat-pill-dm${active}" onclick="setChatTarget('${escapeHtml(name)}')">${escapeHtml(name)}${dot}</button>`;
     }
   }
   row.innerHTML = html;
@@ -2828,6 +2875,8 @@ function setChatTarget(name) {
   if (feed) feed.innerHTML = '<div class="empty-state" id="chatEmpty">Loading…</div>';
   const colorRow = document.getElementById('chatColorRow');
   if (colorRow) colorRow.style.display = 'none';
+  delete _chatNotifs[name];
+  _updateChatBadges();
   renderChatPlayerPills();
   loadChatMessages();
 }
@@ -2843,6 +2892,8 @@ function clearChatTarget() {
   if (feed) feed.innerHTML = '<div class="empty-state" id="chatEmpty">Loading…</div>';
   const colorRow = document.getElementById('chatColorRow');
   if (colorRow) colorRow.style.display = '';
+  delete _chatNotifs['world'];
+  _updateChatBadges();
   renderChatPlayerPills();
   loadChatMessages();
 }

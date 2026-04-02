@@ -149,6 +149,17 @@ body {
   border-left-color: var(--accent);
 }
 
+.notif-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  flex-shrink: 0;
+}
+.nav-item .notif-dot { margin-left: auto; }
+.chat-pill .notif-dot { margin-left: 5px; vertical-align: middle; }
+
 .nav-icon {
   width: 24px;
   display: inline-flex;
@@ -1300,7 +1311,6 @@ select.form-input {
   align-self: flex-start;
 }
 .chat-msg-host {
-  align-self: flex-end;
   background: color-mix(in srgb, var(--accent-dark) 25%, var(--bg-tertiary));
 }
 .chat-msg-log {

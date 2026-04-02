@@ -341,6 +341,11 @@ function getPlayers(req, res) {
     knownIps: (() => { const v = nameIpMap[p.name]; return Array.isArray(v) ? v : (v ? [v] : []); })(),
   }));
 
+  // Strip any stale placeholder entries before sending to frontend
+  const cleanNameIpMap = Object.fromEntries(
+    Object.entries(nameIpMap).filter(([k]) => !k.startsWith('Unnamed'))
+  );
+
   res.json({
     online: Math.max(online, players.length),
     max: 8,
@@ -351,7 +356,7 @@ function getPlayers(req, res) {
     bannedNames:     Array.from(bannedNames),
     separateWallets: _separateWallets,
     security,
-    nameIpMap,
+    nameIpMap: cleanNameIpMap,
     ipLocks: [...ipLocks],
   });
 }
