@@ -796,36 +796,7 @@
         <!-- ── Console (Logs + Terminal combined) ────────────── -->
         <section id="page-terminal" class="page console-page">
           <div class="card console-card">
-            <div class="logs-toolbar">
-              <div class="log-filters">
-                <button class="log-filter active" type="button" data-filter="game">Game</button>
-                <button class="log-filter" type="button" data-filter="error">Errors</button>
-                <button class="log-filter" type="button" data-filter="smapi">SMAPI</button>
-                <button class="log-filter" type="button" data-filter="all">All</button>
-              </div>
-              <input type="text" id="logSearch" class="input input-sm" placeholder="Search logs...">
-              <div class="log-controls">
-                <div class="log-dl-dropdown" id="logDlDropdown">
-                  <button class="btn btn-sm" type="button" onclick="toggleLogDlMenu()" title="Download logs">
-                    <svg class="icon"><use href="#icon-download"></use></svg>
-                    Download
-                    <svg class="icon" style="width:12px;height:12px;margin-left:2px"><use href="#icon-chevron-down"></use></svg>
-                  </button>
-                  <div class="log-dl-menu" id="logDlMenu" style="display:none">
-                    <button type="button" onclick="downloadLogs(); toggleLogDlMenu()">Current View</button>
-                    <button type="button" id="logSmApiDownloadBtn" onclick="downloadSmapiLog(); toggleLogDlMenu()">Full SMAPI Log</button>
-                    <button type="button" id="logUpdateDownload" onclick="downloadUpdateLog(); toggleLogDlMenu()">Update Log</button>
-                    <button type="button" id="logDockerDownload" onclick="downloadDockerLogs(); toggleLogDlMenu()">Docker Logs</button>
-                  </div>
-                </div>
-                <button class="btn btn-sm" id="logClear" type="button" title="Clear display">
-                  <svg class="icon"><use href="#icon-trash"></use></svg>
-                  Clear
-                </button>
-              </div>
-            </div>
-            <div id="logOutput" class="log-output console-log-output"></div>
-            <div class="console-divider">
+            <div class="console-divider" style="margin:0 0 8px;border-top:none;padding-top:0">
               <span>SMAPI Console</span>
             </div>
             <div id="termOutput" class="terminal-output console-term-output">
@@ -836,6 +807,33 @@
                      onkeydown="if(event.key==='Enter') terminalSend()">
               <button class="btn btn-primary" id="termSendBtn" type="button" onclick="terminalSend()" disabled>Send</button>
             </div>
+            <div class="console-divider">
+              <div class="log-filters">
+                <button class="log-filter active" type="button" data-filter="game">Game</button>
+                <button class="log-filter" type="button" data-filter="error">Errors</button>
+                <button class="log-filter" type="button" data-filter="smapi">SMAPI</button>
+                <button class="log-filter" type="button" data-filter="all">All</button>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="text" id="logSearch" class="input input-sm" placeholder="Search...">
+                <div class="log-dl-dropdown" id="logDlDropdown">
+                  <button class="btn btn-sm btn-icon" type="button" onclick="toggleLogDlMenu()" title="Download logs">
+                    <svg class="icon"><use href="#icon-download"></use></svg>
+                    <svg class="icon" style="width:10px;height:10px"><use href="#icon-chevron-down"></use></svg>
+                  </button>
+                  <div class="log-dl-menu" id="logDlMenu" style="display:none">
+                    <button type="button" onclick="downloadLogs(); toggleLogDlMenu()">Current View</button>
+                    <button type="button" id="logSmApiDownloadBtn" onclick="downloadSmapiLog(); toggleLogDlMenu()">Full SMAPI Log</button>
+                    <button type="button" id="logUpdateDownload" onclick="downloadUpdateLog(); toggleLogDlMenu()">Update Log</button>
+                    <button type="button" id="logDockerDownload" onclick="downloadDockerLogs(); toggleLogDlMenu()">Docker Logs</button>
+                  </div>
+                </div>
+                <button class="btn btn-sm btn-icon" id="logClear" type="button" title="Clear display">
+                  <svg class="icon"><use href="#icon-trash"></use></svg>
+                </button>
+              </div>
+            </div>
+            <div id="logOutput" class="log-output console-log-output"></div>
           </div>
         </section>
 

@@ -487,6 +487,7 @@ body {
 }
 
 .log-controls { display: flex; gap: 4px; align-items: center; }
+.btn-icon { padding: 5px 8px; color: var(--text-muted); }
 
 .log-dl-dropdown { position: relative; }
 .log-dl-menu {
@@ -550,6 +551,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   padding: 8px 0;
   margin: 8px 0 0;
   border-top: 1px solid var(--border);
@@ -601,13 +604,14 @@ body {
 .terminal-input-row { display: flex; gap: 8px; }
 .terminal-input-row input {
   flex: 1;
-  padding: 10px 14px;
+  padding: 10px 14px 8px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text-primary);
-  font-family: monospace;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
   font-size: 14px;
+  letter-spacing: 0.03em;
   outline: none;
 }
 .terminal-input-row input:focus    { border-color: var(--accent); }
@@ -1237,7 +1241,6 @@ select.form-input {
   #content { margin-left: 0; }
   .mobile-only { display: block; }
   .cards-grid { grid-template-columns: repeat(2, 1fr); }
-  .logs-toolbar { flex-direction: column; }
   .log-filters { flex-wrap: wrap; }
   .action-buttons { flex-direction: column; }
   .form-row { flex-direction: column; }
