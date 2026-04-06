@@ -4944,6 +4944,9 @@ async function loadRemoteStatus() {
     if (noConfig)   noConfig.style.display   = data.configured ? 'none' : '';
     if (configured) configured.style.display = data.configured ? ''     : 'none';
 
+    const addrCard = document.getElementById('remoteAddressCard');
+    if (addrCard) addrCard.style.display = data.configured ? '' : 'none';
+
     if (data.configured) {
       _renderRemoteServices(data.services || [], data.anyRunning);
       _remoteYaml = data.yaml || '';
