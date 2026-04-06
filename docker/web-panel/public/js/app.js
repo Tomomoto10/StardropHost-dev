@@ -864,12 +864,10 @@ async function wizSubmitStep3(skip) {
 }
 
 async function wizSubmitStep4() {
-  const pw   = document.getElementById('wiz-srv-pw').value.trim();
   const tz   = tzPickerValue('wiz-tz-picker');
   const mode = document.getElementById('wiz-server-mode')?.value || 'lan';
   try {
-    await API.post('/api/wizard/step/4', { serverPassword: pw, timezone: tz || undefined, serverMode: mode });
-    _wizState._srvPw = pw;
+    await API.post('/api/wizard/step/4', { timezone: tz || undefined, serverMode: mode });
     // Populate confirm lines for step 6
     const gm = _wizState._gameMethod;
     document.getElementById('wiz-confirm-game').textContent =
@@ -877,13 +875,30 @@ async function wizSubmitStep4() {
     const cpu = _wizState._cpu, mem = _wizState._mem;
     document.getElementById('wiz-confirm-resources').textContent =
       cpu || mem ? `✅ Resources: CPU=${cpu||'unlimited'}, RAM=${mem||'unlimited'}` : '✅ Resources: no limits set';
-    document.getElementById('wiz-confirm-server').textContent =
-      pw ? '✅ Server password set' : '✅ Server: open (no password)';
+    document.getElementById('wiz-confirm-server').textContent = '✅ Server: open (no password)';
     // Load farm step (step 6)
     wizGoToStep(6);
     wizLoadFarmStep();
   } catch (e) {
     showToast(e.message || 'Failed to save — try again', 'error');
+  }
+}
+
+function wizToggleExperimentalCabins(checked) {
+  const sel     = document.getElementById('wiz-cabin-count');
+  const warning = document.getElementById('wiz-experimental-warning');
+  if (checked) {
+    for (let i = 9; i <= 16; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = `${i} cabins (${i} players)`;
+      sel.appendChild(opt);
+    }
+    warning.style.display = '';
+  } else {
+    if (parseInt(sel.value) > 8) sel.value = '8';
+    Array.from(sel.options).filter(o => parseInt(o.value) > 8).forEach(o => o.remove());
+    warning.style.display = 'none';
   }
 }
 
@@ -3504,7 +3519,7 @@ async function loadSaves() {
   if (backupsData) {
     const list = document.getElementById('backupsList');
     const badge = document.getElementById('backupCountBadge');
-    if (badge) badge.textContent = backupsData.backups?.length ? `${backupsData.backups.length} backup${backupsData.backups.length !== 1 ? 's' : ''}` : '';
+    if (badge) badge.textContent = `${backupsData.backups?.length ?? 0} backup${(backupsData.backups?.length ?? 0) !== 1 ? 's' : ''}`;
     if (!backupsData.backups?.length) {
       list.innerHTML = '<div class="empty-state">No backups found</div>';
     } else {

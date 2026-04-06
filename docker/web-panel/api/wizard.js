@@ -304,16 +304,12 @@ function submitStep3(req, res) {
 
 // Step 4 — Server settings
 function submitStep4(req, res) {
-  const { serverPassword, timezone, saveName, serverMode } = req.body || {};
+  const { timezone, saveName, serverMode } = req.body || {};
 
   const envUpdates = {};
 
   if (serverMode === 'lan' || serverMode === 'steam') {
     envUpdates.SERVER_MODE = serverMode;
-  }
-
-  if (serverPassword && typeof serverPassword === 'string') {
-    envUpdates.SERVER_PASSWORD = serverPassword;
   }
 
   if (saveName && typeof saveName === 'string' && saveName.trim()) {
@@ -370,10 +366,10 @@ function submitNewFarm(req, res) {
     return res.status(400).json({ error: 'farmType must be 0–6' });
   }
 
-  // ── Cabin count (1–4; mod caps at 3 internally) ──
+  // ── Cabin count (1–16; 9–16 is experimental) ──
   const cc = parseInt(body.cabinCount ?? '1', 10);
-  if (isNaN(cc) || cc < 1 || cc > 4) {
-    return res.status(400).json({ error: 'cabinCount must be 1–4' });
+  if (isNaN(cc) || cc < 1 || cc > 16) {
+    return res.status(400).json({ error: 'cabinCount must be 1–16' });
   }
 
   // ── Pet breed ──
@@ -433,6 +429,21 @@ function submitNewFarm(req, res) {
   } catch (e) {
     return res.status(500).json({ error: 'Failed to save farm config', details: e.message });
   }
+
+  // Write playerLimit to startup_preferences so SDV allows the right number of connections
+  try {
+    const prefsPath = path.join(config.CONFIG_DIR, 'startup_preferences');
+    if (fs.existsSync(prefsPath)) {
+      let prefs = fs.readFileSync(prefsPath, 'utf-8');
+      if (prefs.includes('<playerLimit>')) {
+        prefs = prefs.replace(/<playerLimit>[^<]*<\/playerLimit>/, `<playerLimit>${cc}</playerLimit>`);
+      } else {
+        prefs = prefs.replace('</StartupPreferences>', `  <playerLimit>${cc}</playerLimit>\n</StartupPreferences>`);
+      }
+      fs.writeFileSync(prefsPath, prefs, 'utf-8');
+    }
+  } catch {}
+
   res.json({ success: true, message: 'Farm configuration saved', farmConfig });
 }
 
