@@ -595,6 +595,18 @@ function getFarmhands(req, res) {
     const live = JSON.parse(fs.readFileSync(config.LIVE_FILE, 'utf-8'));
     let pending = [];
     try { pending = JSON.parse(fs.readFileSync(PENDING_FARMHAND_FILE, 'utf-8')); } catch {}
+
+    // Auto-cancel stale pending removals for any player who is currently online
+    // (they rejoined with the same name — the removal never completed or is no longer valid)
+    const onlineNames = new Set(
+      (live.cabins || []).filter(c => c.isOwnerOnline && c.ownerName).map(c => c.ownerName)
+    );
+    if (onlineNames.size && pending.some(p => onlineNames.has(p.ownerName))) {
+      pending = pending.filter(p => !onlineNames.has(p.ownerName));
+      if (pending.length) fs.writeFileSync(PENDING_FARMHAND_FILE, JSON.stringify(pending, null, 2));
+      else try { fs.unlinkSync(PENDING_FARMHAND_FILE); } catch {}
+    }
+
     res.json({ cabins: live.cabins || [], pendingRemovals: pending, serverState: live.serverState || null });
   } catch {
     res.json({ cabins: [], pendingRemovals: [], serverState: null });

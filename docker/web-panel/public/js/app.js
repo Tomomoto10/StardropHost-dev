@@ -1956,6 +1956,8 @@ async function toggleWorldFreeze() {
     _worldFrozen = !_worldFrozen;
     const stateEl = document.getElementById('worldFreezeState');
     if (stateEl) stateEl.textContent = _worldFrozen ? '❄️ Frozen' : '▶ Running';
+    const msg = (document.getElementById('worldFreezeMsg')?.value || '').trim();
+    if (msg) API.post('/api/players/admin-command', { command: `say ${msg}` }).catch(() => null);
   }
   const el = document.getElementById('worldCmdResult');
   if (!el) return;
