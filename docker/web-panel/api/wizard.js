@@ -436,9 +436,9 @@ function submitNewFarm(req, res) {
     if (fs.existsSync(prefsPath)) {
       let prefs = fs.readFileSync(prefsPath, 'utf-8');
       if (prefs.includes('<playerLimit>')) {
-        prefs = prefs.replace(/<playerLimit>[^<]*<\/playerLimit>/, `<playerLimit>${cc}</playerLimit>`);
+        prefs = prefs.replace(/<playerLimit>[^<]*<\/playerLimit>/, `<playerLimit>${cc + 1}</playerLimit>`);
       } else {
-        prefs = prefs.replace('</StartupPreferences>', `  <playerLimit>${cc}</playerLimit>\n</StartupPreferences>`);
+        prefs = prefs.replace('</StartupPreferences>', `  <playerLimit>${cc + 1}</playerLimit>\n</StartupPreferences>`);
       }
       fs.writeFileSync(prefsPath, prefs, 'utf-8');
     }
