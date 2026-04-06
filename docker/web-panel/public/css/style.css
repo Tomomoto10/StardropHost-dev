@@ -1206,7 +1206,9 @@ select.form-input {
   .action-buttons { flex-direction: column; }
   .form-row { flex-direction: column; }
   .config-item { flex-direction: column; align-items: flex-start; gap: 8px; }
-  .player-actions { flex-wrap: wrap; }
+  .player-card { flex-wrap: wrap; }
+  .player-body { flex-basis: 0; flex-grow: 1; min-width: 0; }
+  .player-actions { flex-basis: 100%; flex-direction: row; justify-content: flex-start; margin-top: 8px; }
   #sidebarCloseBtn { display: block; }
 }
 
