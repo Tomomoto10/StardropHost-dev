@@ -55,7 +55,7 @@ try {
 
     local timestamp
     timestamp=$(date -u '+D%d-%m-%Y-T%H-%M-%S')
-    local backup_file="$BACKUP_DIR/${farm_slug}-update-backup-${timestamp}.zip"
+    local backup_file="$BACKUP_DIR/${farm_slug}-auto-backup-${timestamp}.zip"
 
     write_log "Creating pre-update backup..."
     (cd "$(dirname "$SAVE_DIR")" && zip -r "$backup_file" "$(basename "$SAVE_DIR")" -x "*/ErrorLogs/*") 2>/dev/null \

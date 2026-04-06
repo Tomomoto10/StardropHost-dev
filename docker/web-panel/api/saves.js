@@ -450,7 +450,7 @@ function triggerTaggedBackup(tag) {
     ensureDir(config.BACKUPS_DIR);
     const slug       = getFarmSlug();
     const timestamp  = makeTimestamp();
-    const backupPath = path.join(config.BACKUPS_DIR, `${slug}-${tag}-backup-${timestamp}.zip`);
+    const backupPath = path.join(config.BACKUPS_DIR, `${slug}-auto-backup-${timestamp}.zip`);
     const child = spawn('zip', [
       '-r', backupPath,
       path.basename(config.CONFIG_DIR),
@@ -691,6 +691,72 @@ function downloadBackup(req, res) {
   res.download(filePath, filename);
 }
 
+function restoreConfigFromZip(zipPath) {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stardrop-restore-'));
+  try {
+    runCommand('unzip', ['-q', '-o', zipPath, '-d', tempRoot], { timeout: 60000 });
+
+    const extracted = path.join(tempRoot, 'StardewValley');
+    if (!fs.existsSync(extracted)) {
+      throw new Error('Backup does not contain a StardewValley folder — is this a valid backup?');
+    }
+
+    // Stop SMAPI before overwriting files
+    spawnSync('sh', ['-lc', 'pkill -f "StardewModdingAPI|Stardew Valley" >/dev/null 2>&1 || true'],
+      { encoding: 'utf-8', timeout: 5000 });
+
+    ensureDir(path.dirname(config.CONFIG_DIR));
+    removePath(config.CONFIG_DIR);
+    runCommand('cp', ['-a', extracted, config.CONFIG_DIR], { timeout: 30000 });
+  } finally {
+    removePath(tempRoot);
+  }
+}
+
+function restoreBackup(req, res) {
+  const { filename } = req.params;
+  if (filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+
+  const filePath = path.join(config.BACKUPS_DIR, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Backup not found' });
+
+  try {
+    restoreConfigFromZip(filePath);
+    res.json({ success: true, message: `Restored from ${filename}. Restart the server to apply.`, needsRestart: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Restore failed', details: e.message });
+  }
+}
+
+function uploadBackup(req, res) {
+  try {
+    const body     = req.body || {};
+    const filename = body.filename;
+    const data     = body.data;
+
+    if (!filename || !data) return res.status(400).json({ error: 'Missing filename or data' });
+    if (!/\.zip$/i.test(filename)) return res.status(400).json({ error: 'Only .zip backup archives are supported' });
+
+    const buffer = Buffer.from(data, 'base64');
+    if (!buffer.length) return res.status(400).json({ error: 'Invalid archive data' });
+    if (buffer.length > 200 * 1024 * 1024) return res.status(413).json({ error: 'File too large (max 200MB)' });
+
+    const tempZip = path.join(os.tmpdir(), `stardrop-backup-upload-${Date.now()}.zip`);
+    fs.writeFileSync(tempZip, buffer);
+
+    try {
+      restoreConfigFromZip(tempZip);
+      res.json({ success: true, message: 'Backup restored. Restart the server to apply.', needsRestart: true });
+    } finally {
+      removePath(tempZip);
+    }
+  } catch (e) {
+    res.status(500).json({ error: 'Restore failed', details: e.message });
+  }
+}
+
 function deleteBackup(req, res) {
   const { filename } = req.params;
 
@@ -749,6 +815,8 @@ module.exports = {
   getBackupStatus,
   createBackup,
   uploadSave,
+  uploadBackup,
+  restoreBackup,
   selectSave,
   downloadBackup,
   deleteBackup,

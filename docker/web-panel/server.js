@@ -115,11 +115,13 @@ const savesAPI = require('./api/saves');
 app.get(   '/api/saves',                      auth.verifyMiddleware, savesAPI.getSaves);
 app.post(  '/api/saves/select',               auth.verifyMiddleware, savesAPI.selectSave);
 app.post(  '/api/saves/upload',               auth.verifyMiddleware, savesAPI.uploadSave);
-app.get(   '/api/saves/backups',              auth.verifyMiddleware, savesAPI.getBackups);
-app.post(  '/api/saves/backups',              auth.verifyMiddleware, savesAPI.createBackup);
-app.get(   '/api/saves/backups/status',       auth.verifyMiddleware, savesAPI.getBackupStatus);
-app.get(   '/api/saves/backups/:filename',    auth.verifyMiddleware, savesAPI.downloadBackup);
-app.delete('/api/saves/backups/:filename',    auth.verifyMiddleware, savesAPI.deleteBackup);
+app.get(   '/api/saves/backups',                      auth.verifyMiddleware, savesAPI.getBackups);
+app.post(  '/api/saves/backups',                      auth.verifyMiddleware, savesAPI.createBackup);
+app.post(  '/api/saves/backups/upload',               auth.verifyMiddleware, savesAPI.uploadBackup);
+app.get(   '/api/saves/backups/status',               auth.verifyMiddleware, savesAPI.getBackupStatus);
+app.post(  '/api/saves/backups/:filename/restore',    auth.verifyMiddleware, savesAPI.restoreBackup);
+app.get(   '/api/saves/backups/:filename',            auth.verifyMiddleware, savesAPI.downloadBackup);
+app.delete('/api/saves/backups/:filename',            auth.verifyMiddleware, savesAPI.deleteBackup);
 app.delete('/api/saves/:name',               auth.verifyMiddleware, savesAPI.deleteSave);
 
 // -- Config --

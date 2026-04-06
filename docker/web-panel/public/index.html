@@ -781,12 +781,13 @@
                   <svg class="icon"><use href="#icon-package"></use></svg>
                   Upload Save
                 </button>
-                <button class="btn btn-success btn-sm" type="button" onclick="createBackup()">
-                  <svg class="icon"><use href="#icon-saves"></use></svg>
-                  Backup Now
-                </button>
               </div>
             </div>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px;line-height:1.6">
+              Your farm saves live here. You can run multiple saves on the same server — only one is active at a time.
+              Use <strong>Select</strong> to switch the active save (requires restart).
+              <strong>Upload Save</strong> accepts a <code>.zip</code> containing a save folder; uploading a save with the same name will overwrite it (a backup is created automatically).
+            </p>
             <div class="save-upload-panel">
               <input type="file" id="saveFileInput" accept=".zip" style="display:none" onchange="handleSaveUpload(this)">
               <label class="save-upload-option">
@@ -800,12 +801,32 @@
               <div class="empty-state">Loading...</div>
             </div>
           </div>
-          <div class="card">
-            <h3>Backups</h3>
+          <details class="card" id="backupsCard">
+            <summary class="section-header" style="cursor:pointer;list-style:none;display:flex;align-items:center">
+              <h3 style="margin:0;flex:1">Backups <span id="backupCountBadge" class="save-badge" style="margin-left:8px;font-size:11px"></span></h3>
+              <div class="action-group" onclick="event.stopPropagation()">
+                <button class="btn btn-primary btn-sm" type="button" onclick="document.getElementById('backupFileInput').click()">
+                  <svg class="icon"><use href="#icon-package"></use></svg>
+                  Upload Backup
+                </button>
+                <button class="btn btn-success btn-sm" type="button" onclick="createBackup()">
+                  <svg class="icon"><use href="#icon-saves"></use></svg>
+                  Backup Now
+                </button>
+              </div>
+            </summary>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px;line-height:1.6">
+              Backups are full snapshots of your entire game config — saves, preferences, and options.
+              They are taken automatically every 24 hours and before every server stop, restart, or update.
+              Use <strong>Backup Now</strong> before making any risky changes. To recover from a crash or bad state, hit <strong>Restore</strong> on any backup — the server will stop and you will need to restart it after.
+              <strong>Upload Backup</strong> accepts a previously downloaded <code>.zip</code> backup to restore.
+            </p>
+            <input type="file" id="backupFileInput" accept=".zip" style="display:none" onchange="handleBackupUpload(this)">
+            <div id="backupUploadStatus" class="save-upload-status"></div>
             <div id="backupsList" class="saves-list">
               <div class="empty-state">Loading...</div>
             </div>
-          </div>
+          </details>
         </section>
 
         <!-- ── Mods ───────────────────────────────────────────── -->

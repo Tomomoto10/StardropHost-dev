@@ -3503,6 +3503,8 @@ async function loadSaves() {
 
   if (backupsData) {
     const list = document.getElementById('backupsList');
+    const badge = document.getElementById('backupCountBadge');
+    if (badge) badge.textContent = backupsData.backups?.length ? `${backupsData.backups.length} backup${backupsData.backups.length !== 1 ? 's' : ''}` : '';
     if (!backupsData.backups?.length) {
       list.innerHTML = '<div class="empty-state">No backups found</div>';
     } else {
@@ -3513,6 +3515,7 @@ async function loadSaves() {
             <div class="save-meta">${formatSize(b.size)} · ${new Date(b.date).toLocaleString()}</div>
           </div>
           <div style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-secondary" onclick="restoreBackup('${escapeHtml(b.filename)}')">Restore</button>
             <a class="btn btn-sm btn-primary" href="/api/saves/backups/${encodeURIComponent(b.filename)}?token=${API.token}"
                download="${escapeHtml(b.filename)}">${icon('download', 'icon')}</a>
             <button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444"
@@ -3608,6 +3611,45 @@ async function deleteBackup(filename) {
   const data = await API.del(`/api/saves/backups/${encodeURIComponent(filename)}`);
   if (data?.success) { showToast('Backup deleted', 'success'); loadSaves(); }
   else showToast(data?.error || 'Delete failed', 'error');
+}
+
+async function restoreBackup(filename) {
+  if (!confirm(`Restore from "${filename}"?\n\nThis will overwrite all current saves and config, and stop the game. You will need to restart the server after.`)) return;
+  const data = await API.post(`/api/saves/backups/${encodeURIComponent(filename)}/restore`);
+  if (data?.success) {
+    showToast('Backup restored', 'success');
+    showRestartModal('Backup restored. Restart the server to apply.');
+  } else {
+    showToast(data?.error || 'Restore failed', 'error');
+  }
+}
+
+async function handleBackupUpload(input) {
+  if (!input.files?.[0]) return;
+  const file = input.files[0];
+  if (!file.name.endsWith('.zip')) { showToast('Only .zip backup archives supported', 'error'); return; }
+
+  setText('backupUploadStatus', 'Uploading...');
+  try {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result.split(',')[1];
+      input.value = '';
+      const data = await API.post('/api/saves/backups/upload', { filename: file.name, data: base64 });
+      setText('backupUploadStatus', '');
+      if (data?.success) {
+        showToast('Backup restored', 'success');
+        showRestartModal('Backup restored. Restart the server to apply.');
+        loadSaves();
+      } else {
+        showToast(data?.error || 'Restore failed', 'error');
+      }
+    };
+    reader.readAsDataURL(file);
+  } catch {
+    setText('backupUploadStatus', '');
+    showToast('Upload failed', 'error');
+  }
 }
 
 // ─── Backup status polling ────────────────────────────────────────
