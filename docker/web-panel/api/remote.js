@@ -5,7 +5,43 @@
  * the YAML is written to the override file and started via the manager.
  */
 
+const fs   = require('fs');
+const path = require('path');
 const http = require('http');
+
+const config       = require('../server');
+const ADDR_FILE    = path.join(config.DATA_DIR, 'remote-addresses.json');
+
+function readAddresses() {
+  try {
+    if (fs.existsSync(ADDR_FILE)) return JSON.parse(fs.readFileSync(ADDR_FILE, 'utf-8'));
+  } catch {}
+  return { game: '', dashboard: '' };
+}
+
+function writeAddresses(data) {
+  const dir = path.dirname(ADDR_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(ADDR_FILE, JSON.stringify(data, null, 2));
+}
+
+function getAddresses(req, res) {
+  res.json(readAddresses());
+}
+
+function saveAddresses(req, res) {
+  try {
+    const current = readAddresses();
+    const updated = {
+      game:      typeof req.body.game      === 'string' ? req.body.game.trim()      : current.game,
+      dashboard: typeof req.body.dashboard === 'string' ? req.body.dashboard.trim() : current.dashboard,
+    };
+    writeAddresses(updated);
+    res.json({ success: true, ...updated });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
 
 const MANAGER_URL = process.env.MANAGER_URL || 'http://stardrop-manager:18700';
 
@@ -91,4 +127,4 @@ async function removeService(req, res) {
   }
 }
 
-module.exports = { getStatus, applyCompose, startService, stopService, removeService };
+module.exports = { getStatus, applyCompose, startService, stopService, removeService, getAddresses, saveAddresses };

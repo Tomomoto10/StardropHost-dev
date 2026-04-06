@@ -169,11 +169,13 @@ app.get(   '/api/chat/download',  auth.verifyMiddleware, chatAPI.downloadMessage
 
 // -- Remote (tunnel service management via compose override) --
 const remoteAPI = require('./api/remote');
-app.get( '/api/remote/status', auth.verifyMiddleware, remoteAPI.getStatus);
-app.post('/api/remote/apply',  auth.verifyMiddleware, remoteAPI.applyCompose);
-app.post('/api/remote/start',  auth.verifyMiddleware, remoteAPI.startService);
-app.post('/api/remote/stop',   auth.verifyMiddleware, remoteAPI.stopService);
-app.post('/api/remote/remove', auth.verifyMiddleware, remoteAPI.removeService);
+app.get( '/api/remote/status',    auth.verifyMiddleware, remoteAPI.getStatus);
+app.post('/api/remote/apply',     auth.verifyMiddleware, remoteAPI.applyCompose);
+app.post('/api/remote/start',     auth.verifyMiddleware, remoteAPI.startService);
+app.post('/api/remote/stop',      auth.verifyMiddleware, remoteAPI.stopService);
+app.post('/api/remote/remove',    auth.verifyMiddleware, remoteAPI.removeService);
+app.get( '/api/remote/addresses', auth.verifyMiddleware, remoteAPI.getAddresses);
+app.post('/api/remote/addresses', auth.verifyMiddleware, remoteAPI.saveAddresses);
 
 // -- Steam (auth via steam-auth container for game download only) --
 const steamAPI = require('./api/steam');

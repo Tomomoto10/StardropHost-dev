@@ -4925,15 +4925,14 @@ async function loadRemoteStatus() {
   const configured = document.getElementById('remoteConfigured');
 
   try {
-    const [data, cfg] = await Promise.all([
+    const [data, addrs] = await Promise.all([
       API.get('/api/remote/status'),
-      API.get('/api/config').catch(() => null),
+      API.get('/api/remote/addresses').catch(() => null),
     ]);
 
-    if (cfg) {
-      const serverGroup = cfg.groups?.find(g => g.name === 'Server');
-      _remoteAddressCache.game      = serverGroup?.items?.find(i => i.key === 'PLAYIT_GAME_ADDRESS')?.value      || '';
-      _remoteAddressCache.dashboard = serverGroup?.items?.find(i => i.key === 'PLAYIT_DASHBOARD_ADDRESS')?.value || '';
+    if (addrs) {
+      _remoteAddressCache.game      = addrs.game      || '';
+      _remoteAddressCache.dashboard = addrs.dashboard || '';
     }
     _populateConnectionAddresses();
     lastRemoteData         = data;
@@ -5055,7 +5054,7 @@ async function saveRemoteAddress(type) {
 
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
-    await API.put('/api/config', { [key]: val });
+    await API.post('/api/remote/addresses', { [isGame ? 'game' : 'dashboard']: val });
     _remoteAddressCache[isGame ? 'game' : 'dashboard'] = val;
     if (btn) btn.style.display = 'none';
     showToast('Address saved', 'success');
