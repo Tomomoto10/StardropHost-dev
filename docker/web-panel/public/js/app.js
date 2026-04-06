@@ -1442,6 +1442,7 @@ function navigateTo(page) {
       // Clear whichever channel is currently visible
       if (_chatTarget) delete _chatNotifs[_chatTarget];
       else delete _chatNotifs['world'];
+      _persistChatState();
       _updateChatBadges();
       renderChatPlayerPills();
       initChatColorRow();
@@ -2734,10 +2735,15 @@ let _chatPlayers       = [];     // all DM-eligible names (online + recent)
 let _chatOnlinePlayers = [];     // currently online player names only
 let _chatPlayersTs     = 0;      // last time we fetched players for chat
 
-// Notification state
-let _chatNotifs   = {};    // { world: true, "Tom": true }
-let _chatBgLastTs = 0;
+// Notification state — persisted across refreshes in localStorage
+let _chatNotifs   = (() => { try { return JSON.parse(localStorage.getItem('chat_notifs') || '{}'); } catch { return {}; } })();
+let _chatBgLastTs = parseInt(localStorage.getItem('chat_bg_ts') || '0', 10);
 let _chatBgPoll   = null;
+
+function _persistChatState() {
+  localStorage.setItem('chat_bg_ts',  String(_chatBgLastTs));
+  localStorage.setItem('chat_notifs', JSON.stringify(_chatNotifs));
+}
 
 function startChatBackgroundPoll() {
   if (_chatBgPoll) return;
@@ -2769,7 +2775,7 @@ async function _pollChatNotifs() {
       _chatNotifs[channel] = true; changed = true;
     }
   }
-  if (changed) _updateChatBadges();
+  if (changed) { _persistChatState(); _updateChatBadges(); }
 }
 
 function _updateChatBadges() {
@@ -2943,6 +2949,7 @@ function setChatTarget(name) {
   const colorRow = document.getElementById('chatColorRow');
   if (colorRow) colorRow.style.display = 'none';
   delete _chatNotifs[name];
+  _persistChatState();
   _updateChatBadges();
   renderChatPlayerPills();
   _updateChatInputState();
@@ -2961,6 +2968,7 @@ function clearChatTarget() {
   const colorRow = document.getElementById('chatColorRow');
   if (colorRow) colorRow.style.display = '';
   delete _chatNotifs['world'];
+  _persistChatState();
   _updateChatBadges();
   renderChatPlayerPills();
   _updateChatInputState();
@@ -3081,6 +3089,12 @@ async function loadChatMessages() {
   if (wasFirstLoad || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80) {
     feed.scrollTop = feed.scrollHeight;
   }
+
+  // Keep bg timestamp in sync so refresh doesn't re-process rendered messages
+  if (_chatLastTs > _chatBgLastTs) {
+    _chatBgLastTs = _chatLastTs;
+    _persistChatState();
+  }
 }
 
 async function sendChatMessage() {
@@ -3135,8 +3149,11 @@ async function clearCurrentChat() {
   const data = await API.del('/api/chat/messages', { channel }).catch(() => null);
   if (data?.success) {
     _chatLastTs = 0; _chatBgLastTs = 0;
+    delete _chatNotifs[channel];
+    _persistChatState();
     const feed = document.getElementById('chatFeed');
     if (feed) feed.innerHTML = `<div class="empty-state" id="chatEmpty">Chat cleared.</div>`;
+    _updateChatBadges();
     showToast(`${label} cleared`, 'success');
   } else {
     showToast('Failed to clear chat', 'error');
@@ -3148,19 +3165,26 @@ async function clearAllChat() {
   const data = await API.del('/api/chat/messages', { all: true }).catch(() => null);
   if (data?.success) {
     _chatLastTs = 0; _chatBgLastTs = 0;
+    _chatNotifs = {};
+    _persistChatState();
     const feed = document.getElementById('chatFeed');
     if (feed) feed.innerHTML = `<div class="empty-state" id="chatEmpty">All chat history cleared.</div>`;
+    _updateChatBadges();
     showToast('All chat history cleared', 'success');
   } else {
     showToast('Failed to clear chat', 'error');
   }
 }
 
-function downloadChatLog() {
-  const a = document.createElement('a');
-  a.href = '/api/chat/download';
-  a.download = 'chat-log.txt';
-  a.click();
+async function downloadChatLog() {
+  const res = await API.fetch('/api/chat/download').catch(() => null);
+  if (!res || !res.ok) { showToast('Failed to download chat log', 'error'); return; }
+  const text = await res.text();
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'chat-log.txt'; a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ─── Saves ───────────────────────────────────────────────────────
