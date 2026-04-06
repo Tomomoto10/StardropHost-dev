@@ -493,6 +493,12 @@
               <div style="display:flex;flex-direction:column;gap:0">
 
                 <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Shared Money</span>
+                  <input type="number" id="worldSetMoney" class="form-input" placeholder="Amount in gold" min="0" style="width:150px">
+                  <button class="btn btn-sm btn-primary" onclick="worldCmd('player_setmoney', document.getElementById('worldSetMoney').value, 'worldSetMoney')">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
                   <span class="admin-cmd-label">Set Time</span>
                   <input type="number" id="worldSetTime" class="form-input" placeholder="e.g. 1300 (1pm)" min="600" max="2600" style="width:150px">
                   <button class="btn btn-sm btn-primary" onclick="worldCmd('world_settime', document.getElementById('worldSetTime').value, 'worldSetTime')">Set</button>
@@ -528,15 +534,44 @@
                 </div>
 
                 <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Set Shared Money</span>
-                  <input type="number" id="worldSetMoney" class="form-input" placeholder="Amount in gold" min="0" style="width:150px">
-                  <button class="btn btn-sm btn-primary" onclick="worldCmd('player_setmoney', document.getElementById('worldSetMoney').value, 'worldSetMoney')">Set</button>
+                  <span class="admin-cmd-label">Clear</span>
+                  <select id="worldClearLocation" class="form-input" style="width:130px">
+                    <option value="Farm">Farm</option>
+                    <option value="FarmHouse">Farm House</option>
+                    <option value="Greenhouse">Greenhouse</option>
+                    <option value="Town">Town</option>
+                    <option value="Beach">Beach</option>
+                    <option value="Forest">Forest</option>
+                    <option value="Desert">Desert</option>
+                  </select>
+                  <select id="worldClearType" class="form-input" style="width:130px">
+                    <option value="debris">Debris</option>
+                    <option value="crops">Crops</option>
+                    <option value="grass">Grass</option>
+                    <option value="trees">Trees</option>
+                    <option value="fruit-trees">Fruit Trees</option>
+                    <option value="furniture">Furniture</option>
+                    <option value="removable">Removable</option>
+                    <option value="everything">Everything</option>
+                  </select>
+                  <button class="btn btn-sm btn-primary" onclick="worldCmd('world_clear ' + document.getElementById('worldClearLocation').value, document.getElementById('worldClearType').value)">Clear</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Build Permissions</span>
+                  <select id="worldBuildPermission" class="form-input" style="width:170px">
+                    <option value="off">Host Only (off)</option>
+                    <option value="owned">Own Buildings (owned)</option>
+                    <option value="on">Everyone (on)</option>
+                  </select>
+                  <button class="btn btn-sm btn-primary" onclick="worldCmd('movebuildingpermission', document.getElementById('worldBuildPermission').value)">Set</button>
                 </div>
 
                 <div class="admin-cmd-row" style="border-bottom:none">
-                  <span class="admin-cmd-label">Actions</span>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <button class="btn btn-sm" onclick="worldCmd('world_clear Farm', 'debris')">Clear Farm Debris</button>
+                  <span class="admin-cmd-label">Upgrade Cabins</span>
+                  <div>
+                    <button class="btn btn-sm" onclick="worldCmd('upgrade_cabins', '')">Open Upgrade Menu</button>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Opens an in-game dialogue — requires host to be actively playing.</div>
                   </div>
                 </div>
 
@@ -867,6 +902,7 @@
                 Report / Request
               </button>
             </div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:0 0 16px">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
               <div>
                 <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px">Join the StardropHost Discord for support, updates and community.</div>

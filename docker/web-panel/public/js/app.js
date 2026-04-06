@@ -1847,14 +1847,30 @@ async function loadFarm() {
   // Community Center
   if (data.communityCenter) {
     const cc = data.communityCenter;
-    const roomsHtml = Object.entries(cc.rooms).map(([room, info]) =>
-      `<div class="detail-item">
-        <div class="detail-label">${escapeHtml(room)}</div>
-        <div class="detail-value" style="color:${info.complete ? 'var(--accent)' : 'var(--text-primary)'}">
-          ${info.complete ? '✅ Complete' : `${info.bundles.filter(b => b.complete).length}/${info.bundles.length} Bundles`}
-        </div>
-      </div>`
-    ).join('');
+    const roomsHtml = Object.entries(cc.rooms).map(([room, info]) => {
+      const done      = info.bundles.filter(b => b.complete).length;
+      const total     = info.bundles.length;
+      const pct       = total ? Math.round(done / total * 100) : 100;
+      const complete  = info.complete;
+      const bundleRows = info.bundles.map(b =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px">
+          <span style="color:${b.complete ? 'var(--accent)' : 'var(--text-secondary)'}">${escapeHtml(b.name || 'Bundle')}</span>
+          <span style="color:${b.complete ? 'var(--accent)' : 'var(--text-muted)'}">${b.complete ? '✅' : `${b.itemsComplete ?? 0}/${b.itemsRequired ?? '?'}`}</span>
+        </div>`
+      ).join('');
+      return `
+        <details class="cc-room-details"${complete ? '' : ''}>
+          <summary class="cc-room-summary">
+            <span class="cc-room-name">${escapeHtml(room)}</span>
+            <span class="cc-room-meta">
+              <span style="color:${complete ? 'var(--accent)' : 'var(--text-muted)'};font-size:12px">${complete ? '✅ Complete' : `${done}/${total}`}</span>
+              <span class="cc-room-bar"><span class="cc-room-fill" style="width:${pct}%;${complete ? 'background:var(--accent)' : ''}"></span></span>
+              <span style="font-size:11px;color:var(--text-muted);min-width:30px;text-align:right">${pct}%</span>
+            </span>
+          </summary>
+          <div style="padding:6px 0 2px">${bundleRows}</div>
+        </details>`;
+    }).join('');
 
     ccEl.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -1864,7 +1880,7 @@ async function loadFarm() {
       <div class="progress-bar" style="margin-bottom:16px;height:12px">
         <div class="progress-fill" style="width:${cc.percentComplete}%;${cc.percentComplete === 100 ? 'background:var(--accent)' : ''}"></div>
       </div>
-      <div class="details-grid">${roomsHtml}</div>
+      <div style="display:flex;flex-direction:column;gap:4px">${roomsHtml}</div>
     `;
   } else {
     ccEl.innerHTML = '<div class="empty-state">Community Center data not available</div>';
@@ -3975,16 +3991,34 @@ function showVncPasswordForm() {
 }
 
 async function vncEnable() {
+  // Optimistic UI — swap button immediately
+  const btn = document.querySelector('#vncPanel .action-buttons button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+  const vncBadge = document.getElementById('vncTopbarBadge');
+  if (vncBadge) vncBadge.style.display = '';
   const data = await API.post('/api/vnc/enable');
   if (data?.success) { showToast('VNC enabled', 'success'); loadVnc(); }
-  else showToast(data?.error || 'Failed to enable VNC', 'error');
+  else {
+    showToast(data?.error || 'Failed to enable VNC', 'error');
+    if (vncBadge) vncBadge.style.display = 'none';
+    loadVnc();
+  }
 }
 
 async function vncDisable() {
   if (!confirm('Disable VNC? Active connections will be dropped.')) return;
+  // Optimistic UI — swap button immediately
+  const btn = document.querySelector('#vncPanel .action-buttons button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Stopping…'; }
+  const vncBadge = document.getElementById('vncTopbarBadge');
+  if (vncBadge) vncBadge.style.display = 'none';
   const data = await API.post('/api/vnc/disable');
   if (data?.success) { showToast('VNC disabled', 'success'); setTimeout(loadVnc, 1500); }
-  else showToast(data?.error || 'Failed to disable VNC', 'error');
+  else {
+    showToast(data?.error || 'Failed to disable VNC', 'error');
+    if (vncBadge) vncBadge.style.display = '';
+    loadVnc();
+  }
 }
 
 async function setVncOneTimePassword() {

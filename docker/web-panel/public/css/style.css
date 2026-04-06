@@ -292,6 +292,38 @@ body {
 }
 
 .progress-fill.warn   { background: var(--accent-warn); }
+
+/* Community Center collapsible rooms */
+.cc-room-details { border-bottom: 1px solid var(--border); padding: 6px 0; }
+.cc-room-details:last-child { border-bottom: none; }
+.cc-room-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.cc-room-summary::-webkit-details-marker { display: none; }
+.cc-room-name { flex: 1; color: var(--text-primary); }
+.cc-room-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.cc-room-bar {
+  width: 60px;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.cc-room-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #c4b5fd);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
 .progress-fill.danger { background: var(--accent-error); }
 
 /* ─── Dashboard Details ───────────────────────────────────────── */
