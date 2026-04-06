@@ -454,6 +454,26 @@
             </div>
           </div>
 
+          <!-- Remote Access card — shown only when a remote game address is saved -->
+          <div class="card" id="dashboard-remote-card" style="display:none">
+            <h3 style="margin-bottom:10px">Remote Access
+              <span id="dashboard-remote-status-dot" class="status-dot offline" style="margin-left:8px;vertical-align:middle"></span>
+              <span id="dashboard-remote-status-label" style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:4px">--</span>
+            </h3>
+            <div class="details-grid">
+              <div class="detail-item" id="dashboard-remote-game-row" style="display:none">
+                <div class="detail-label">Remote Game</div>
+                <div class="detail-value copyable" id="dashboard-remote-game-addr">--</div>
+                <div class="detail-note">Share with players to connect from anywhere via playit.gg.</div>
+              </div>
+              <div class="detail-item" id="dashboard-remote-dash-row" style="display:none">
+                <div class="detail-label">Remote Dashboard</div>
+                <div class="detail-value copyable" id="dashboard-remote-dash-addr">--</div>
+                <div class="detail-note">Access StardropHost dashboard remotely via playit.gg TCP tunnel.</div>
+              </div>
+            </div>
+          </div>
+
           <div id="panelUpdateNotification" style="display:none"></div>
           <div id="gameUpdateNotification" style="display:none"></div>
 
@@ -1024,14 +1044,6 @@
               <!-- Game -->
               <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em">Co-Op Game</div>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="color:var(--text-muted);width:64px;flex-shrink:0">LAN</span>
-                <code id="remote-lan-game" style="flex:1;min-width:160px;font-size:13px;background:var(--bg-tertiary);padding:6px 10px;border-radius:6px;color:var(--text-primary)">--</code>
-                <button class="btn btn-sm btn-icon" onclick="copyRemoteAddr('remote-lan-game')" title="Copy">
-                  <svg class="icon"><use href="#icon-copy"></use></svg>
-                </button>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="color:var(--text-muted);width:64px;flex-shrink:0">Remote</span>
                 <input id="remote-playit-game" class="input" type="text" placeholder="e.g. 12.34.56.78:12345"
                   style="flex:1;min-width:160px;font-size:13px" oninput="_remoteAddrDirty('game')">
                 <button class="btn btn-sm btn-secondary" id="remote-save-game-btn" onclick="saveRemoteAddress('game')" style="display:none">Save</button>
@@ -1043,14 +1055,6 @@
               <!-- Dashboard -->
               <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Dashboard</div>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="color:var(--text-muted);width:64px;flex-shrink:0">LAN</span>
-                <code id="remote-lan-dash" style="flex:1;min-width:160px;font-size:13px;background:var(--bg-tertiary);padding:6px 10px;border-radius:6px;color:var(--text-primary)">--</code>
-                <button class="btn btn-sm btn-icon" onclick="copyRemoteAddr('remote-lan-dash')" title="Copy">
-                  <svg class="icon"><use href="#icon-copy"></use></svg>
-                </button>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="color:var(--text-muted);width:64px;flex-shrink:0">Remote</span>
                 <input id="remote-playit-dash" class="input" type="text" placeholder="e.g. yourname.playit.plus:54321"
                   style="flex:1;min-width:160px;font-size:13px" oninput="_remoteAddrDirty('dashboard')">
                 <button class="btn btn-sm btn-secondary" id="remote-save-dash-btn" onclick="saveRemoteAddress('dashboard')" style="display:none">Save</button>

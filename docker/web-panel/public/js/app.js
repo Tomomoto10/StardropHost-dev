@@ -5004,15 +5004,38 @@ function _populateConnectionAddresses() {
   const gamePort = 24642;
   const dashPort = lastStatusData?.panelPort || 18642;
 
-  const lanGame = document.getElementById('remote-lan-game');
-  const lanDash = document.getElementById('remote-lan-dash');
-  if (lanGame) lanGame.textContent = lanIp !== '--' ? `${lanIp}:${gamePort}` : '--';
-  if (lanDash) lanDash.textContent = lanIp !== '--' ? `${lanIp}:${dashPort}` : '--';
-
+  // Remote tab — playit inputs (don't overwrite while user is typing)
   const gameInput = document.getElementById('remote-playit-game');
   const dashInput = document.getElementById('remote-playit-dash');
   if (gameInput && gameInput !== document.activeElement) gameInput.value = _remoteAddressCache.game;
   if (dashInput && dashInput !== document.activeElement) dashInput.value = _remoteAddressCache.dashboard;
+
+  // Dashboard — remote access card
+  const hasGame = !!_remoteAddressCache.game;
+  const hasDash = !!_remoteAddressCache.dashboard;
+  const dashCard = document.getElementById('dashboard-remote-card');
+  if (dashCard) dashCard.style.display = (hasGame || hasDash) ? '' : 'none';
+
+  const gameRow  = document.getElementById('dashboard-remote-game-row');
+  const dashRow  = document.getElementById('dashboard-remote-dash-row');
+  const gameAddr = document.getElementById('dashboard-remote-game-addr');
+  const dashAddr = document.getElementById('dashboard-remote-dash-addr');
+  if (gameRow)  gameRow.style.display  = hasGame ? '' : 'none';
+  if (dashRow)  dashRow.style.display  = hasDash ? '' : 'none';
+  if (gameAddr) gameAddr.textContent   = _remoteAddressCache.game;
+  if (dashAddr) dashAddr.textContent   = _remoteAddressCache.dashboard;
+
+  // Dashboard — remote status dot + label linked to remote service status
+  const dot   = document.getElementById('dashboard-remote-status-dot');
+  const label = document.getElementById('dashboard-remote-status-label');
+  if (dot && label) {
+    const running = lastRemoteData?.anyRunning;
+    const configured = lastRemoteData?.configured;
+    const cls  = running ? 'running' : configured ? 'offline' : 'offline';
+    const text = running ? 'Active' : configured ? 'Stopped' : 'Not configured';
+    dot.className   = `status-dot ${cls}`;
+    label.textContent = text;
+  }
 }
 
 function _remoteAddrDirty(type) {
@@ -5056,17 +5079,12 @@ function _renderRemoteServices(services, anyRunning) {
   if (startBtn) startBtn.style.display = anyRunning ? 'none' : '';
   if (stopBtn)  stopBtn.style.display  = anyRunning ? ''     : 'none';
 
-  const lanIp = lastStatusData?.network?.joinIp || lastStatusData?.network?.localIps?.[0] || '--';
-  const ipRow = `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
-    Co-Op Game Join IP: <strong style="color:var(--text-primary);font-family:monospace">${escapeHtml(lanIp)}</strong>
-  </div>`;
-
   if (!services.length) {
-    el.innerHTML = ipRow + '<span style="color:var(--text-muted);font-size:13px">No services found in config.</span>';
+    el.innerHTML = '<span style="color:var(--text-muted);font-size:13px">No services found in config.</span>';
     return;
   }
 
-  el.innerHTML = ipRow + services.map(s => {
+  el.innerHTML = services.map(s => {
     const running = s.running;
     const dot     = running ? 'running' : 'offline';
     const label   = running
