@@ -9,7 +9,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const PENDING    = '/home/steam/.local/share/stardrop/pending-farmhand-removals.json';
+const PENDING    = '/home/steam/web-panel/data/pending-farmhand-removals.json';
 const PREFS      = '/home/steam/.config/StardewValley/startup_preferences';
 const SAVES_DIR  = '/home/steam/.config/StardewValley/Saves';
 const BACKUP_DIR = '/home/steam/.local/share/stardrop/backups';

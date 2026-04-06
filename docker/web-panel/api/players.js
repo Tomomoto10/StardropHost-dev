@@ -578,7 +578,7 @@ function removeIpLock(req, res) {
 
 // ─── Farmhands ───────────────────────────────────────────────────
 
-const PENDING_FARMHAND_FILE = '/home/steam/.local/share/stardrop/pending-farmhand-removals.json';
+const PENDING_FARMHAND_FILE = path.join(config.DATA_DIR, 'pending-farmhand-removals.json');
 
 function getFarmhands(req, res) {
   try {

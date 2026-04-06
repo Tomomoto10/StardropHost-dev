@@ -2267,10 +2267,14 @@ async function loadFarmhands() {
   const cabins = data?.cabins || [];
   const pending = data?.pendingRemovals || [];
 
+  if (cabins.length) _lastKnownCabinCount = cabins.length;
+
   if (!cabins.length) {
     card.style.display = '';
     const serverState = data?.serverState;
-    const isLoading = !serverState || serverState === 'loading' || serverState === 'starting';
+    // Show "Game Loading" if: server not yet running, OR we previously had cabins
+    // (race: serverState becomes 'running' before cabin data appears in live-status.json)
+    const isLoading = serverState !== 'running' || _lastKnownCabinCount > 0;
     el.innerHTML = isLoading
       ? `<p class="text-muted" style="margin:0;font-size:13px">Game Loading…</p>`
       : `<p class="text-muted" style="margin:0;font-size:13px">No cabin slots found.</p>`;
@@ -2728,6 +2732,7 @@ function filterAdminItems() {}
 // ─── Admin Controls Modal ─────────────────────────────────────────
 
 let _lastPlayersData = { players: [] };
+let _lastKnownCabinCount = 0;
 let _adminPlayer     = null;
 
 function openAdminModal(player) {
