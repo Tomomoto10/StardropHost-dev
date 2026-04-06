@@ -659,6 +659,42 @@ body {
 .player-card-offline { opacity: 0.75; }
 .player-card-offline .player-avatar { color: var(--text-muted); background: var(--bg-tertiary); }
 
+/* Farmhand slots */
+.farmhand-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.farmhand-slot-empty { opacity: 0.55; }
+.farmhand-slot-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.farmhand-slot-num {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+.farmhand-slot-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.farmhand-slot-empty .farmhand-slot-name { color: var(--text-muted); font-weight: 400; }
+.farmhand-slot-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
 .player-offline-badge {
   display: inline-block;
   margin-left: 8px;

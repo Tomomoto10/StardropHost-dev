@@ -576,6 +576,58 @@ function removeIpLock(req, res) {
   res.json({ success: true, ipLocks: [...locks] });
 }
 
+// ─── Farmhands ───────────────────────────────────────────────────
+
+const PENDING_FARMHAND_FILE = '/home/steam/.local/share/stardrop/pending-farmhand-removals.json';
+
+function getFarmhands(req, res) {
+  try {
+    if (!fs.existsSync(config.LIVE_FILE)) return res.json({ cabins: [], pendingRemovals: [] });
+    const live = JSON.parse(fs.readFileSync(config.LIVE_FILE, 'utf-8'));
+    let pending = [];
+    try { pending = JSON.parse(fs.readFileSync(PENDING_FARMHAND_FILE, 'utf-8')); } catch {}
+    res.json({ cabins: live.cabins || [], pendingRemovals: pending });
+  } catch {
+    res.json({ cabins: [], pendingRemovals: [] });
+  }
+}
+
+function removeFarmhand(req, res) {
+  const { ownerName, tileX, tileY } = req.body || {};
+  if (!ownerName || tileX == null || tileY == null) {
+    return res.status(400).json({ error: 'ownerName, tileX, tileY required' });
+  }
+  try {
+    let pending = [];
+    try { pending = JSON.parse(fs.readFileSync(PENDING_FARMHAND_FILE, 'utf-8')); } catch {}
+    const already = pending.some(p => p.tileX === tileX && p.tileY === tileY);
+    if (!already) {
+      pending.push({ ownerName, tileX, tileY });
+      fs.writeFileSync(PENDING_FARMHAND_FILE, JSON.stringify(pending, null, 2));
+    }
+    res.json({ success: true, pendingRestart: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+function cancelFarmhandRemoval(req, res) {
+  const { tileX, tileY } = req.body || {};
+  try {
+    let pending = [];
+    try { pending = JSON.parse(fs.readFileSync(PENDING_FARMHAND_FILE, 'utf-8')); } catch {}
+    pending = pending.filter(p => !(p.tileX === tileX && p.tileY === tileY));
+    if (pending.length) {
+      fs.writeFileSync(PENDING_FARMHAND_FILE, JSON.stringify(pending, null, 2));
+    } else {
+      try { fs.unlinkSync(PENDING_FARMHAND_FILE); } catch {}
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
 module.exports = {
   getPlayers,
   kickPlayer,
@@ -597,4 +649,7 @@ module.exports = {
   getIpLocks,
   addIpLock,
   removeIpLock,
+  getFarmhands,
+  removeFarmhand,
+  cancelFarmhandRemoval,
 };

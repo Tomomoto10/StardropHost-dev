@@ -660,6 +660,12 @@ log_info "Starting status reporter (port: ${METRICS_PORT:-9090})..."
 /home/steam/scripts/status-reporter.sh &
 
 
+# Apply any queued farmhand removals before the game loads
+if [ -f "/home/steam/.local/share/stardrop/pending-farmhand-removals.json" ]; then
+    log_info "Applying pending farmhand removals..."
+    node /home/steam/scripts/apply-farmhand-removals.js || log_warn "Farmhand removal script failed"
+fi
+
 # Always run through crash-monitor (handles stop/start flag regardless of ENABLE_CRASH_RESTART).
 # crash-monitor respects ENABLE_CRASH_RESTART when deciding whether to auto-restart after a crash.
 log_info "Starting game via crash-monitor..."
