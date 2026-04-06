@@ -687,6 +687,11 @@
             <div class="section-header">
               <h3>Chat</h3>
               <span class="detail-note" id="chatTargetLabel">World Chat</span>
+              <div class="action-group" style="margin-left:auto">
+                <button class="btn btn-sm btn-secondary" onclick="downloadChatLog()" title="Download all chat logs">Download</button>
+                <button class="btn btn-sm btn-secondary" onclick="clearCurrentChat()" title="Clear current chat">Clear</button>
+                <button class="btn btn-sm btn-danger" onclick="clearAllChat()" title="Clear all chat history">Clear All</button>
+              </div>
             </div>
             <div id="chatPlayerPills" class="chat-player-pills"></div>
             <div id="chatFeed" class="chat-feed">
@@ -694,6 +699,8 @@
             </div>
             <!-- Color swatches -->
             <div class="chat-color-row" id="chatColorRow"></div>
+            <!-- Offline note -->
+            <div id="chatOfflineNote" style="display:none;font-size:12px;color:var(--text-muted);padding:6px 0 2px;text-align:center">Player offline — messages cannot be sent</div>
             <!-- Compose -->
             <div class="chat-compose-row">
               <div class="chat-emote-wrap">
@@ -701,7 +708,7 @@
                 <div id="chatEmoteMenu" class="chat-emote-menu" style="display:none"></div>
               </div>
               <input id="chatInput" type="text" class="form-input chat-input" placeholder="Message all players…" maxlength="200" autocomplete="off" />
-              <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">Send</button>
+              <button class="btn btn-primary btn-sm" id="chatSendBtn" onclick="sendChatMessage()">Send</button>
             </div>
           </div>
         </section>

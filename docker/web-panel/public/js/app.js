@@ -2727,11 +2727,12 @@ function _showAdminResult(success, command, error) {
 
 // ─── Chat ─────────────────────────────────────────────────────────
 
-let _chatTarget      = null;   // null = broadcast to all; string = player name for private
-let _chatLastTs      = 0;      // timestamp of newest message we've rendered
-let _chatPollTimer   = null;
-let _chatPlayers     = [];     // cached online player names for pills
-let _chatPlayersTs   = 0;      // last time we fetched players for chat
+let _chatTarget        = null;   // null = broadcast to all; string = player name for private
+let _chatLastTs        = 0;      // timestamp of newest message we've rendered
+let _chatPollTimer     = null;
+let _chatPlayers       = [];     // all DM-eligible names (online + recent)
+let _chatOnlinePlayers = [];     // currently online player names only
+let _chatPlayersTs     = 0;      // last time we fetched players for chat
 
 // Notification state
 let _chatNotifs   = {};    // { world: true, "Tom": true }
@@ -2745,6 +2746,9 @@ function startChatBackgroundPoll() {
 }
 
 async function _pollChatNotifs() {
+  // Sync bg timestamp to foreground so we don't re-process already-rendered messages
+  if (_chatLastTs > _chatBgLastTs) _chatBgLastTs = _chatLastTs;
+
   const data = await API.get(`/api/chat/messages?since=${_chatBgLastTs}&limit=100`).catch(() => null);
   if (!data?.messages?.length) return;
   let changed = false;
@@ -2755,11 +2759,15 @@ async function _pollChatNotifs() {
     const isLog = !msg.from || msg.from === '#0' || msg.from.startsWith('#');
     if (isLog) continue;
     const channel = isDm ? (msg.isHost ? msg.to : msg.from) : 'world';
-    // Don't mark unread if user is already viewing this channel
     const viewing = currentPage === 'chat' && (
       (isDm && _chatTarget === channel) || (!isDm && _chatTarget === null)
     );
-    if (!viewing) { _chatNotifs[channel] = true; changed = true; }
+    if (viewing) {
+      // Actively clear stale notif if user is looking at this channel
+      if (_chatNotifs[channel]) { delete _chatNotifs[channel]; changed = true; }
+    } else {
+      _chatNotifs[channel] = true; changed = true;
+    }
   }
   if (changed) _updateChatBadges();
 }
@@ -2937,6 +2945,7 @@ function setChatTarget(name) {
   delete _chatNotifs[name];
   _updateChatBadges();
   renderChatPlayerPills();
+  _updateChatInputState();
   loadChatMessages();
 }
 
@@ -2954,6 +2963,7 @@ function clearChatTarget() {
   delete _chatNotifs['world'];
   _updateChatBadges();
   renderChatPlayerPills();
+  _updateChatInputState();
   loadChatMessages();
 }
 
@@ -2989,13 +2999,13 @@ async function loadChatMessages() {
     if (pd) {
       const onlineNames = (pd.players || []).filter(p => !p.isHost).map(p => p.name).filter(Boolean);
       const recentNames = (pd.recentPlayers || []).map(p => p.name).filter(Boolean);
-      // Merge: online first, then recent, deduplicated
       const merged = [...new Set([...onlineNames, ...recentNames])];
+      _chatOnlinePlayers = onlineNames;
       if (JSON.stringify(merged) !== JSON.stringify(_chatPlayers)) {
         _chatPlayers = merged;
-        // Never auto-clear DM target — let user navigate away manually
         renderChatPlayerPills();
       }
+      _updateChatInputState();
     }
   }
 
@@ -3107,6 +3117,51 @@ document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('chatInput');
   if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') sendChatMessage(); });
 });
+
+function _updateChatInputState() {
+  const input   = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('chatSendBtn');
+  const note    = document.getElementById('chatOfflineNote');
+  const offline = _chatTarget && !_chatOnlinePlayers.includes(_chatTarget);
+  if (input)   { input.disabled = offline; if (offline) input.value = ''; }
+  if (sendBtn) sendBtn.disabled = offline;
+  if (note)    note.style.display = offline ? '' : 'none';
+}
+
+async function clearCurrentChat() {
+  const channel = _chatTarget || 'world';
+  const label   = _chatTarget ? `DM with ${_chatTarget}` : 'World Chat';
+  if (!confirm(`Clear ${label}? This cannot be undone.`)) return;
+  const data = await API.del('/api/chat/messages', { channel }).catch(() => null);
+  if (data?.success) {
+    _chatLastTs = 0; _chatBgLastTs = 0;
+    const feed = document.getElementById('chatFeed');
+    if (feed) feed.innerHTML = `<div class="empty-state" id="chatEmpty">Chat cleared.</div>`;
+    showToast(`${label} cleared`, 'success');
+  } else {
+    showToast('Failed to clear chat', 'error');
+  }
+}
+
+async function clearAllChat() {
+  if (!confirm('Clear ALL chat history? This cannot be undone.')) return;
+  const data = await API.del('/api/chat/messages', { all: true }).catch(() => null);
+  if (data?.success) {
+    _chatLastTs = 0; _chatBgLastTs = 0;
+    const feed = document.getElementById('chatFeed');
+    if (feed) feed.innerHTML = `<div class="empty-state" id="chatEmpty">All chat history cleared.</div>`;
+    showToast('All chat history cleared', 'success');
+  } else {
+    showToast('Failed to clear chat', 'error');
+  }
+}
+
+function downloadChatLog() {
+  const a = document.createElement('a');
+  a.href = '/api/chat/download';
+  a.download = 'chat-log.txt';
+  a.click();
+}
 
 // ─── Saves ───────────────────────────────────────────────────────
 async function loadSaves() {

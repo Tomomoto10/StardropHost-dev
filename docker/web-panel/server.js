@@ -157,8 +157,10 @@ app.post('/api/panel-update/check',  auth.verifyMiddleware, panelUpdateAPI.check
 
 // -- Chat bridge --
 const chatAPI = require('./api/chat');
-app.get( '/api/chat/messages', auth.verifyMiddleware, chatAPI.getMessages);
-app.post('/api/chat/send',     auth.verifyMiddleware, chatAPI.sendMessage);
+app.get(   '/api/chat/messages',  auth.verifyMiddleware, chatAPI.getMessages);
+app.post(  '/api/chat/send',      auth.verifyMiddleware, chatAPI.sendMessage);
+app.delete('/api/chat/messages',  auth.verifyMiddleware, chatAPI.clearMessages);
+app.get(   '/api/chat/download',  auth.verifyMiddleware, chatAPI.downloadMessages);
 
 // -- Remote (tunnel service management via compose override) --
 const remoteAPI = require('./api/remote');

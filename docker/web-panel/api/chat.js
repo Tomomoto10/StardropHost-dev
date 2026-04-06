@@ -9,25 +9,24 @@ const path = require('path');
 const CHAT_LOG   = '/home/steam/.local/share/stardrop/chat.log';
 const SMAPI_STDIN = '/home/steam/web-panel/data/smapi-stdin';
 
-// Max lines kept in chat.log before truncation (on each write this is a no-op;
-// truncation is done opportunistically in getMessages).
 const MAX_LINES = 500;
+
+function _readLines() {
+  if (!fs.existsSync(CHAT_LOG)) return [];
+  return fs.readFileSync(CHAT_LOG, 'utf-8').trim().split('\n').filter(Boolean);
+}
+
+function _parseLines(lines) {
+  return lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+}
 
 function getMessages(req, res) {
   const limit = Math.min(parseInt(req.query.limit || '100', 10), 200);
   const since = parseInt(req.query.since || '0', 10);
-
   try {
-    if (!fs.existsSync(CHAT_LOG)) return res.json({ messages: [] });
-
-    const raw   = fs.readFileSync(CHAT_LOG, 'utf-8');
-    const lines = raw.trim().split('\n').filter(Boolean);
-
-    const messages = lines
+    const messages = _parseLines(_readLines())
       .slice(-limit)
-      .map(line => { try { return JSON.parse(line); } catch { return null; } })
-      .filter(m => m && (!since || m.ts > since));
-
+      .filter(m => !since || m.ts > since);
     res.json({ messages });
   } catch {
     res.json({ messages: [] });
@@ -38,9 +37,6 @@ function sendMessage(req, res) {
   const { message, to } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'message is required' });
 
-  // Build SMAPI console command:
-  //   to blank / 'all' → say <message>  (broadcast as host)
-  //   to <player>      → tell <player> <message>  (private via /message)
   const target  = to?.trim();
   const command = (target && target !== 'all')
     ? `tell ${target} ${message.trim()}`
@@ -52,9 +48,62 @@ function sendMessage(req, res) {
     }
     fs.appendFileSync(SMAPI_STDIN, command + '\n');
     res.json({ success: true });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Failed to send message' });
   }
 }
 
-module.exports = { getMessages, sendMessage };
+// DELETE /api/chat/messages
+// body: { all: true }           → truncate entire log
+// body: { channel: 'world' }    → remove all non-DM messages
+// body: { channel: '<name>' }   → remove DM messages to/from <name>
+function clearMessages(req, res) {
+  try {
+    const { all, channel } = req.body || {};
+    if (all) {
+      fs.writeFileSync(CHAT_LOG, '');
+      return res.json({ success: true });
+    }
+    if (!channel) return res.status(400).json({ error: 'channel or all required' });
+
+    const lines   = _readLines();
+    const msgs    = _parseLines(lines);
+    let   kept;
+    if (channel === 'world') {
+      // Keep only DM messages (those with a real to: field)
+      kept = msgs.filter(m => m.to && m.to !== 'all');
+    } else {
+      // Keep messages NOT involving this player as a DM partner
+      kept = msgs.filter(m => {
+        const isDm = m.to && m.to !== 'all';
+        if (!isDm) return true;
+        return m.from !== channel && m.to !== channel;
+      });
+    }
+    fs.writeFileSync(CHAT_LOG, kept.map(m => JSON.stringify(m)).join('\n') + (kept.length ? '\n' : ''));
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to clear chat log' });
+  }
+}
+
+// GET /api/chat/download → full log as formatted plain text
+function downloadMessages(req, res) {
+  try {
+    const msgs = _parseLines(_readLines());
+    const lines = msgs.map(m => {
+      const time = new Date(m.ts * 1000).toISOString().replace('T', ' ').slice(0, 19);
+      const isDm = m.to && m.to !== 'all';
+      const from = m.from || 'System';
+      if (isDm) return `[${time}] (DM) ${from} → ${m.to}: ${m.message}`;
+      return `[${time}] ${from}: ${m.message}`;
+    });
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', 'attachment; filename="chat-log.txt"');
+    res.send(lines.join('\n'));
+  } catch {
+    res.status(500).json({ error: 'Failed to download chat log' });
+  }
+}
+
+module.exports = { getMessages, sendMessage, clearMessages, downloadMessages };
