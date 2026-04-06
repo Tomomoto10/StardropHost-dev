@@ -767,7 +767,7 @@ namespace StardropHostDependencies
             Game1.player.isCustomized.Value  = true;
             Game1.player.whichPetType        = cfg.PetSpecies.Equals("dog", StringComparison.OrdinalIgnoreCase) ? "dog" : "cat";
             Game1.player.whichPetBreed       = cfg.PetBreed.ToString();
-            Game1.startingCabins             = Math.Clamp(cfg.CabinCount, 1, 4);
+            Game1.startingCabins             = Math.Clamp(cfg.CabinCount, 1, 16);
             Game1.cabinsSeparate             = cfg.CabinLayout.Equals("separate", StringComparison.OrdinalIgnoreCase);
 
             Game1.player.team.useSeparateWallets.Value =
