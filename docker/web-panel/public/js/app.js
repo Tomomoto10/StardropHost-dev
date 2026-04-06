@@ -1317,13 +1317,26 @@ function init() {
     applyTheme();
   };
 
+  function _closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.remove('open');
+    document.getElementById('menuIconOpen').style.display  = '';
+    document.getElementById('menuIconClose').style.display = 'none';
+    document.getElementById('menuOverlay').classList.remove('active');
+    _updateMenuToggleDot();
+  }
+
   document.getElementById('menuToggle').onclick = () => {
     const sidebar = document.getElementById('sidebar');
     const isOpen  = sidebar.classList.toggle('open');
     document.getElementById('menuIconOpen').style.display  = isOpen ? 'none' : '';
     document.getElementById('menuIconClose').style.display = isOpen ? '' : 'none';
+    document.getElementById('menuOverlay').classList.toggle('active', isOpen);
     _updateMenuToggleDot();
   };
+
+  document.getElementById('sidebarCloseBtn').onclick = _closeSidebar;
+  document.getElementById('menuOverlay').onclick      = _closeSidebar;
 
   // Log controls — smart auto-scroll: pauses when user scrolls up, resumes at bottom
   const logOutput = document.getElementById('logOutput');
@@ -1410,6 +1423,8 @@ function navigateTo(page) {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('menuIconOpen').style.display  = '';
   document.getElementById('menuIconClose').style.display = 'none';
+  document.getElementById('menuOverlay').classList.remove('active');
+  document.getElementById('page-container')?.scrollTo(0, 0);
   _updateMenuToggleDot();
 
   switch (page) {

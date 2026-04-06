@@ -261,7 +261,11 @@
   <div id="app" style="display:none">
 
     <!-- Sidebar -->
-    <nav id="sidebar">
+    <div id="menuOverlay"></div>
+    <nav id="sidebar" style="position:relative">
+      <button id="sidebarCloseBtn" class="btn-icon" type="button" title="Close menu">
+        <svg class="icon"><use href="#icon-chevron-left"></use></svg>
+      </button>
       <div class="sidebar-header" style="flex-direction:column;align-items:center;padding:20px 8px 14px;gap:6px">
         <img src="/favicon.png" style="width:96px;height:96px;object-fit:contain;display:block">
         <span class="logo-text">StardropHost</span>

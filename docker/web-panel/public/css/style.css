@@ -1173,6 +1173,26 @@ select.form-input {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+/* ─── Menu overlay (portrait mobile — click-off to close) ─────── */
+#menuOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 99;
+  cursor: pointer;
+}
+#menuOverlay.active { display: block; }
+
+/* Sidebar close button (inside sidebar, mobile only) */
+#sidebarCloseBtn {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+}
+
 /* ─── Responsive ──────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
@@ -1187,11 +1207,22 @@ select.form-input {
   .form-row { flex-direction: column; }
   .config-item { flex-direction: column; align-items: flex-start; gap: 8px; }
   .player-actions { flex-wrap: wrap; }
+  #sidebarCloseBtn { display: block; }
 }
 
 @media (max-width: 480px) {
   .cards-grid { grid-template-columns: 1fr; }
   #page-container { padding: 12px; }
+}
+
+/* ─── Landscape mobile — hide sidebar like portrait, no overlay ── */
+@media (orientation: landscape) and (max-height: 600px) {
+  #sidebar { transform: translateX(-100%); }
+  #sidebar.open { transform: translateX(0); }
+  #content { margin-left: 0; }
+  .mobile-only { display: block; }
+  #sidebarCloseBtn { display: block; }
+  #menuOverlay { display: none !important; }
 }
 
 /* ── Remote tab ──────────────────────────────────────────────── */
