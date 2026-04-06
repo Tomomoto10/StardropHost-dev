@@ -430,15 +430,18 @@ function submitNewFarm(req, res) {
     return res.status(500).json({ error: 'Failed to save farm config', details: e.message });
   }
 
-  // Write playerLimit to startup_preferences so SDV allows the right number of connections
+  // Write playerLimit to startup_preferences (immediate effect) and to env (survives game resetting it on each run)
+  // playerLimit = cabins + 1 (host counts as one slot)
+  const playerLimit = cc + 1;
+  writeEnvValues({ PLAYER_LIMIT: String(playerLimit) });
   try {
     const prefsPath = path.join(config.CONFIG_DIR, 'startup_preferences');
     if (fs.existsSync(prefsPath)) {
       let prefs = fs.readFileSync(prefsPath, 'utf-8');
       if (prefs.includes('<playerLimit>')) {
-        prefs = prefs.replace(/<playerLimit>[^<]*<\/playerLimit>/, `<playerLimit>${cc + 1}</playerLimit>`);
+        prefs = prefs.replace(/<playerLimit>[^<]*<\/playerLimit>/, `<playerLimit>${playerLimit}</playerLimit>`);
       } else {
-        prefs = prefs.replace('</StartupPreferences>', `  <playerLimit>${cc + 1}</playerLimit>\n</StartupPreferences>`);
+        prefs = prefs.replace('</StartupPreferences>', `  <playerLimit>${playerLimit}</playerLimit>\n</StartupPreferences>`);
       }
       fs.writeFileSync(prefsPath, prefs, 'utf-8');
     }

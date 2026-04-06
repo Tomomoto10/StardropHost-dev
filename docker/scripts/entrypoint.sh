@@ -103,6 +103,16 @@ apply_startup_preferences_tuning() {
         s#<musicVolumeLevel>.*?</musicVolumeLevel>#<musicVolumeLevel>0</musicVolumeLevel>#s;
         s#<soundVolumeLevel>.*?</soundVolumeLevel>#<soundVolumeLevel>0</soundVolumeLevel>#s;
     " "$config_file"
+
+    # Re-apply playerLimit every start — the game resets it to -1 when it saves startup_preferences
+    if [ -n "${PLAYER_LIMIT:-}" ]; then
+        if grep -q '<playerLimit>' "$config_file"; then
+            perl -0pi -e "s#<playerLimit>.*?</playerLimit>#<playerLimit>${PLAYER_LIMIT}</playerLimit>#s" "$config_file"
+        else
+            perl -0pi -e "s#</StartupPreferences>#  <playerLimit>${PLAYER_LIMIT}</playerLimit>\n</StartupPreferences>#s" "$config_file"
+        fi
+        log_info "  playerLimit set to ${PLAYER_LIMIT}"
+    fi
 }
 
 # -- Game file setup --
