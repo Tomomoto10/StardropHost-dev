@@ -2268,7 +2268,12 @@ async function loadFarmhands() {
   const pending = data?.pendingRemovals || [];
 
   if (!cabins.length) {
-    card.style.display = 'none';
+    card.style.display = '';
+    const serverState = data?.serverState;
+    const isLoading = !serverState || serverState === 'loading' || serverState === 'starting';
+    el.innerHTML = isLoading
+      ? `<p class="text-muted" style="margin:0;font-size:13px">Game Loading…</p>`
+      : `<p class="text-muted" style="margin:0;font-size:13px">No cabin slots found.</p>`;
     return;
   }
   card.style.display = '';
@@ -2277,10 +2282,8 @@ async function loadFarmhands() {
     // live-status.json is camelCase (SMAPI JSON serializer)
     const name      = c.ownerName || c.OwnerName;
     const online    = c.isOwnerOnline ?? c.IsOwnerOnline;
-    const tx        = c.tileX ?? c.TileX;
-    const ty        = c.tileY ?? c.TileY;
     const unclaimed = !name || name === 'Unclaimed';
-    const isPending = pending.some(p => p.tileX === tx && p.tileY === ty);
+    const isPending = pending.some(p => p.ownerName === name);
     const onlineDot = online
       ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>`
       : '';
@@ -2294,20 +2297,20 @@ async function loadFarmhands() {
         </div>
         <div class="farmhand-slot-actions">
           ${!unclaimed && !isPending
-            ? `<button class="btn btn-sm btn-danger" onclick="removeFarmhandSlot(this,'${escapeHtml(name)}',${tx},${ty})">Remove</button>`
+            ? `<button class="btn btn-sm btn-danger" onclick="removeFarmhandSlot(this,'${escapeHtml(name)}')">Remove</button>`
             : ''}
           ${isPending
-            ? `<button class="btn btn-sm btn-secondary" onclick="cancelFarmhandRemoval(this,${tx},${ty})">Cancel</button>`
+            ? `<button class="btn btn-sm btn-secondary" onclick="cancelFarmhandRemoval(this,'${escapeHtml(name)}')">Cancel</button>`
             : ''}
         </div>
       </div>`;
   }).join('');
 }
 
-async function removeFarmhandSlot(btn, ownerName, tileX, tileY) {
+async function removeFarmhandSlot(btn, ownerName) {
   if (!confirm(`Remove "${ownerName}" from their cabin slot?\n\nThis will wipe their character data on next server restart, freeing the slot for a new player.`)) return;
   btn.disabled = true;
-  const data = await API.post('/api/players/farmhands/remove', { ownerName, tileX, tileY }).catch(() => null);
+  const data = await API.post('/api/players/farmhands/remove', { ownerName }).catch(() => null);
   if (data?.success) {
     showRestartModal(`Restart the server to complete removal of "${ownerName}".`);
     loadFarmhands();
@@ -2317,9 +2320,9 @@ async function removeFarmhandSlot(btn, ownerName, tileX, tileY) {
   }
 }
 
-async function cancelFarmhandRemoval(btn, tileX, tileY) {
+async function cancelFarmhandRemoval(btn, ownerName) {
   btn.disabled = true;
-  const data = await API.post('/api/players/farmhands/cancel', { tileX, tileY }).catch(() => null);
+  const data = await API.post('/api/players/farmhands/cancel', { ownerName }).catch(() => null);
   if (data?.success) { loadFarmhands(); }
   else { showToast('Failed to cancel', 'error'); btn.disabled = false; }
 }

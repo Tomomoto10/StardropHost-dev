@@ -582,27 +582,24 @@ const PENDING_FARMHAND_FILE = '/home/steam/.local/share/stardrop/pending-farmhan
 
 function getFarmhands(req, res) {
   try {
-    if (!fs.existsSync(config.LIVE_FILE)) return res.json({ cabins: [], pendingRemovals: [] });
+    if (!fs.existsSync(config.LIVE_FILE)) return res.json({ cabins: [], pendingRemovals: [], serverState: null });
     const live = JSON.parse(fs.readFileSync(config.LIVE_FILE, 'utf-8'));
     let pending = [];
     try { pending = JSON.parse(fs.readFileSync(PENDING_FARMHAND_FILE, 'utf-8')); } catch {}
-    res.json({ cabins: live.cabins || [], pendingRemovals: pending });
+    res.json({ cabins: live.cabins || [], pendingRemovals: pending, serverState: live.serverState || null });
   } catch {
-    res.json({ cabins: [], pendingRemovals: [] });
+    res.json({ cabins: [], pendingRemovals: [], serverState: null });
   }
 }
 
 function removeFarmhand(req, res) {
-  const { ownerName, tileX, tileY } = req.body || {};
-  if (!ownerName || tileX == null || tileY == null) {
-    return res.status(400).json({ error: 'ownerName, tileX, tileY required' });
-  }
+  const { ownerName } = req.body || {};
+  if (!ownerName) return res.status(400).json({ error: 'ownerName required' });
   try {
     let pending = [];
     try { pending = JSON.parse(fs.readFileSync(PENDING_FARMHAND_FILE, 'utf-8')); } catch {}
-    const already = pending.some(p => p.tileX === tileX && p.tileY === tileY);
-    if (!already) {
-      pending.push({ ownerName, tileX, tileY });
+    if (!pending.some(p => p.ownerName === ownerName)) {
+      pending.push({ ownerName });
       fs.writeFileSync(PENDING_FARMHAND_FILE, JSON.stringify(pending, null, 2));
     }
     res.json({ success: true, pendingRestart: true });
@@ -612,11 +609,12 @@ function removeFarmhand(req, res) {
 }
 
 function cancelFarmhandRemoval(req, res) {
-  const { tileX, tileY } = req.body || {};
+  const { ownerName } = req.body || {};
+  if (!ownerName) return res.status(400).json({ error: 'ownerName required' });
   try {
     let pending = [];
     try { pending = JSON.parse(fs.readFileSync(PENDING_FARMHAND_FILE, 'utf-8')); } catch {}
-    pending = pending.filter(p => !(p.tileX === tileX && p.tileY === tileY));
+    pending = pending.filter(p => p.ownerName !== ownerName);
     if (pending.length) {
       fs.writeFileSync(PENDING_FARMHAND_FILE, JSON.stringify(pending, null, 2));
     } else {

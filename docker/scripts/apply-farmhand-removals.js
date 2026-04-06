@@ -2,8 +2,8 @@
 /**
  * StardropHost | apply-farmhand-removals.js
  * Runs at server startup (via entrypoint.sh) BEFORE SMAPI loads.
- * Reads pending-farmhand-removals.json and wipes matching farmhand
- * identity fields from the active save, making the cabin unclaimed.
+ * Reads pending-farmhand-removals.json and deletes the matching <Farmer>
+ * block from <farmhands> in the active save file, freeing the cabin slot.
  */
 
 const fs   = require('fs');
@@ -64,36 +64,23 @@ try {
 let xml = fs.readFileSync(saveFile, 'utf-8');
 let anyModified = false;
 
-for (const { ownerName, tileX, tileY } of pending) {
-  log(`Removing farmhand "${ownerName}" at tile (${tileX}, ${tileY})…`);
-  let found = false;
+for (const { ownerName } of pending) {
+  if (!ownerName) { log('Skipping entry with no ownerName'); continue; }
+  log(`Removing farmhand "${ownerName}"…`);
 
-  // Match each Cabin building block, identify by tile position, wipe farmhand identity
-  xml = xml.replace(
-    /(<Building[^>]*xsi:type="Cabin"[^>]*>)([\s\S]*?)(<\/Building>)/g,
-    (full, open, inner, close) => {
-      if (found) return full;
-      if (!inner.includes(`<tileX>${tileX}</tileX>`) ||
-          !inner.includes(`<tileY>${tileY}</tileY>`)) return full;
+  // The save stores farmhands as <farmhands><Farmer><name>PlayerName</name>...</Farmer></farmhands>
+  // Find and delete the entire <Farmer>...</Farmer> block whose <name> matches ownerName.
+  const escapedName = ownerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`<Farmer><name>${escapedName}<\\/name>[\\s\\S]*?<\\/Farmer>`, 'g');
 
-      found = true;
-      // Wipe name and UniqueMultiplayerID within the <farmhand> block only
-      const wiped = inner.replace(
-        /(<farmhand>[\s\S]*?)(<name>)[^<]*(<\/name>)/,
-        '$1$2$3'
-      ).replace(
-        /(<farmhand>[\s\S]*?)(<UniqueMultiplayerID>)[^<]*(<\/UniqueMultiplayerID>)/,
-        '$10$3'
-      );
-      return open + wiped + close;
-    }
-  );
+  const before = xml;
+  xml = xml.replace(pattern, '');
 
-  if (found) {
+  if (xml !== before) {
     log(`✅ "${ownerName}" removed`);
     anyModified = true;
   } else {
-    log(`⚠️  Cabin at (${tileX}, ${tileY}) not found in save — skipping`);
+    log(`⚠️  No <Farmer> block found for "${ownerName}" — skipping`);
   }
 }
 
