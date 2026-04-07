@@ -179,10 +179,12 @@ app.post('/api/remote/addresses', auth.verifyMiddleware, remoteAPI.saveAddresses
 
 // -- Steam (auth via steam-auth container for game download only) --
 const steamAPI = require('./api/steam');
-app.get( '/api/steam/status',     auth.verifyMiddleware, steamAPI.getStatus);
-app.post('/api/steam/login',      auth.verifyMiddleware, steamAPI.login);
-app.post('/api/steam/guard',      auth.verifyMiddleware, steamAPI.submitGuardCode);
-app.post('/api/steam/logout',     auth.verifyMiddleware, steamAPI.logout);
+app.get( '/api/steam/status',           auth.verifyMiddleware, steamAPI.getStatus);
+app.post('/api/steam/login',           auth.verifyMiddleware, steamAPI.login);
+app.post('/api/steam/guard',           auth.verifyMiddleware, steamAPI.submitGuardCode);
+app.post('/api/steam/logout',          auth.verifyMiddleware, steamAPI.logout);
+app.post('/api/steam/container/start', auth.verifyMiddleware, steamAPI.startContainer);
+app.post('/api/steam/container/stop',  auth.verifyMiddleware, steamAPI.stopContainer);
 
 // -- Setup wizard (no token on status so the frontend can decide whether to show it) --
 const wizardAPI = require('./api/wizard');

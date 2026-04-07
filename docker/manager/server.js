@@ -19,10 +19,11 @@ const COMPOSE_OVERRIDE = `${PROJECT_DIR}/docker-compose.override.yml`;
 const DEFAULT_ENV_FILE = `${PROJECT_DIR}/.env`;
 const RUNTIME_ENV_FILE = `${PROJECT_DIR}/data/panel/runtime.env`;
 
-const ALLOWED_SERVICES = new Set(['stardrop-server']);
+const ALLOWED_SERVICES = new Set(['stardrop-server', 'stardrop-steam-auth']);
 
 const SERVICE_CONTAINERS = {
-  'stardrop-server': 'stardrop',
+  'stardrop-server':    'stardrop',
+  'stardrop-steam-auth': process.env.CONTAINER_PREFIX ? `${process.env.CONTAINER_PREFIX}-steam-auth` : 'stardrop-steam-auth',
 };
 
 // -- Helpers --

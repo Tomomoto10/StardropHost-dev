@@ -107,7 +107,7 @@ services:
     build: ./docker/steam-auth
     image: stardrop-steam-auth:local
     container_name: ${CONTAINER_PREFIX:-stardrop}-steam-auth
-    restart: unless-stopped
+    restart: no
     dns:
       - 8.8.8.8
       - 8.8.4.4

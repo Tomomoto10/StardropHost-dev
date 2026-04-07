@@ -8,6 +8,7 @@
 const http   = require('http');
 
 const STEAM_AUTH_URL = process.env.STEAM_AUTH_URL || 'http://stardrop-steam-auth:18700';
+const MANAGER_URL    = process.env.MANAGER_URL    || 'http://stardrop-manager:18700';
 
 // -- Forward a request to steam-auth container --
 function callSteamAuth(method, path, body = null) {
@@ -102,4 +103,50 @@ async function logout(req, res) {
   }
 }
 
-module.exports = { getStatus, login, submitGuardCode, logout };
+// -- Container lifecycle (via manager) --
+
+function callManager(path, body = {}) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const url     = new URL(path, MANAGER_URL);
+    const req     = http.request({
+      hostname: url.hostname, port: url.port || 80, path: url.pathname,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+      timeout: 8000,
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try   { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, body: { error: data } }); }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('manager timeout')));
+    req.on('error',   reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+async function startContainer(req, res) {
+  try {
+    const { body } = await callManager('/start', { service: 'stardrop-steam-auth' });
+    res.json({ success: true, ...body });
+  } catch (e) {
+    res.status(503).json({ error: 'Manager unavailable', details: e.message });
+  }
+}
+
+async function stopContainer(req, res) {
+  try {
+    // Also log out of steam-auth before stopping so credentials are cleared from memory
+    await callSteamAuth('POST', '/logout').catch(() => null);
+    const { body } = await callManager('/stop', { service: 'stardrop-steam-auth' });
+    res.json({ success: true, ...body });
+  } catch (e) {
+    res.status(503).json({ error: 'Manager unavailable', details: e.message });
+  }
+}
+
+module.exports = { getStatus, login, submitGuardCode, logout, startContainer, stopContainer };

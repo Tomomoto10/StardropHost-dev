@@ -362,8 +362,36 @@ async function wizSteamLogin() {
   _wizState._steamPass = pass;
 
   loginBtn.disabled = true;
-  loginBtn.textContent = 'Connecting to Steam…';
+  loginBtn.textContent = 'Starting Steam service…';
   statusEl.style.color = 'var(--text-secondary)';
+  statusEl.textContent = 'Starting Steam auth service…';
+
+  // Ensure steam-auth container is running before attempting login
+  try {
+    await API.post('/api/steam/container/start');
+  } catch {}
+
+  // Poll until the container responds (up to 20s)
+  const ready = await (async () => {
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      try {
+        const s = await API.get('/api/steam/status');
+        if (s?.state && s.state !== 'unavailable') return true;
+      } catch {}
+    }
+    return false;
+  })();
+
+  if (!ready) {
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Login to Steam';
+    statusEl.style.color = 'var(--accent-error)';
+    statusEl.textContent = '❌ Steam auth service failed to start — check container logs.';
+    return;
+  }
+
+  loginBtn.textContent = 'Connecting to Steam…';
   statusEl.textContent = 'Connecting to Steam…';
 
   try {
@@ -1192,6 +1220,9 @@ async function wizComplete() {
 
   // Mark wizard complete in backend state regardless of step-check results
   try { await API.post('/api/wizard/force-complete'); } catch {}
+
+  // Stop steam-auth container — only needed during wizard Steam download
+  API.post('/api/steam/container/stop').catch(() => null);
 
   // For existing-save path: save is already on disk — auto-select if needed.
   // For new-farm path: save won't exist until Day 1 ends; don't block here.
