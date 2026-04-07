@@ -5053,17 +5053,6 @@ function _populateConnectionAddresses() {
   if (gameAddr) gameAddr.textContent   = _remoteAddressCache.game;
   if (dashAddr) dashAddr.textContent   = _remoteAddressCache.dashboard;
 
-  // Dashboard — remote status dot + label linked to remote service status
-  const dot   = document.getElementById('dashboard-remote-status-dot');
-  const label = document.getElementById('dashboard-remote-status-label');
-  if (dot && label) {
-    const running = lastRemoteData?.anyRunning;
-    const configured = lastRemoteData?.configured;
-    const cls  = running ? 'running' : configured ? 'offline' : 'offline';
-    const text = running ? 'Active' : configured ? 'Stopped' : 'Not configured';
-    dot.className   = `status-dot ${cls}`;
-    label.textContent = text;
-  }
 }
 
 function _remoteAddrDirty(type) {

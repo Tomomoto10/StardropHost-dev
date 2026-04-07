@@ -62,8 +62,7 @@ const CONFIG_SCHEMA = {
     { key: 'METRICS_PORT',        label: 'Metrics Port',  type: 'number',  default: '9090' },
   ],
   'Gameplay': [
-    { key: 'CROP_SAVER_ENABLED', label: 'Crop Saver', type: 'boolean', default: 'false',
-      description: 'Preserves farmhand crops when the owner is offline. Each day the owner is absent and their plot is unwatered, the crop earns an extra day of life.' },
+    { key: 'CROP_SAVER_ENABLED', label: 'Crop Saver', type: 'boolean', default: 'false', hidden: true },
   ],
   'Server': [],
   'Updates': [
@@ -200,7 +199,9 @@ function getConfig(req, res) {
   const groups         = [];
 
   for (const [groupName, fields] of Object.entries(CONFIG_SCHEMA)) {
-    const items = fields.map(field => {
+    const visibleFields = fields.filter(f => !f.hidden);
+    if (!visibleFields.length) continue;
+    const items = visibleFields.map(field => {
       let value = env[field.key] ?? process.env[field.key] ?? field.default ?? '';
 
       // Sensitive: mask unless viewable

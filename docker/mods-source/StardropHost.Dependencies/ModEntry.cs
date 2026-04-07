@@ -83,6 +83,7 @@ namespace StardropHostDependencies
         // bansByName["Tom"] = ["Tom", "192.168.0.140"]
         private Dictionary<string, List<string>> _bansByName = new();
         private CropSaver? _cropSaver = null;
+        private int        _playerLimit = 17;
         // idToName["1314339377246380246"] = "Tom"
         private Dictionary<string, string> _idToName = new();
 
@@ -198,6 +199,12 @@ namespace StardropHostDependencies
             helper.ConsoleCommands.Add("stardrop_deletefarmhand", "Delete an offline farmhand and free their cabin. Usage: stardrop_deletefarmhand <name>", OnDeleteFarmhandCommand);
             helper.ConsoleCommands.Add("stardrop_cropsaver",      "Toggle CropSaver on or off. Usage: stardrop_cropsaver <on|off>",                        OnCropSaverCommand);
 
+            // Player limit — read once at startup from env, enforced every tick in OnUpdateTicked
+            var envLimit = Environment.GetEnvironmentVariable("PLAYER_LIMIT");
+            if (!string.IsNullOrEmpty(envLimit) && int.TryParse(envLimit, out int parsedLimit) && parsedLimit > 0)
+                _playerLimit = parsedLimit;
+            Monitor.Log($"[PlayerLimit] Configured to {_playerLimit} ({_playerLimit - 1} farmhands + host).", LogLevel.Info);
+
             // CropSaver — reads CROP_SAVER_ENABLED env var (default: false)
             var cropSaverEnabled = (Environment.GetEnvironmentVariable("CROP_SAVER_ENABLED") ?? "false")
                                        .Equals("true", StringComparison.OrdinalIgnoreCase);
@@ -213,23 +220,6 @@ namespace StardropHostDependencies
         private void OnSaveLoaded(object? sender, SaveLoadedEventArgs e)
         {
             LoadBanMap();
-
-            // Apply player limit — must set all three fields; only CurrentPlayerLimit was set before
-            // which left the actual connection gate (Multiplayer.playerLimit) untouched.
-            // Reads PLAYER_LIMIT env var (set by entrypoint.sh from wizard), defaults to 17 (16 farmhands + host).
-            int limit = 17;
-            var envLimit = Environment.GetEnvironmentVariable("PLAYER_LIMIT");
-            if (!string.IsNullOrEmpty(envLimit) && int.TryParse(envLimit, out int parsed) && parsed > 0)
-                limit = parsed;
-
-            try
-            {
-                Game1.Multiplayer.playerLimit              = limit;
-                Game1.netWorldState.Value.CurrentPlayerLimit = limit;
-                Game1.netWorldState.Value.HighestPlayerLimit = limit;
-                Monitor.Log($"[PlayerLimit] Set to {limit} ({limit - 1} farmhands + host).", LogLevel.Info);
-            }
-            catch (Exception ex) { Monitor.Log($"Could not set player limit: {ex.Message}", LogLevel.Warn); }
 
             // Apply move-build permission from farm config (new-farm.json)
             if (_cfg?.MoveBuildPermission is string perm && perm != "off")
@@ -275,6 +265,17 @@ namespace StardropHostDependencies
                 Game1.Multiplayer.farmerDeltaBroadcastPeriod     = 3;
                 Game1.Multiplayer.locationDeltaBroadcastPeriod   = 3;
                 Game1.Multiplayer.worldStateDeltaBroadcastPeriod = 3;
+
+                // Player limit — synced every tick so the game can never revert it.
+                // All three fields required: playerLimit gates connections, Current/HighestPlayerLimit
+                // are net fields synced to clients. Without every-tick sync, SaveLoaded sets them
+                // but the game overwrites them from startup_preferences on the next update.
+                if (Game1.Multiplayer.playerLimit != _playerLimit)
+                    Game1.Multiplayer.playerLimit = _playerLimit;
+                if (Game1.netWorldState.Value.CurrentPlayerLimit != _playerLimit)
+                    Game1.netWorldState.Value.CurrentPlayerLimit = _playerLimit;
+                if (Game1.netWorldState.Value.HighestPlayerLimit != _playerLimit)
+                    Game1.netWorldState.Value.HighestPlayerLimit = _playerLimit;
             }
 
             // Keep host alive (prevents pass-out blocking end-of-day)
