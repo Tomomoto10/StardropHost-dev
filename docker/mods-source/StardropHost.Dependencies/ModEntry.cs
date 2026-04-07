@@ -1432,8 +1432,12 @@ namespace StardropHostDependencies
                 return;
             }
 
-            // 0 = HostOnly — cabin moving is restricted to the host
-            if ((int)Options.moveBuildingPermissions == 0)
+            // Block when building moving is restricted to host only.
+            // Log the value so we can confirm the correct integer mapping.
+            int buildPerm = (int)Options.moveBuildingPermissions;
+            Monitor.Log($"[CabinStack] moveBuildingPermissions = {buildPerm}", LogLevel.Debug);
+            // Off/HostOnly = 2, OwnedBuildings = 1, On = 0 (confirmed from SDV source)
+            if (buildPerm == 2)
             {
                 Game1.chatBox?.textBoxEnter("The host has disabled cabin moving. Ask them to change Build Permissions in the world settings.");
                 return;
