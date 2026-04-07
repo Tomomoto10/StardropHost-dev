@@ -198,9 +198,12 @@ function getConfig(req, res) {
   const availableSaves = listAvailableSaves();
   const groups         = [];
 
+  // Groups with special frontend treatment are always emitted even if they have no config items
+  const ALWAYS_EMIT = new Set(['Server']);
+
   for (const [groupName, fields] of Object.entries(CONFIG_SCHEMA)) {
     const visibleFields = fields.filter(f => !f.hidden);
-    if (!visibleFields.length) continue;
+    if (!visibleFields.length && !ALWAYS_EMIT.has(groupName)) continue;
     const items = visibleFields.map(field => {
       let value = env[field.key] ?? process.env[field.key] ?? field.default ?? '';
 
