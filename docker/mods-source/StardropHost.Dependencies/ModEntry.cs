@@ -852,12 +852,12 @@ namespace StardropHostDependencies
             if (cfg.RandomSeed.HasValue)
                 Game1.startingGameSeed = cfg.RandomSeed;
 
+            // Set cabin stack mode BEFORE createdNewCharacter — BuildStartingCabins_Prefix reads this flag
+            _useCabinStack = cfg.CabinStack || cfg.CabinCount > 7;
+
             // multiplayerMode=2 BEFORE createdNewCharacter — required for proper co-op farm
             Game1.multiplayerMode = 2;
             menu.createdNewCharacter(true);
-
-            // Set cabin stack mode — forced on for 8+ cabins regardless of config flag
-            _useCabinStack = cfg.CabinStack || cfg.CabinCount > 7;
 
             // Persist cabin count + stack mode so they survive restart
             try

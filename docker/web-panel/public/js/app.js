@@ -1742,7 +1742,7 @@ function updateDashboardUI(data) {
   // Disable all restart buttons while in any transitional state
   document.querySelectorAll('.btn[onclick="restartServer()"]').forEach(btn => { btn.disabled = starting; });
 
-  setText('stat-players', `${data.players?.online ?? 0}/${data.players?.max ?? 8}`);
+  setText('stat-players', liveRunning ? `${data.players?.online ?? 0}/${data.players?.max ?? '--'}` : '--');
   setText('stat-uptime',  formatUptime(data.uptime || 0));
   setText('stat-day',     data.paused ? 'Paused' : (data.day || '--'));
   setText('stat-backups', data.backupCount ?? 0);
