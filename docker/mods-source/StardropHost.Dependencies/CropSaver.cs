@@ -126,7 +126,7 @@ namespace StardropHostDependencies
             foreach (var f in Game1.getOnlineFarmers())
             {
                 if (f.currentLocation?.Name != "Farm") continue;
-                double dist = Vector2.Distance(f.getTileLocation(), tile);
+                double dist = Vector2.Distance(f.Tile, tile);
                 if (dist < best) { best = dist; ownerId = f.UniqueMultiplayerID; }
             }
 
