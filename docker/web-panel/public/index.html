@@ -496,12 +496,17 @@
             </div>
           </div>
 
-          <div class="card" id="farm-cc-card">
-            <h3>Community Center</h3>
-            <div id="farmCCData">
+          <details class="card admin-cred-details" id="farm-cc-card">
+            <summary>Community Center
+              <span id="farmCCSummary" style="margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);font-weight:400">
+                <span id="farmCCSummaryText">--</span>
+                <span class="cc-room-bar" style="width:80px"><span id="farmCCSummaryFill" class="cc-room-fill" style="width:0%"></span></span>
+              </span>
+            </summary>
+            <div id="farmCCData" style="padding-top:8px">
               <div class="empty-state">Loading save data...</div>
             </div>
-          </div>
+          </details>
 
           <details class="card admin-cred-details" id="farm-admin-card">
             <summary>World Controls</summary>
@@ -1520,7 +1525,7 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
               <div>
                 <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">Starting Cabins</label>
-                <select id="wiz-cabin-count" class="input" style="width:100%">
+                <select id="wiz-cabin-count" class="input" style="width:100%" onchange="wizUpdateCabinStack(parseInt(this.value))">
                   <option value="1">1 cabin (1 player)</option>
                   <option value="2">2 cabins (2 players)</option>
                   <option value="3" selected>3 cabins (3 players)</option>
@@ -1544,6 +1549,13 @@
                   <option value="separate" selected>Separate — spread around farm</option>
                   <option value="nearby">Nearby — clustered together</option>
                 </select>
+                <label id="wiz-cabin-stack-label" style="display:flex;align-items:flex-start;gap:6px;margin-top:8px;font-size:12px;color:var(--text-muted);cursor:pointer">
+                  <input type="checkbox" id="wiz-cabin-stack" style="margin-top:2px;flex-shrink:0">
+                  <span>Cabin Stacking — cabins hidden server-side, each player sees only their own</span>
+                </label>
+                <div id="wiz-cabin-stack-auto" style="display:none;margin-top:3px;padding-left:20px;font-size:11px;color:var(--text-muted)">
+                  Auto-enabled for 8+ players
+                </div>
               </div>
             </div>
 

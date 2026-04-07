@@ -900,6 +900,26 @@ function wizToggleExperimentalCabins(checked) {
     Array.from(sel.options).filter(o => parseInt(o.value) > 8).forEach(o => o.remove());
     warning.style.display = 'none';
   }
+  wizUpdateCabinStack(parseInt(sel.value));
+}
+
+function wizUpdateCabinStack(count) {
+  const cb    = document.getElementById('wiz-cabin-stack');
+  const label = document.getElementById('wiz-cabin-stack-label');
+  const note  = document.getElementById('wiz-cabin-stack-auto');
+  if (!cb) return;
+  if (count >= 8) {
+    cb.checked  = true;
+    cb.disabled = true;
+    label.style.opacity = '0.5';
+    label.style.cursor  = 'default';
+    note.style.display  = '';
+  } else {
+    cb.disabled = false;
+    label.style.opacity = '1';
+    label.style.cursor  = 'pointer';
+    note.style.display  = 'none';
+  }
 }
 
 // ─── Farm Setup (Step 5) ─────────────────────────────────────────
@@ -962,6 +982,7 @@ async function wizCreateNewFarm() {
   const farmType     = val('wiz-farm-type')   || '0';
   const cabinCount   = val('wiz-cabin-count') || '1';
   const cabinLayout  = val('wiz-cabin-layout')|| 'separate';
+  const cabinStack   = document.getElementById('wiz-cabin-stack')?.checked ?? false;
   const moneyStyle   = val('wiz-money-style') || 'shared';
   const profitMargin = val('wiz-profit-margin')|| 'normal';
   const moveBuild    = val('wiz-move-build')  || 'off';
@@ -983,7 +1004,7 @@ async function wizCreateNewFarm() {
   try {
     await API.post('/api/wizard/new-farm', {
       farmName, farmerName, favoriteThing,
-      farmType, cabinCount, cabinLayout,
+      farmType, cabinCount, cabinLayout, cabinStack,
       moneyStyle, profitMargin, moveBuildPermission: moveBuild,
       communityCenterBundles: ccBundles, mineRewards,
       spawnMonstersAtNight: monsters === 'true',
@@ -1891,17 +1912,17 @@ async function loadFarm() {
         </details>`;
     }).join('');
 
-    ccEl.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span class="detail-label">Progress</span>
-        <span class="detail-value">${cc.completedRooms} / ${cc.totalRooms} Rooms (${cc.percentComplete}%)</span>
-      </div>
-      <div class="progress-bar" style="margin-bottom:16px;height:12px">
-        <div class="progress-fill" style="width:${cc.percentComplete}%;${cc.percentComplete === 100 ? 'background:var(--accent)' : ''}"></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px">${roomsHtml}</div>
-    `;
+    const summaryText = document.getElementById('farmCCSummaryText');
+    const summaryFill = document.getElementById('farmCCSummaryFill');
+    if (summaryText) summaryText.textContent = `${cc.completedRooms} / ${cc.totalRooms} rooms  ${cc.percentComplete}%`;
+    if (summaryFill) {
+      summaryFill.style.width = `${cc.percentComplete}%`;
+      summaryFill.style.background = cc.percentComplete === 100 ? 'var(--accent)' : '';
+    }
+    ccEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:4px">${roomsHtml}</div>`;
   } else {
+    const summaryText = document.getElementById('farmCCSummaryText');
+    if (summaryText) summaryText.textContent = '0 / 6 rooms  0%';
     ccEl.innerHTML = '<div class="empty-state">Community Center data not available</div>';
   }
 
@@ -4521,7 +4542,7 @@ async function confirmFactoryReset() {
   if (data?.success) {
     closeFactoryResetModal();
     showToast('Reset complete — restarting setup wizard…', 'success');
-    setTimeout(() => navigateTo('dashboard'), 1500);
+    setTimeout(() => window.location.reload(), 2500);
   } else {
     showToast(data?.error || 'Reset failed', 'error');
     btn.disabled = false;

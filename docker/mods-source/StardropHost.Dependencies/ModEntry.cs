@@ -51,6 +51,7 @@ namespace StardropHostDependencies
         private static readonly Point   HiddenCabinLocation    = new Point(-20, -20);
         private static readonly Vector2 FallbackCabinVisiblePos = new Vector2(50, 14);
         private const string            CabinCountPath          = "/home/steam/web-panel/data/cabin-count.json";
+        private static bool             _useCabinStack          = false;
 
         private static readonly JsonSerializerOptions _chatJsonOpts = new()
         {
@@ -179,12 +180,12 @@ namespace StardropHostDependencies
             }
             catch (Exception ex) { Monitor.Log($"[ChatBridge] receiveChatMessage patch failed: {ex.Message}", LogLevel.Warn); }
 
-            // Cabin Stack — disable vanilla cabin placement; we build cabins ourselves
+            // Cabin Stack — conditionally disable vanilla cabin placement when stacking is active
             try
             {
                 harmony.Patch(
                     AccessTools.Method(typeof(GameLocation), nameof(GameLocation.BuildStartingCabins)),
-                    prefix: new HarmonyMethod(typeof(ModEntry), nameof(Disable_Prefix)));
+                    prefix: new HarmonyMethod(typeof(ModEntry), nameof(BuildStartingCabins_Prefix)));
             }
             catch (Exception ex) { Monitor.Log($"[CabinStack] BuildStartingCabins patch failed: {ex.Message}", LogLevel.Warn); }
 
@@ -262,10 +263,11 @@ namespace StardropHostDependencies
                 _isSleepInProgress = false;
                 _handledReadyCheck = false;
 
-                // Cabin Stack — ensure the correct number of hidden cabins exist
-                int target = ReadCabinCountFromFile();
-                if (target > 0)
-                    EnsureCabinCount(target);
+                // Cabin Stack — restore mode and ensure correct cabin count
+                var (cabinTarget, cabinStack) = ReadCabinConfigFromFile();
+                _useCabinStack = cabinStack;
+                if (cabinTarget > 0 && _useCabinStack)
+                    EnsureCabinCount(cabinTarget);
             }
 
             Monitor.Log("[StardropHost.Dependencies] Server ready for connections.", LogLevel.Info);
@@ -854,8 +856,16 @@ namespace StardropHostDependencies
             Game1.multiplayerMode = 2;
             menu.createdNewCharacter(true);
 
-            // Persist cabin count so EnsureCabinCount can restore it after restart
-            try { File.WriteAllText(CabinCountPath, cfg.CabinCount.ToString()); } catch { }
+            // Set cabin stack mode — forced on for 8+ cabins regardless of config flag
+            _useCabinStack = cfg.CabinStack || cfg.CabinCount > 7;
+
+            // Persist cabin count + stack mode so they survive restart
+            try
+            {
+                File.WriteAllText(CabinCountPath, JsonSerializer.Serialize(
+                    new { cabinCount = cfg.CabinCount, cabinStack = _useCabinStack }));
+            }
+            catch { }
 
             File.Delete(NewFarmConfigPath);
             Monitor.Log("[GameLoader] Farm creation initiated. new-farm.json removed.", LogLevel.Info);
@@ -1373,17 +1383,25 @@ namespace StardropHostDependencies
         // CABIN STACK
         // ════════════════════════════════════════════════════════════════════
 
-        private int ReadCabinCountFromFile()
+        private (int count, bool stack) ReadCabinConfigFromFile()
         {
             try
             {
-                if (File.Exists(CabinCountPath) &&
-                    int.TryParse(File.ReadAllText(CabinCountPath).Trim(), out int n) && n > 0)
-                    return n;
+                if (File.Exists(CabinCountPath))
+                {
+                    var doc = JsonSerializer.Deserialize<JsonElement>(File.ReadAllText(CabinCountPath));
+                    int  count = doc.TryGetProperty("cabinCount", out var cc) ? cc.GetInt32() : 0;
+                    bool stack = doc.TryGetProperty("cabinStack",  out var cs) && cs.GetBoolean();
+                    return (count, stack);
+                }
             }
             catch { }
-            return 0;
+            return (0, false);
         }
+
+        // Returns false when cabin stack is active — tells Harmony to skip vanilla BuildStartingCabins.
+        // Returns true when cabin stack is off — vanilla places cabins normally.
+        public static bool BuildStartingCabins_Prefix() => !_useCabinStack;
 
         /// <summary>
         /// Builds one cabin at the hidden off-screen location (-20, -20).
@@ -1490,6 +1508,7 @@ namespace StardropHostDependencies
         /// </summary>
         public static void SendMessage_Prefix(long peerId, ref OutgoingMessage message)
         {
+            if (!_useCabinStack) return;
             if (message.MessageType != Multiplayer.locationIntroduction) return;
             _instance?.InterceptLocationIntroduction(peerId, ref message);
         }
@@ -1635,6 +1654,7 @@ namespace StardropHostDependencies
         public int    FarmType                  { get; set; } = 0;
         public int    CabinCount                { get; set; } = 1;
         public string CabinLayout               { get; set; } = "separate";
+        public bool   CabinStack                { get; set; } = false;
         public string MoneyStyle                { get; set; } = "shared";
         public string ProfitMargin              { get; set; } = "normal";
         public string CommunityCenterBundles    { get; set; } = "normal";
