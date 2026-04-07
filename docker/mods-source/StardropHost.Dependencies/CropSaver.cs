@@ -20,7 +20,7 @@ using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.TerrainFeatures;
 
-namespace StardropHost.Dependencies
+namespace StardropHostDependencies
 {
     internal class SaverCrop
     {
