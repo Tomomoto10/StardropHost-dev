@@ -51,7 +51,10 @@ namespace StardropHostDependencies
         private static readonly Point   HiddenCabinLocation    = new Point(-20, -20);
         private static readonly Vector2 FallbackCabinVisiblePos = new Vector2(50, 14);
         private const string            CabinCountPath          = "/home/steam/web-panel/data/cabin-count.json";
+        private const string            CabinPositionsPath      = "/home/steam/web-panel/data/cabin-positions.json";
         private static bool             _useCabinStack          = false;
+        // playerId (string) → visible tile position chosen by that farmhand
+        private Dictionary<string, Vector2> _cabinPositions = new();
 
         private static readonly JsonSerializerOptions _chatJsonOpts = new()
         {
@@ -268,6 +271,7 @@ namespace StardropHostDependencies
                 _useCabinStack = cabinStack;
                 if (cabinTarget > 0 && _useCabinStack)
                     EnsureCabinCount(cabinTarget);
+                LoadCabinPositions();
             }
 
             Monitor.Log("[StardropHost.Dependencies] Server ready for connections.", LogLevel.Info);
@@ -1084,6 +1088,14 @@ namespace StardropHostDependencies
                 // Skip host's own messages — already logged by OnSayCommand / OnTellCommand.
                 if (sourceFarmer != 0 && sourceFarmer == Game1.player?.UniqueMultiplayerID) return;
 
+                // Cabin position command — farmhands only (sourceFarmer != 0 and not host)
+                if (sourceFarmer != 0 && sourceFarmer != Game1.player?.UniqueMultiplayerID
+                    && message.Trim().Equals("move_cabin", StringComparison.OrdinalIgnoreCase))
+                {
+                    _instance?.HandleCabinCommand(sourceFarmer);
+                    return;
+                }
+
                 // Detect join messages: "PlayerName (192.168.0.1) has joined."
                 // These are system messages with sourceFarmer == 0 that contain the player IP.
                 if (sourceFarmer == 0)
@@ -1383,6 +1395,80 @@ namespace StardropHostDependencies
         // CABIN STACK
         // ════════════════════════════════════════════════════════════════════
 
+        private void LoadCabinPositions()
+        {
+            try
+            {
+                if (File.Exists(CabinPositionsPath))
+                {
+                    var raw = JsonSerializer.Deserialize<Dictionary<string, float[]>>(
+                        File.ReadAllText(CabinPositionsPath)) ?? new();
+                    _cabinPositions = raw
+                        .Where(kv => kv.Value?.Length >= 2)
+                        .ToDictionary(kv => kv.Key, kv => new Vector2(kv.Value[0], kv.Value[1]));
+                }
+            }
+            catch { _cabinPositions = new(); }
+        }
+
+        private void SaveCabinPositions()
+        {
+            try
+            {
+                var raw = _cabinPositions.ToDictionary(
+                    kv => kv.Key,
+                    kv => new float[] { kv.Value.X, kv.Value.Y });
+                Directory.CreateDirectory(Path.GetDirectoryName(CabinPositionsPath)!);
+                File.WriteAllText(CabinPositionsPath, JsonSerializer.Serialize(raw));
+            }
+            catch { }
+        }
+
+        private void HandleCabinCommand(long farmerId)
+        {
+            if (!_useCabinStack)
+            {
+                Game1.chatBox?.textBoxEnter("Cabin Stacking is not enabled on this server.");
+                return;
+            }
+
+            // 0 = HostOnly — cabin moving is restricted to the host
+            if ((int)Game1.options.moveBuildingPermissions == 0)
+            {
+                Game1.chatBox?.textBoxEnter("The host has disabled cabin moving. Ask them to change Build Permissions in the world settings.");
+                return;
+            }
+
+            var farmer = Game1.getFarmerMaybeOffline(farmerId);
+            if (farmer == null) return;
+
+            if (farmer.currentLocation is not Farm farm)
+            {
+                Game1.chatBox?.textBoxEnter($"{farmer.Name}: You must be standing on the Farm to use move_cabin.");
+                return;
+            }
+
+            // Place cabin one tile to the right of the player so the door doesn't land on them
+            int x = farmer.TilePoint.X + 1;
+            int y = farmer.TilePoint.Y;
+
+            // Basic bounds check
+            int mapW = farm.map?.Layers[0].LayerWidth  ?? 80;
+            int mapH = farm.map?.Layers[0].LayerHeight ?? 65;
+            if (x < 0 || y < 0 || x + 5 >= mapW || y + 3 >= mapH)
+            {
+                Game1.chatBox?.textBoxEnter($"{farmer.Name}: That position is too close to the edge of the farm. Move further in and try again.");
+                return;
+            }
+
+            _cabinPositions[farmerId.ToString()] = new Vector2(x, y);
+            SaveCabinPositions();
+
+            Game1.chatBox?.textBoxEnter(
+                $"{farmer.Name}: Cabin position set to ({x}, {y}). Rejoin the server to see your cabin in the new location.");
+            Monitor.Log($"[CabinStack] {farmer.Name} set cabin position to ({x},{y}).", LogLevel.Info);
+        }
+
         private (int count, bool stack) ReadCabinConfigFromFile()
         {
             try
@@ -1542,7 +1628,9 @@ namespace StardropHostDependencies
                 if (cabinBuilding == null) return;
 
                 // Move cabin to visible position in this client's copy of the message only
-                var visiblePos = GetDefaultCabinVisiblePosition(farm);
+                var visiblePos = _cabinPositions.TryGetValue(peerId.ToString(), out var savedPos)
+                    ? savedPos
+                    : GetDefaultCabinVisiblePosition(farm);
                 cabinBuilding.tileX.Value = (int)visiblePos.X;
                 cabinBuilding.tileY.Value = (int)visiblePos.Y;
 
