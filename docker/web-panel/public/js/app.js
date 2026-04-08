@@ -4729,11 +4729,6 @@ function _startUpdateElapsedTimer(startedAt) {
     const s = elapsed % 60;
     const el = document.getElementById('updateElapsed');
     if (el) el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-    // Show cancel button after 3 minutes
-    if (elapsed > 180) {
-      const k = document.getElementById('killUpdateBtn');
-      if (k) k.style.display = '';
-    }
   }, 1000);
 }
 
