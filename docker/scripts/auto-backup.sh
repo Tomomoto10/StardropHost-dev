@@ -29,7 +29,15 @@ log ""
 
 mkdir -p "$BACKUP_DIR"
 
-LAST_BACKUP_TIME=$(date +%s)
+LAST_BACKUP_STAMP="$BACKUP_DIR/.last-backup-time"
+
+# Seed from persisted timestamp so restarts don't reset the interval
+if [ -f "$LAST_BACKUP_STAMP" ]; then
+    LAST_BACKUP_TIME=$(cat "$LAST_BACKUP_STAMP" 2>/dev/null || date +%s)
+else
+    # No record — treat as if backup ran at epoch 0 so it triggers promptly
+    LAST_BACKUP_TIME=0
+fi
 
 get_farm_slug() {
     node -e "
@@ -130,6 +138,7 @@ do_backup() {
     log "  Backups: $(ls -1 "$BACKUP_DIR"/*-auto-backup-*.zip 2>/dev/null | wc -l) / $MAX_BACKUPS"
 
     LAST_BACKUP_TIME=$(date +%s)
+    echo "$LAST_BACKUP_TIME" > "$LAST_BACKUP_STAMP"
     return 0
 }
 
