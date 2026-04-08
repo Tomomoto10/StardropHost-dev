@@ -553,6 +553,7 @@ function startServer(req, res) {
 
 // Recreate entire container via manager
 function restartContainer(req, res) {
+  savesAPI.triggerTaggedBackup('restart');
   callManager('/recreate', { service: 'stardrop-server' })
     .then(() => {
       cachedStatus = null;
@@ -565,6 +566,7 @@ function restartContainer(req, res) {
 
 // Pull latest image and restart via manager
 function updateServer(req, res) {
+  savesAPI.triggerTaggedBackup('update');
   callManager('/update')
     .then(() => {
       cachedStatus = null;
