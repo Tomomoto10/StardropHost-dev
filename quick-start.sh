@@ -660,7 +660,29 @@ start_server() {
     fi
 
     print_info "Full install log saved to: $LOG_FILE"
+
+    # Announce this instance to all other running StardropHost instances
+    if [ "$INSTANCE_NUM" -gt 1 ]; then
+        _announce_to_existing_instances
+    fi
 }
+
+_announce_to_existing_instances() {
+    local my_host; my_host=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -z "$my_host" ] && return
+
+    for n in $(seq 1 $((INSTANCE_NUM - 1))); do
+        local existing_port=$((18641 + n))
+        if curl -sf --max-time 3 "http://localhost:${existing_port}/api/instances" >/dev/null 2>&1; then
+            curl -sf --max-time 5 \
+                -X POST \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"Instance ${INSTANCE_NUM}\",\"host\":\"${my_host}\",\"port\":${PANEL_PORT}}" \
+                "http://localhost:${existing_port}/api/instances/register" >/dev/null 2>&1 \
+                && print_success "Registered with instance $n (port ${existing_port})" \
+                || print_info "Instance $n panel not ready yet — will be discovered on next Servers tab load"
+        fi
+    done
 
 # ===========================================
 # Done — show access info

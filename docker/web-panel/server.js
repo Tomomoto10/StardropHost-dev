@@ -167,6 +167,13 @@ app.post(  '/api/chat/send',      auth.verifyMiddleware, chatAPI.sendMessage);
 app.delete('/api/chat/messages',  auth.verifyMiddleware, chatAPI.clearMessages);
 app.get(   '/api/chat/download',  auth.verifyMiddleware, chatAPI.downloadMessages);
 
+// -- Instances (multi-instance peer registry) --
+const instancesAPI = require('./api/instances');
+app.get(   '/api/instances',           instancesAPI.getInstances);   // no auth — public discovery
+app.post(  '/api/instances/register',  instancesAPI.registerPeer);   // no auth — cross-instance announce
+app.post(  '/api/instances/peer',      auth.verifyMiddleware, instancesAPI.addPeer);
+app.delete('/api/instances/peer/:idx', auth.verifyMiddleware, instancesAPI.removePeer);
+
 // -- Remote (tunnel service management via compose override) --
 const remoteAPI = require('./api/remote');
 app.get( '/api/remote/status',    auth.verifyMiddleware, remoteAPI.getStatus);

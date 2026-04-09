@@ -1368,6 +1368,7 @@ async function loadPanelVersion() {
 
 function init() {
   applyTheme();
+  _checkIncomingPeers();
   setupNavigation();
   setupCopyable();
   setupWebSocket();
@@ -1452,7 +1453,7 @@ function init() {
   statusInterval = setInterval(loadDashboard, 5000);
 
   // Restore page from URL hash on refresh
-  const VALID_PAGES = ['dashboard','farm','players','chat','saves','mods','terminal','config','remote'];
+  const VALID_PAGES = ['dashboard','farm','players','chat','saves','mods','terminal','config','remote','servers'];
   const hashPage = window.location.hash.slice(1);
   if (hashPage && VALID_PAGES.includes(hashPage)) navigateTo(hashPage);
 }
@@ -1461,10 +1462,17 @@ function init() {
 const PAGE_TITLES = {
   dashboard: 'Dashboard', farm: 'Farm', players: 'Players', chat: 'Chat',
   saves: 'Saves', mods: 'Mods', terminal: 'Console', config: 'Config', remote: 'Remote',
+  servers: 'Servers',
 };
 
 function setupNavigation() {
+  // If servers feature was previously enabled, restore data-page so hash nav works
+  if (_serversEnabled) {
+    const si = document.getElementById('nav-servers-item');
+    if (si) si.dataset.page = 'servers';
+  }
   document.querySelectorAll('.nav-item, .mob-nav-item').forEach(item => {
+    if (item.id === 'nav-servers-item') return; // handled by _onServersNavClick
     item.onclick = () => navigateTo(item.dataset.page);
   });
 }
@@ -1528,6 +1536,7 @@ function navigateTo(page) {
     case 'terminal':  loadLogs('game'); subscribeToLogs('game'); terminalConnect(); break;
     case 'config':    loadConfig();                                          break;
     case 'remote':    loadRemoteStatus();                                    break;
+    case 'servers':   loadServersPage();                                     break;
   }
 }
 
@@ -5080,6 +5089,203 @@ async function checkAllUpdates() {
 
   if (btn) { btn.disabled = false; btn.textContent = 'Check for Updates'; }
   showToast('Update check complete', 'success');
+}
+
+// ─── Servers (multi-instance) ────────────────────────────────────
+
+let _serversEnabled = !!localStorage.getItem('stardrop_servers_enabled');
+let _serversPeers   = [];  // loaded from API
+
+// On page load — if URL contains ?peers=... auto-import them then clean URL
+function _checkIncomingPeers() {
+  const params = new URLSearchParams(window.location.search);
+  const encoded = params.get('peers');
+  if (!encoded) return;
+  try {
+    const incoming = JSON.parse(atob(encoded));
+    if (Array.isArray(incoming) && incoming.length) {
+      const currentHost = window.location.hostname;
+      const currentPort = parseInt(window.location.port || '18642', 10);
+      // Register each incoming peer that isn't this server
+      incoming.forEach(p => {
+        if (!p.host || !p.port) return;
+        if (p.host === currentHost && p.port === currentPort) return;
+        API.post('/api/instances/peer', { name: p.name || p.host, host: p.host, port: p.port })
+          .catch(() => null);
+      });
+      // Enable servers tab automatically
+      if (!_serversEnabled) {
+        _serversEnabled = true;
+        localStorage.setItem('stardrop_servers_enabled', '1');
+        const si = document.getElementById('nav-servers-item');
+        if (si) si.dataset.page = 'servers';
+      }
+    }
+  } catch {}
+  // Clean URL
+  const url = new URL(window.location.href);
+  url.searchParams.delete('peers');
+  history.replaceState(null, '', url.pathname + url.hash);
+}
+
+function _onServersNavClick() {
+  if (!_serversEnabled) {
+    if (!confirm('Enable multi-instance server switching?\n\nThis adds a Servers tab to manage and switch between multiple StardropHost instances.')) return;
+    _serversEnabled = true;
+    localStorage.setItem('stardrop_servers_enabled', '1');
+    const item = document.getElementById('nav-servers-item');
+    if (item) item.dataset.page = 'servers';
+  }
+  navigateTo('servers');
+}
+
+async function loadServersPage() {
+  const container = document.getElementById('serversContainer');
+  if (!container) return;
+
+  let data;
+  try { data = await API.get('/api/instances'); } catch { data = { self: {}, peers: [] }; }
+
+  const self  = data.self  || {};
+  const peers = data.peers || [];
+  _serversPeers = peers;
+
+  const selfHost = self.host || _cachedLanIp || window.location.hostname;
+  const selfPort = self.port || parseInt(window.location.port || '18642', 10);
+
+  // Auto-scan sibling ports in background — registers any discovered instances silently
+  _scanForInstances(selfHost, selfPort, peers);
+
+  let html = `
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Current Instance</div>
+          <div style="font-weight:600;font-size:14px">${escapeHtml(selfHost)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">Port ${selfPort}</div>
+        </div>
+        <span style="font-size:11px;background:var(--accent);color:#fff;padding:3px 10px;border-radius:10px;white-space:nowrap">This Instance</span>
+      </div>
+    </div>`;
+
+  if (peers.length === 0) {
+    html += `
+    <div style="text-align:center;padding:40px 16px;color:var(--text-muted);font-size:13px">
+      No other instances added yet.<br>
+      <span style="font-size:12px">Scanning for instances on this machine…</span>
+    </div>`;
+  } else {
+    peers.forEach((s, i) => {
+      html += `
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:600;font-size:14px">${escapeHtml(s.name || s.host)}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${escapeHtml(s.host)}:${s.port}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-sm btn-primary" type="button" onclick="_connectToServer(${i})">Connect</button>
+            <button class="btn btn-sm btn-icon" type="button" onclick="_removeServer(${i})" title="Remove">×</button>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+
+  html += `
+    <div style="margin-top:16px">
+      <button class="btn btn-secondary" type="button" onclick="openAddServerModal()">+ Add Server</button>
+    </div>`;
+
+  container.innerHTML = html;
+}
+
+// Scan sibling ports (18642–18651) for other StardropHost instances.
+// Any found that aren't already known get registered as peers automatically.
+async function _scanForInstances(selfHost, selfPort, knownPeers) {
+  const BASE_PORT = 18642;
+  const knownPorts = new Set([selfPort, ...knownPeers.map(p => p.port)]);
+  let found = false;
+
+  const checks = [];
+  for (let port = BASE_PORT; port <= BASE_PORT + 9; port++) {
+    if (knownPorts.has(port)) continue;
+    checks.push((async () => {
+      try {
+        const res = await fetch(`http://${selfHost}:${port}/api/instances`,
+          { signal: AbortSignal.timeout(2000) });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!d?.self) return; // not a StardropHost instance
+        // Register it as a peer
+        await API.post('/api/instances/peer', {
+          name: `Instance (port ${port})`,
+          host: selfHost,
+          port,
+        });
+        found = true;
+      } catch { /* port not running or timeout */ }
+    })());
+  }
+
+  await Promise.all(checks);
+  if (found) loadServersPage(); // refresh to show newly discovered instances
+}
+
+function openAddServerModal() {
+  document.getElementById('addServerModal').style.display = 'flex';
+  document.getElementById('addServerName').value = '';
+  document.getElementById('addServerHost').value = '';
+  document.getElementById('addServerPort').value = '18642';
+  setTimeout(() => document.getElementById('addServerName').focus(), 50);
+}
+
+function closeAddServerModal() {
+  document.getElementById('addServerModal').style.display = 'none';
+}
+
+async function submitAddServer() {
+  const name = document.getElementById('addServerName').value.trim();
+  const host = document.getElementById('addServerHost').value.trim();
+  const port = parseInt(document.getElementById('addServerPort').value.trim(), 10) || 18642;
+  if (!name) { showToast('Server name is required', 'error'); return; }
+  if (!host) { showToast('IP address or hostname is required', 'error'); return; }
+  try {
+    await API.post('/api/instances/peer', { name, host, port });
+    closeAddServerModal();
+    loadServersPage();
+  } catch {
+    showToast('Failed to save server', 'error');
+  }
+}
+
+async function _removeServer(idx) {
+  if (!confirm('Remove this server from the list?')) return;
+  try {
+    await API.del(`/api/instances/peer/${idx}`);
+    loadServersPage();
+  } catch {
+    showToast('Failed to remove server', 'error');
+  }
+}
+
+async function _connectToServer(idx) {
+  const s = _serversPeers[idx];
+  if (!s) return;
+  if (!confirm(`Switch to ${s.name || s.host}?\n\n${s.host}:${s.port}`)) return;
+
+  // Build peer list to pass to destination — includes self + all current peers
+  let selfData = { host: _cachedLanIp || window.location.hostname,
+                   port: parseInt(window.location.port || '18642', 10),
+                   name: lastStatusData?.live?.farmName || 'StardropHost' };
+  try {
+    const d = await API.get('/api/instances');
+    if (d?.self?.host) selfData = { ...selfData, ...d.self };
+  } catch {}
+  const allPeers = [selfData, ..._serversPeers.filter((p, i) => i !== idx)];
+  const encoded  = btoa(JSON.stringify(allPeers));
+
+  window.location.href = `${window.location.protocol}//${s.host}:${s.port}/?peers=${encoded}`;
 }
 
 // ─── Remote config reveal ─────────────────────────────────────────
