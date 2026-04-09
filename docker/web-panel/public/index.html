@@ -1920,19 +1920,19 @@
           <button class="btn btn-sm" style="color:#ef4444;border-color:#ef4444" type="button" onclick="frNextStep()">I understand, continue</button>
         </div>
       </div>
-      <!-- Step 2: Type confirmation -->
+      <!-- Step 2: Password confirmation -->
       <div id="frStep2" style="display:none">
         <div class="modal-icon">
           <svg class="icon" style="width:32px;height:32px;color:#ef4444"><use href="#icon-alert-triangle"></use></svg>
         </div>
         <h3 style="color:#ef4444">Confirm Deletion</h3>
-        <p style="margin-bottom:16px">Type <strong>DELETE</strong> to confirm you want to permanently erase all farm saves.</p>
-        <input type="text" id="frConfirmInput" class="input" placeholder="Type DELETE to confirm"
-          style="width:100%;margin-bottom:4px" oninput="frCheckInput()">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Case-sensitive</div>
+        <p style="margin-bottom:16px">Enter your admin password to permanently erase all farm saves.</p>
+        <input type="password" id="frConfirmInput" class="input" placeholder="Admin password"
+          style="width:100%;margin-bottom:4px" oninput="frCheckInput()" onkeydown="if(event.key==='Enter')confirmFactoryReset()">
+        <div id="frPasswordError" style="font-size:12px;color:#ef4444;margin-bottom:16px;display:none"></div>
         <div class="modal-actions">
           <button class="btn btn-sm btn-secondary" type="button" onclick="closeFactoryResetModal()">Cancel</button>
-          <button class="btn btn-sm" id="frConfirmBtn" style="color:#ef4444;border-color:#ef4444;opacity:0.4;pointer-events:none"
+          <button class="btn btn-sm" id="frConfirmBtn" style="color:#ef4444;border-color:#ef4444"
             type="button" onclick="confirmFactoryReset()">Delete Everything</button>
         </div>
       </div>

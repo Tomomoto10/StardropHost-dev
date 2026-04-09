@@ -314,15 +314,15 @@ function installInstance() {
     `sh -c "apk add -q git bash curl docker-cli docker-cli-compose && git config --global --add safe.directory '*' && bash ${PROJECT_DIR}/quick-start.sh --yes"`,
   ].join(' ');
 
-  const logStream = fs.createWriteStream(INSTALL_LOG, { flags: 'a' });
+  const logFd = fs.openSync(INSTALL_LOG, 'a');
   const child = spawn('sh', ['-lc', command], {
-    cwd: parentDir, env, detached: true, stdio: ['ignore', logStream, logStream],
+    cwd: parentDir, env, detached: true, stdio: ['ignore', logFd, logFd],
   });
 
   _installProcess = child;
 
   child.on('close', (code) => {
-    logStream.end();
+    try { fs.closeSync(logFd); } catch {}
     writeInstallStatus(code === 0 ? 'done' : 'error', code === 0 ? 'Installation complete' : `Exited with code ${code}`);
     _installProcess = null;
   });

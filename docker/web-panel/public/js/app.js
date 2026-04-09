@@ -4746,27 +4746,41 @@ function openFactoryResetModal() {
 
 function closeFactoryResetModal() {
   document.getElementById('factoryResetModal').style.display = 'none';
+  document.getElementById('frStep1').style.display = '';
+  document.getElementById('frStep2').style.display = 'none';
+  document.getElementById('frConfirmInput').value = '';
+  document.getElementById('frPasswordError').style.display = 'none';
 }
 
 function frNextStep() {
   document.getElementById('frStep1').style.display = 'none';
   document.getElementById('frStep2').style.display = '';
+  document.getElementById('frPasswordError').style.display = 'none';
+  document.getElementById('frConfirmInput').value = '';
   document.getElementById('frConfirmInput').focus();
 }
 
-function frCheckInput() {
-  const val = document.getElementById('frConfirmInput').value;
-  const btn = document.getElementById('frConfirmBtn');
-  const ok  = val === 'DELETE';
-  btn.style.opacity      = ok ? '1' : '0.4';
-  btn.style.pointerEvents = ok ? '' : 'none';
-}
+function frCheckInput() {}
 
 async function confirmFactoryReset() {
-  const btn = document.getElementById('frConfirmBtn');
-  btn.disabled = true;
-  btn.textContent = 'Resetting...';
+  const btn      = document.getElementById('frConfirmBtn');
+  const pwInput  = document.getElementById('frConfirmInput');
+  const pwErr    = document.getElementById('frPasswordError');
+  const password = pwInput.value.trim();
 
+  if (!password) { pwErr.textContent = 'Password required'; pwErr.style.display = ''; pwInput.focus(); return; }
+
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  pwErr.style.display = 'none';
+
+  const check = await API.post('/api/auth/verify-password', { password }).catch(() => null);
+  if (!check?.valid) {
+    pwErr.textContent = 'Incorrect password'; pwErr.style.display = '';
+    btn.disabled = false; btn.textContent = 'Delete Everything';
+    pwInput.select(); return;
+  }
+
+  btn.textContent = 'Resetting...';
   const data = await API.post('/api/wizard/factory-reset');
   if (data?.success) {
     closeFactoryResetModal();
@@ -5313,6 +5327,17 @@ async function checkAllUpdates() {
   showToast('Update check complete', 'success');
 }
 
+// ─── Admin password prompt (inline modal-free helper) ────────────
+// Shows a browser prompt for password and verifies it server-side.
+// Returns the password string on success, null on cancel/failure.
+async function _promptAdminPassword(message) {
+  const password = window.prompt(message || 'Enter admin password to confirm');
+  if (!password) return null;
+  const check = await API.post('/api/auth/verify-password', { password }).catch(() => null);
+  if (!check?.valid) { showToast('Incorrect password', 'error'); return null; }
+  return password;
+}
+
 // ─── Servers (multi-instance) ────────────────────────────────────
 
 let _serversEnabled  = !!localStorage.getItem('stardrop_servers_enabled');
@@ -5380,13 +5405,15 @@ async function loadServersPage() {
   _scanForInstances(selfHost, selfPort, peers);
 
   const containerIp = self.host || '';
+  const selfFarmName = self.name || '';
 
   let html = `
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
         <div>
           <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Current Instance</div>
-          <div style="font-weight:600;font-size:14px">${escapeHtml(containerIp || selfHost)}</div>
+          ${selfFarmName ? `<div style="font-weight:600;font-size:15px;margin-bottom:2px">${escapeHtml(selfFarmName)}</div>` : ''}
+          <div style="font-size:12px;color:var(--text-muted)">${escapeHtml(containerIp || selfHost)}</div>
           <div style="font-size:12px;color:var(--text-muted)">Port ${selfPort}</div>
         </div>
         <span style="font-size:11px;background:var(--accent);color:#fff;padding:3px 10px;border-radius:10px;white-space:nowrap">This Instance</span>
@@ -5856,17 +5883,13 @@ function _lockComposeEntry(locked) {
 async function applyRemoteCompose() {
   const textarea = document.getElementById('remoteComposeInput');
   const btn      = document.getElementById('remoteApplyBtn');
-  const msgEl    = document.getElementById('remoteApplyMsg');
   const yaml     = textarea?.value?.trim();
 
-  if (!yaml) {
-    _showRemoteMsg('Paste a docker compose snippet first.', 'error');
-    return;
-  }
-  if (!yaml.includes('services:')) {
-    _showRemoteMsg('YAML must contain a services: block.', 'error');
-    return;
-  }
+  if (!yaml) { _showRemoteMsg('Paste a docker compose snippet first.', 'error'); return; }
+  if (!yaml.includes('services:')) { _showRemoteMsg('YAML must contain a services: block.', 'error'); return; }
+
+  const password = await _promptAdminPassword('Confirm with admin password to apply compose config');
+  if (!password) return;
 
   btn.disabled    = true;
   btn.textContent = 'Applying...';
