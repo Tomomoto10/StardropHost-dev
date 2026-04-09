@@ -1783,8 +1783,8 @@ function updateDashboardUI(data) {
   // CPU
   const cpu    = Math.round(data.cpu    || 0);
   const sysCpu = Math.round(data.sysCpu || 0);
-  setText('cpu-value',     `${cpu}%`);
-  setText('cpu-sys-value', sysCpu > 0 ? `${sysCpu}% sys` : '');
+  const cpuEl = document.getElementById('cpu-value');
+  if (cpuEl) cpuEl.innerHTML = cpu + '%' + (sysCpu > 0 ? ` <span style="color:var(--text-muted);font-size:11px">| ${sysCpu}% sys</span>` : '');
   const cpuBar    = document.getElementById('cpu-bar');
   const cpuBarSys = document.getElementById('cpu-bar-sys');
   cpuBar.style.width    = Math.min(cpu, 100) + '%';
@@ -1798,8 +1798,8 @@ function updateDashboardUI(data) {
   const sysMemUsed  = Math.round(data.sysMemory?.used  || 0);
   const sysMemTotal = Math.round(data.sysMemory?.total || 0);
   const sysMemPct   = sysMemTotal > 0 ? Math.round((sysMemUsed / sysMemTotal) * 100) : 0;
-  setText('ram-value',     `${memUsedMB} / ${memLimitMB} MB`);
-  setText('ram-sys-value', sysMemTotal > 0 ? `${sysMemUsed} / ${sysMemTotal} MB sys` : '');
+  const ramEl = document.getElementById('ram-value');
+  if (ramEl) ramEl.innerHTML = `${memUsedMB} / ${memLimitMB} MB` + (sysMemTotal > 0 ? ` <span style="color:var(--text-muted);font-size:11px">| ${sysMemUsed} / ${sysMemTotal} MB sys</span>` : '');
   const ramBar    = document.getElementById('ram-bar');
   const ramBarSys = document.getElementById('ram-bar-sys');
   ramBar.style.width    = Math.min(memPct, 100) + '%';

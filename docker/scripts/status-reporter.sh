@@ -130,9 +130,11 @@ get_memory_metrics() {
     fi
 
     local sys_result
+    local meminfo="/host-proc/meminfo"
+    [ -f "$meminfo" ] || meminfo="/proc/meminfo"
     sys_result=$(awk '/^MemTotal/{t=$2} /^MemAvailable/{a=$2} END{
         printf "%d %d", int((t-a)/1024), int(t/1024)
-    }' /proc/meminfo 2>/dev/null || echo "0 0")
+    }' "$meminfo" 2>/dev/null || echo "0 0")
 
     echo "$container_mb $sys_result"
 }
@@ -159,8 +161,10 @@ get_cpu_metrics() {
     elif [ -f "/sys/fs/cgroup/cpu/cpuacct.usage" ]; then
         cg_u1=$(cat /sys/fs/cgroup/cpu/cpuacct.usage 2>/dev/null)
     fi
+    local proc_stat="/host-proc/stat"
+    [ -f "$proc_stat" ] || proc_stat="/proc/stat"
     local sys_s1
-    sys_s1=$(awk '/^cpu /{idle=$5; t=0; for(i=2;i<=NF;i++) t+=$i; print t, idle}' /proc/stat 2>/dev/null)
+    sys_s1=$(awk '/^cpu /{idle=$5; t=0; for(i=2;i<=NF;i++) t+=$i; print t, idle}' "$proc_stat" 2>/dev/null)
 
     sleep 1
 
@@ -172,7 +176,7 @@ get_cpu_metrics() {
         cg_u2=$(cat /sys/fs/cgroup/cpu/cpuacct.usage 2>/dev/null)
     fi
     local sys_s2
-    sys_s2=$(awk '/^cpu /{idle=$5; t=0; for(i=2;i<=NF;i++) t+=$i; print t, idle}' /proc/stat 2>/dev/null)
+    sys_s2=$(awk '/^cpu /{idle=$5; t=0; for(i=2;i<=NF;i++) t+=$i; print t, idle}' "$proc_stat" 2>/dev/null)
 
     # Container CPU %
     local container_cpu="0.0"

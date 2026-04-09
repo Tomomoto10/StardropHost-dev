@@ -108,6 +108,7 @@ services:
       - ./data/panel:/home/steam/web-panel/data:rw
       - ./data/custom-mods:/home/steam/custom-mods:rw
       - ${PWD}/..:/host-parent:ro
+      - /proc:/host-proc:ro
     deploy:
       resources:
         limits:
