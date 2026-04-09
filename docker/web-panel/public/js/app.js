@@ -4895,9 +4895,11 @@ function _renderUpdateSteps() {
       ? ''
       : `<span style="color:#22c55e;flex-shrink:0;font-size:13px;line-height:1">✓</span>`;
     const color = isCurrent ? '#e5e3f0' : '#6b6490';
-    const dots  = isCurrent ? '.'.repeat(_updateDotCount) : '';
-    const id    = isCurrent ? 'id="update-step-current"' : '';
-    return `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:${color};font-weight:${isCurrent ? 500 : 400}">${icon}<span ${id}>${escapeHtml(step)}${dots}</span></div>`;
+    // Dots live in their own fixed-width span so the row never shifts as they cycle
+    const dotsSpan = isCurrent
+      ? `<span id="update-step-dots" style="display:inline-block;width:2.2em">${'.'.repeat(_updateDotCount)}</span>`
+      : '';
+    return `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:${color};font-weight:${isCurrent ? 500 : 400}">${icon}<span>${escapeHtml(step)}${dotsSpan}</span></div>`;
   }).join('');
 }
 
@@ -4919,8 +4921,8 @@ function _setUpdateStatus(msg) {
   // Animate dots on the current step: cycles 1 → 2 → 3 → 4 → 5 → 1 …
   _updateDotInterval = setInterval(() => {
     _updateDotCount = _updateDotCount >= 5 ? 1 : _updateDotCount + 1;
-    const span = document.getElementById('update-step-current');
-    if (span) span.textContent = _updateSteps[_updateSteps.length - 1] + '.'.repeat(_updateDotCount);
+    const dots = document.getElementById('update-step-dots');
+    if (dots) dots.textContent = '.'.repeat(_updateDotCount);
   }, 400);
 }
 
@@ -5281,12 +5283,20 @@ async function loadServersPage() {
             <button class="btn btn-sm btn-icon" type="button" onclick="_removeServer(${i})" title="Remove">×</button>
           </div>
         </div>
-        <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
-          <input class="input" type="text" style="flex:1;font-size:12px;padding:4px 8px;height:28px"
-            placeholder="Remote alias (e.g. http://myserver.playit.plus:1049)"
+        <div style="margin-top:10px;display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;flex-shrink:0">Remote alias</span>
+          <input id="alias-input-${i}" class="input" type="text"
+            style="width:220px;flex-shrink:0;font-size:12px;padding:4px 8px;height:28px"
+            placeholder="http://host.playit.plus:1049"
             value="${escapeHtml(alias)}"
-            onchange="_saveRemoteAlias(${i}, this.value.trim())"
-            onkeydown="if(event.key==='Enter')this.blur()">
+            oninput="_onAliasInput(${i})"
+            onkeydown="if(event.key==='Enter'){_saveRemoteAlias(${i},this.value.trim());this.blur();}">
+          <button id="alias-save-${i}" class="btn btn-sm btn-primary"
+            style="height:28px;padding:0 10px;font-size:12px;display:${alias ? '' : 'none'}"
+            onclick="_saveRemoteAliasBtn(${i})">Save</button>
+          <button id="alias-clear-${i}" class="btn btn-sm btn-icon"
+            style="height:28px;width:28px;display:${alias ? '' : 'none'}"
+            onclick="_clearRemoteAlias(${i})" title="Remove alias">×</button>
         </div>
       </div>`;
     });
@@ -5359,6 +5369,29 @@ async function submitAddServer() {
   } catch {
     showToast('Failed to save server', 'error');
   }
+}
+
+function _onAliasInput(idx) {
+  const val       = document.getElementById(`alias-input-${idx}`)?.value.trim() || '';
+  const saveBtn   = document.getElementById(`alias-save-${idx}`);
+  const clearBtn  = document.getElementById(`alias-clear-${idx}`);
+  const hasValue  = val.length > 0;
+  if (saveBtn)  saveBtn.style.display  = hasValue ? '' : 'none';
+  if (clearBtn) clearBtn.style.display = hasValue ? '' : 'none';
+}
+
+async function _saveRemoteAliasBtn(idx) {
+  const input = document.getElementById(`alias-input-${idx}`);
+  if (!input) return;
+  await _saveRemoteAlias(idx, input.value.trim());
+  showToast('Remote alias saved', 'success');
+}
+
+async function _clearRemoteAlias(idx) {
+  const input = document.getElementById(`alias-input-${idx}`);
+  if (input) input.value = '';
+  _onAliasInput(idx);
+  await _saveRemoteAlias(idx, '');
 }
 
 async function _saveRemoteAlias(idx, alias) {
