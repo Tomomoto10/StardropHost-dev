@@ -683,6 +683,7 @@ _announce_to_existing_instances() {
                 || print_info "Instance $n panel not ready yet — will be discovered on next Servers tab load"
         fi
     done
+}
 
 # ===========================================
 # Done — show access info
