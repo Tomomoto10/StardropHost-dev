@@ -298,7 +298,7 @@ function updateServer(updateAll = false) {
     `docker run --rm ${mounts}`,
     `-w ${PROJECT_DIR}`,
     'alpine',
-    `sh -c "apk add -q git bash docker-cli docker-cli-compose && git config --global --add safe.directory ${parentDir} && bash update.sh${extraFlag}"`,
+    `sh -c "apk add -q git bash docker-cli docker-cli-compose && git config --global --add safe.directory '*' && bash update.sh${extraFlag}"`,
   ].join(' ');
 
   const child = spawn('sh', ['-lc', command], {

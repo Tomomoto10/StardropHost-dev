@@ -18,7 +18,11 @@ const PEERS_FILE = path.join(config.DATA_DIR, 'instances.json');
 function loadPeers() {
   try {
     if (!fs.existsSync(PEERS_FILE)) return [];
-    return JSON.parse(fs.readFileSync(PEERS_FILE, 'utf-8'));
+    const peers = JSON.parse(fs.readFileSync(PEERS_FILE, 'utf-8'));
+    // Deduplicate by port — keep last entry per port (most recently registered wins)
+    const seen = new Map();
+    for (const p of peers) seen.set(p.port, p);
+    return Array.from(seen.values());
   } catch { return []; }
 }
 
@@ -74,15 +78,26 @@ function addPeer(req, res) {
 }
 
 function addPeerInternal(body, res) {
-  const { name, host, port } = body || {};
+  const { name, host, port, remoteAlias } = body || {};
   if (!host || !port) return res.status(400).json({ error: 'host and port required' });
   const peers = loadPeers();
   const p     = parseInt(port, 10);
-  const idx   = peers.findIndex(i => i.host === host && i.port === p);
+
+  // All instances share the same machine — port is the unique identifier.
+  // Deduplicate by port so a re-registration with a different IP (e.g.
+  // container IP vs LAN IP) merges into the existing entry rather than
+  // creating a duplicate card.
+  const idx = peers.findIndex(i => i.port === p);
   if (idx >= 0) {
-    peers[idx] = { name: name || peers[idx].name || host, host, port: p };
+    peers[idx] = {
+      ...peers[idx],
+      name: name || peers[idx].name || host,
+      host,
+      port: p,
+      ...(remoteAlias !== undefined && { remoteAlias }),
+    };
   } else {
-    peers.push({ name: name || host, host, port: p });
+    peers.push({ name: name || host, host, port: p, ...(remoteAlias !== undefined && { remoteAlias }) });
   }
   savePeers(peers);
   res.json({ success: true, peers });
