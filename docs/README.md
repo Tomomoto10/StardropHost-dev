@@ -98,7 +98,7 @@ texttext| Port      | Purpose                               |
 
 ---
 
-## Requirements 
+## Requirements
 
 - Linux (VM or hardware — Proxmox, bare metal, etc.)
 - Docker
