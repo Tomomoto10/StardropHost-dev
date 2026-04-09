@@ -66,6 +66,12 @@ print_warning() { echo -e "${YELLOW}[WARN] $1${NC}"; }
 print_info()    { echo -e "${BLUE}[>>]   $1${NC}"; }
 print_step()    { echo ""; echo -e "${BOLD}$1${NC}"; }
 
+# -- Sibling flag — set when called from another instance's update (skip re-prompting) --
+_IS_SIBLING=false
+for _arg in "$@"; do
+    [ "$_arg" = "--sibling" ] && _IS_SIBLING=true
+done
+
 # -- Require root --
 if [ "$(id -u)" != "0" ]; then
     exec sudo bash "$0" "$@"
@@ -103,6 +109,33 @@ print_header
 print_info "Directory:  $SCRIPT_DIR"
 print_info "Container:  ${CONTAINER_PREFIX}-server"
 echo ""
+
+# -- Detect sibling instances and ask whether to update them all --
+_UPDATE_SIBLINGS=()
+_PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+if [ "$_IS_SIBLING" = "false" ]; then
+    for _dir in "$_PARENT_DIR"/stardrophost*/; do
+        # Normalise path (remove trailing slash) and skip self
+        _dir="${_dir%/}"
+        [ "$_dir" = "$SCRIPT_DIR" ] && continue
+        [ -f "$_dir/update.sh" ] || continue
+        _UPDATE_SIBLINGS+=("$_dir")
+    done
+    if [ ${#_UPDATE_SIBLINGS[@]} -gt 0 ]; then
+        echo -e "${CYAN}${BOLD}  Multi-instance detected${NC}"
+        for _s in "${_UPDATE_SIBLINGS[@]}"; do
+            print_info "  Found: $(basename "$_s")"
+        done
+        echo ""
+        printf "  Update all %d instance(s) together? [Y/n] " "$((${#_UPDATE_SIBLINGS[@]} + 1))"
+        read -r _UPDATE_ALL_INPUT </dev/tty
+        case "$_UPDATE_ALL_INPUT" in
+            [Nn]*) _UPDATE_SIBLINGS=() ; print_info "Updating this instance only" ;;
+            *)     print_info "Will update all instances after this one" ;;
+        esac
+        echo ""
+    fi
+fi
 
 write_status "started" "Pulling latest code from GitHub..."
 
@@ -283,3 +316,22 @@ echo ""
 echo -e "  Web panel:     ${CYAN}${BOLD}http://${SERVER_IP}:${PANEL_PORT}${NC}"
 echo -e "  Watch logs:    ${CYAN}docker logs -f ${CONTAINER_PREFIX}${NC}"
 echo ""
+
+# -- Update sibling instances --
+if [ ${#_UPDATE_SIBLINGS[@]} -gt 0 ]; then
+    _SIBLING_IDX=0
+    for _sib in "${_UPDATE_SIBLINGS[@]}"; do
+        _SIBLING_IDX=$((_SIBLING_IDX + 1))
+        echo ""
+        echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${CYAN}${BOLD}  Updating sibling: $(basename "$_sib") (${_SIBLING_IDX}/${#_UPDATE_SIBLINGS[@]})${NC}"
+        echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        bash "$_sib/update.sh" --sibling
+    done
+    echo ""
+    echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}${BOLD}  All instances updated.${NC}"
+    echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+fi

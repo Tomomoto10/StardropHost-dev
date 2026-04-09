@@ -5225,12 +5225,14 @@ async function loadServersPage() {
   // Auto-scan sibling ports in background — registers any discovered instances silently
   _scanForInstances(selfHost, selfPort, peers);
 
+  const containerIp = self.host || '';
+
   let html = `
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
         <div>
           <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Current Instance</div>
-          <div style="font-weight:600;font-size:14px">${escapeHtml(selfHost)}</div>
+          <div style="font-weight:600;font-size:14px">${escapeHtml(containerIp || selfHost)}</div>
           <div style="font-size:12px;color:var(--text-muted)">Port ${selfPort}</div>
         </div>
         <span style="font-size:11px;background:var(--accent);color:#fff;padding:3px 10px;border-radius:10px;white-space:nowrap">This Instance</span>
@@ -5245,17 +5247,25 @@ async function loadServersPage() {
     </div>`;
   } else {
     peers.forEach((s, i) => {
+      const alias = s.remoteAlias || '';
       html += `
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
             <div style="font-weight:600;font-size:14px">${escapeHtml(s.name || s.host)}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${escapeHtml(s.host)}:${s.port}</div>
+            <div style="font-size:12px;color:var(--text-muted);font-family:monospace">${escapeHtml(s.host)}:${s.port}</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn btn-sm btn-primary" type="button" onclick="_connectToServer(${i})">Connect</button>
             <button class="btn btn-sm btn-icon" type="button" onclick="_removeServer(${i})" title="Remove">×</button>
           </div>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+          <input class="input" type="text" style="flex:1;font-size:12px;padding:4px 8px;height:28px"
+            placeholder="Remote alias (e.g. http://myserver.playit.plus:1049)"
+            value="${escapeHtml(alias)}"
+            onchange="_saveRemoteAlias(${i}, this.value.trim())"
+            onkeydown="if(event.key==='Enter')this.blur()">
         </div>
       </div>`;
     });
@@ -5306,6 +5316,7 @@ function openAddServerModal() {
   document.getElementById('addServerName').value = '';
   document.getElementById('addServerHost').value = '';
   document.getElementById('addServerPort').value = '18642';
+  document.getElementById('addServerRemoteAlias').value = '';
   setTimeout(() => document.getElementById('addServerName').focus(), 50);
 }
 
@@ -5314,17 +5325,28 @@ function closeAddServerModal() {
 }
 
 async function submitAddServer() {
-  const name = document.getElementById('addServerName').value.trim();
-  const host = document.getElementById('addServerHost').value.trim();
-  const port = parseInt(document.getElementById('addServerPort').value.trim(), 10) || 18642;
+  const name        = document.getElementById('addServerName').value.trim();
+  const host        = document.getElementById('addServerHost').value.trim();
+  const port        = parseInt(document.getElementById('addServerPort').value.trim(), 10) || 18642;
+  const remoteAlias = document.getElementById('addServerRemoteAlias').value.trim();
   if (!name) { showToast('Server name is required', 'error'); return; }
-  if (!host) { showToast('IP address or hostname is required', 'error'); return; }
+  if (!host) { showToast('Container IP is required', 'error'); return; }
   try {
-    await API.post('/api/instances/peer', { name, host, port });
+    await API.post('/api/instances/peer', { name, host, port, ...(remoteAlias && { remoteAlias }) });
     closeAddServerModal();
     loadServersPage();
   } catch {
     showToast('Failed to save server', 'error');
+  }
+}
+
+async function _saveRemoteAlias(idx, alias) {
+  const s = _serversPeers[idx];
+  if (!s) return;
+  try {
+    await API.post('/api/instances/peer', { name: s.name, host: s.host, port: s.port, remoteAlias: alias });
+  } catch {
+    showToast('Failed to save remote alias', 'error');
   }
 }
 
@@ -5338,10 +5360,24 @@ async function _removeServer(idx) {
   }
 }
 
+// Returns true when the browser is accessing this dashboard remotely
+// (i.e. not via a private/LAN IP address).
+function _isRemoteAccess() {
+  const h = window.location.hostname;
+  if (/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(h)) return false;
+  return true;
+}
+
 async function _connectToServer(idx) {
   const s = _serversPeers[idx];
   if (!s) return;
-  if (!confirm(`Switch to ${s.name || s.host}?\n\n${s.host}:${s.port}`)) return;
+
+  const remote = _isRemoteAccess();
+  const targetBase = remote && s.remoteAlias
+    ? s.remoteAlias.replace(/\/?$/, '')
+    : `${window.location.protocol}//${window.location.hostname}:${s.port}`;
+
+  if (!confirm(`Switch to ${s.name || s.host}?\n\n${escapeHtml(targetBase)}`)) return;
 
   // Build peer list to pass to destination — includes self + all current peers.
   // Use the browser's own hostname (what the user actually connects to), not the
@@ -5354,7 +5390,7 @@ async function _connectToServer(idx) {
   const allPeers = [selfData, ..._serversPeers.filter((_, i) => i !== idx)];
   const encoded  = btoa(JSON.stringify(allPeers));
 
-  window.location.href = `${window.location.protocol}//${s.host}:${s.port}/?peers=${encoded}`;
+  window.location.href = `${targetBase}/?peers=${encoded}`;
 }
 
 // ─── Remote config reveal ─────────────────────────────────────────
