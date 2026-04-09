@@ -1368,9 +1368,21 @@ async function loadPanelVersion() {
   if (el) el.textContent = `v${data.version}`;
 }
 
+// Auto-enable the Servers tab when this is a multi-instance setup.
+// Fires once on page load; updates localStorage + nav visibility.
+async function _detectAndApplyMultiInstance() {
+  try {
+    const data = await API.get('/api/instances');
+    if (data?.multiInstance && !_serversEnabled) {
+      _setMultiInstanceEnabled(true);
+    }
+  } catch {}
+}
+
 function init() {
   applyTheme();
   _checkIncomingPeers();
+  _detectAndApplyMultiInstance();
   setupNavigation();
   setupCopyable();
   setupWebSocket();

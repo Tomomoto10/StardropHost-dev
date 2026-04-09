@@ -35,6 +35,19 @@ function getSelfHost() {
   } catch { return ''; }
 }
 
+// Detect whether this is running alongside other StardropHost instances.
+// /host-parent maps to the parent directory of all instance dirs (e.g. ~/);
+// if more than one stardrophost* directory exists there, we are multi-instance.
+function detectMultiInstance() {
+  try {
+    const hostParent = '/host-parent';
+    if (!fs.existsSync(hostParent)) return false;
+    const entries = fs.readdirSync(hostParent, { withFileTypes: true });
+    const count = entries.filter(e => e.isDirectory() && e.name.startsWith('stardrophost')).length;
+    return count > 1;
+  } catch { return false; }
+}
+
 // GET /api/instances — no auth, intentionally public for cross-instance discovery
 function getInstances(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -43,7 +56,8 @@ function getInstances(req, res) {
       host: getSelfHost(),
       port: config.PORT,
     },
-    peers: loadPeers(),
+    peers:           loadPeers(),
+    multiInstance:   detectMultiInstance(),
   });
 }
 
