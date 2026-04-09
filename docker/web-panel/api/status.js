@@ -636,8 +636,9 @@ function restartContainer(req, res) {
 
 // Pull latest image and restart via manager
 function updateServer(req, res) {
+  const updateAll = req.body?.updateAll === true;
   savesAPI.triggerTaggedBackup('update');
-  callManager('/update')
+  callManager('/update', { updateAll })
     .then(() => {
       cachedStatus = null;
       res.json({ success: true, message: 'Update initiated' });

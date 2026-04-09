@@ -5131,6 +5131,16 @@ async function _guPoll() {
 async function selfUpdate() {
   const btn = document.getElementById('selfUpdateConfirmBtn');
   if (btn) { btn.disabled = false; btn.textContent = 'Update Now'; }
+
+  // Show "Update all instances" checkbox only when peers are registered
+  const allRow   = document.getElementById('selfUpdateAllRow');
+  const allCheck = document.getElementById('selfUpdateAllCheck');
+  if (allRow && allCheck) {
+    const hasPeers = _serversEnabled && _serversPeers.length > 0;
+    allRow.style.display   = hasPeers ? 'flex' : 'none';
+    allCheck.checked       = hasPeers; // default on when peers exist
+  }
+
   document.getElementById('selfUpdateModal').style.display = '';
 }
 
@@ -5139,11 +5149,13 @@ function closeSelfUpdateModal() {
 }
 
 async function confirmSelfUpdate() {
-  const btn = document.getElementById('selfUpdateConfirmBtn');
+  const btn      = document.getElementById('selfUpdateConfirmBtn');
+  const allCheck = document.getElementById('selfUpdateAllCheck');
   btn.disabled = true;
   btn.textContent = 'Updating...';
 
-  const data = await API.post('/api/server/update').catch(() => null);
+  const updateAll = !!(allCheck?.checked && allCheck.closest('#selfUpdateAllRow')?.style.display !== 'none');
+  const data = await API.post('/api/server/update', { updateAll }).catch(() => null);
   if (data?.success || data?.action === 'update') {
     closeSelfUpdateModal();
     showUpdateScreen(Date.now());

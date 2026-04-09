@@ -66,10 +66,12 @@ print_warning() { echo -e "${YELLOW}[WARN] $1${NC}"; }
 print_info()    { echo -e "${BLUE}[>>]   $1${NC}"; }
 print_step()    { echo ""; echo -e "${BOLD}$1${NC}"; }
 
-# -- Sibling flag — set when called from another instance's update (skip re-prompting) --
-_IS_SIBLING=false
+# -- Flags --
+_IS_SIBLING=false   # set when called from another instance's update (skip re-prompting)
+_UPDATE_ALL=false   # set when dashboard requests update of all instances (no interactive prompt)
 for _arg in "$@"; do
     [ "$_arg" = "--sibling" ] && _IS_SIBLING=true
+    [ "$_arg" = "--all"     ] && _UPDATE_ALL=true
 done
 
 # -- Require root --
@@ -115,7 +117,6 @@ _UPDATE_SIBLINGS=()
 _PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 if [ "$_IS_SIBLING" = "false" ]; then
     for _dir in "$_PARENT_DIR"/stardrophost*/; do
-        # Normalise path (remove trailing slash) and skip self
         _dir="${_dir%/}"
         [ "$_dir" = "$SCRIPT_DIR" ] && continue
         [ -f "$_dir/update.sh" ] || continue
@@ -127,12 +128,17 @@ if [ "$_IS_SIBLING" = "false" ]; then
             print_info "  Found: $(basename "$_s")"
         done
         echo ""
-        printf "  Update all %d instance(s) together? [Y/n] " "$((${#_UPDATE_SIBLINGS[@]} + 1))"
-        read -r _UPDATE_ALL_INPUT </dev/tty
-        case "$_UPDATE_ALL_INPUT" in
-            [Nn]*) _UPDATE_SIBLINGS=() ; print_info "Updating this instance only" ;;
-            *)     print_info "Will update all instances after this one" ;;
-        esac
+        if [ "$_UPDATE_ALL" = "true" ]; then
+            # Dashboard passed --all flag — no prompt needed
+            print_info "Updating all instances (requested from dashboard)"
+        else
+            printf "  Update all %d instance(s) together? [Y/n] " "$((${#_UPDATE_SIBLINGS[@]} + 1))"
+            read -r _UPDATE_ALL_INPUT </dev/tty
+            case "$_UPDATE_ALL_INPUT" in
+                [Nn]*) _UPDATE_SIBLINGS=() ; print_info "Updating this instance only" ;;
+                *)     print_info "Will update all instances after this one" ;;
+            esac
+        fi
         echo ""
     fi
 fi

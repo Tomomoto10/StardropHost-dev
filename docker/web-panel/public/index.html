@@ -1983,7 +1983,11 @@
     <div class="modal-dialog" style="width:440px;max-width:95vw">
       <h3>Update StardropHost</h3>
       <p style="color:var(--text-secondary);margin-bottom:16px">This will pull the latest release from GitHub and rebuild the container. The web UI will be unavailable for a minute or two while it restarts.</p>
-      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:20px">Your saves, game files, mods, and configuration are stored in the <code>./data/</code> volume and will not be affected.</p>
+      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">Your saves, game files, mods, and configuration are stored in the <code>./data/</code> volume and will not be affected.</p>
+      <div id="selfUpdateAllRow" style="display:none;align-items:center;gap:10px;margin-bottom:20px;padding:10px 12px;background:var(--bg-tertiary);border-radius:8px">
+        <input type="checkbox" id="selfUpdateAllCheck" style="width:16px;height:16px;flex-shrink:0">
+        <label for="selfUpdateAllCheck" style="font-size:13px;color:var(--text-secondary);cursor:pointer">Update all instances</label>
+      </div>
       <div class="modal-actions">
         <button class="btn btn-sm btn-secondary" type="button" onclick="closeSelfUpdateModal()">Cancel</button>
         <button class="btn btn-sm btn-primary" type="button" id="selfUpdateConfirmBtn" onclick="confirmSelfUpdate()">Update Now</button>

@@ -7,8 +7,9 @@
 // main container.
 // ===========================================
 
-const fs = require('fs');
+const fs   = require('fs');
 const http = require('http');
+const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
 const PORT        = parseInt(process.env.MANAGER_PORT || '18700', 10);
@@ -280,16 +281,24 @@ async function removeRemote() {
   try { fs.unlinkSync(COMPOSE_OVERRIDE); } catch {}
 }
 
-function updateServer() {
-  const env = buildComposeEnv();
+function updateServer(updateAll = false) {
+  const env        = buildComposeEnv();
+  const parentDir  = path.dirname(PROJECT_DIR);
+  const extraFlag  = updateAll ? ' --all' : '';
 
-  const command = [
-    'docker run --rm',
+  // When updating all instances we mount the parent directory so sibling
+  // update.sh scripts are accessible inside the Alpine container.
+  const mounts = [
     '-v /var/run/docker.sock:/var/run/docker.sock',
     `-v ${PROJECT_DIR}:${PROJECT_DIR}`,
+    ...(updateAll ? [`-v ${parentDir}:${parentDir}`] : []),
+  ].join(' ');
+
+  const command = [
+    `docker run --rm ${mounts}`,
     `-w ${PROJECT_DIR}`,
     'alpine',
-    `sh -c "apk add -q git bash docker-cli docker-cli-compose && git config --global --add safe.directory ${PROJECT_DIR} && bash update.sh"`,
+    `sh -c "apk add -q git bash docker-cli docker-cli-compose && git config --global --add safe.directory ${parentDir} && bash update.sh${extraFlag}"`,
   ].join(' ');
 
   const child = spawn('sh', ['-lc', command], {
@@ -342,7 +351,8 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && req.url === '/update') {
     try {
-      updateServer();
+      const body = await readJson(req);
+      updateServer(body?.updateAll === true);
       sendJson(res, 202, { success: true, action: 'update' });
     } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
