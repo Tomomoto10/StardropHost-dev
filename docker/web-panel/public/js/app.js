@@ -5481,13 +5481,13 @@ async function loadServersPage() {
     <div style="margin-top:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <div style="position:relative">
         <button class="btn btn-secondary" type="button" onclick="_toggleServersMenu(event)">Manage ▾</button>
-        <div id="serversMenu" style="display:none;position:absolute;bottom:calc(100% + 4px);left:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;min-width:140px;z-index:100;overflow:hidden">
+        <div id="serversMenu" style="display:none;position:absolute;bottom:calc(100% + 4px);left:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;min-width:160px;z-index:100;overflow:hidden">
           <div style="padding:8px 14px;cursor:pointer;font-size:13px" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background=''" onclick="_closeServersMenu();openAddServerModal()">Add</div>
           <div style="padding:8px 14px;cursor:pointer;font-size:13px" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background=''" onclick="_closeServersMenu();_enterServersEditMode()">Edit</div>
+          <div style="padding:8px 14px;cursor:pointer;font-size:13px" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background=''" onclick="_closeServersMenu();openInstallModal()">Install</div>
         </div>
       </div>
       ${_serversEditMode ? `<button class="btn btn-secondary" type="button" onclick="_exitServersEditMode()">Confirm</button>` : ''}
-      <button class="btn btn-secondary" type="button" onclick="openInstallModal()">+ Install New Instance</button>
     </div>`;
 
   container.innerHTML = html;
