@@ -4854,7 +4854,7 @@ function showUpdateScreen(startedAt) {
         clearInterval(_updateElapsedTimer);
         clearInterval(_updateStatusPoll);
         localStorage.removeItem('stardrop_updating');
-        window.location.replace(window.location.pathname + '#dashboard');
+        history.replaceState(null, '', '/#dashboard'); window.location.reload();
       }
     }, 1000);
   }
@@ -4878,7 +4878,7 @@ function _startUpdateStatusPoll() {
         clearInterval(_updateStatusPoll);
         clearInterval(_updateElapsedTimer);
         localStorage.removeItem('stardrop_updating');
-        window.location.replace(window.location.pathname + '#dashboard');
+        history.replaceState(null, '', '/#dashboard'); window.location.reload();
         return;
       }
       // Panel still up — check if update is still active
@@ -4955,7 +4955,7 @@ async function reloadUpdateScreen() {
     const res = await fetch('/api/auth/status', { cache: 'no-store' });
     if (res.ok) {
       localStorage.removeItem('stardrop_updating');
-      window.location.replace(window.location.pathname + '#dashboard');
+      history.replaceState(null, '', '/#dashboard'); window.location.reload();
       return;
     }
   } catch {}
@@ -4984,7 +4984,7 @@ async function killUpdate() {
   clearInterval(_updateElapsedTimer);
   clearInterval(_updateStatusPoll);
   localStorage.removeItem('stardrop_updating');
-  window.location.replace(window.location.pathname + '#dashboard');
+  history.replaceState(null, '', '/#dashboard'); window.location.reload();
 }
 
 // Legacy alias — kept so any remaining callers don't break
@@ -5343,6 +5343,22 @@ async function _promptAdminPassword(message) {
 let _serversEnabled  = !!localStorage.getItem('stardrop_servers_enabled');
 let _serversPeers    = [];  // loaded from API
 let _selfContainerIp = '';  // container IP from /api/instances self.host
+let _serversEditMode = false;
+
+function _toggleServersMenu(e) {
+  e.stopPropagation();
+  const m = document.getElementById('serversMenu');
+  if (!m) return;
+  const open = m.style.display !== 'none';
+  m.style.display = open ? 'none' : '';
+  if (!open) { setTimeout(() => document.addEventListener('click', _closeServersMenu, { once: true }), 0); }
+}
+function _closeServersMenu() {
+  const m = document.getElementById('serversMenu');
+  if (m) m.style.display = 'none';
+}
+function _enterServersEditMode() { _serversEditMode = true;  loadServersPage(); }
+function _exitServersEditMode()  { _serversEditMode = false; loadServersPage(); }
 
 // On page load — if URL contains ?peers=... auto-import them then clean URL
 function _checkIncomingPeers() {
@@ -5433,12 +5449,13 @@ async function loadServersPage() {
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
-            <div style="font-weight:600;font-size:14px">${escapeHtml(s.name || s.host)}</div>
-            <div style="font-size:12px;color:var(--text-muted);font-family:monospace">${escapeHtml(s.host)}:${s.port}</div>
+            ${s.name ? `<div style="font-weight:600;font-size:15px;margin-bottom:2px">${escapeHtml(s.name)}</div>` : ''}
+            <div style="font-size:12px;color:var(--text-muted)">${escapeHtml(s.host)}</div>
+            <div style="font-size:12px;color:var(--text-muted)">Port ${s.port}</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn btn-sm btn-primary" type="button" onclick="_connectToServer(${i})">Connect</button>
-            <button class="btn btn-sm btn-icon" type="button" onclick="_removeServer(${i})" title="Remove">×</button>
+            <button class="btn btn-sm btn-icon" type="button" onclick="_removeServer(${i})" title="Remove" style="display:${_serversEditMode ? '' : 'none'}">×</button>
           </div>
         </div>
         <div style="margin-top:10px;display:flex;align-items:center;gap:6px">
@@ -5461,8 +5478,15 @@ async function loadServersPage() {
   }
 
   html += `
-    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-secondary" type="button" onclick="openAddServerModal()">+ Add Server</button>
+    <div style="margin-top:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div style="position:relative">
+        <button class="btn btn-secondary" type="button" onclick="_toggleServersMenu(event)">Manage ▾</button>
+        <div id="serversMenu" style="display:none;position:absolute;bottom:calc(100% + 4px);left:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;min-width:140px;z-index:100;overflow:hidden">
+          <div style="padding:8px 14px;cursor:pointer;font-size:13px" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background=''" onclick="_closeServersMenu();openAddServerModal()">Add</div>
+          <div style="padding:8px 14px;cursor:pointer;font-size:13px" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background=''" onclick="_closeServersMenu();_enterServersEditMode()">Edit</div>
+        </div>
+      </div>
+      ${_serversEditMode ? `<button class="btn btn-secondary" type="button" onclick="_exitServersEditMode()">Confirm</button>` : ''}
       <button class="btn btn-secondary" type="button" onclick="openInstallModal()">+ Install New Instance</button>
     </div>`;
 
