@@ -173,6 +173,8 @@ app.get(   '/api/instances',           instancesAPI.getInstances);   // no auth 
 app.post(  '/api/instances/register',  instancesAPI.registerPeer);   // no auth — cross-instance announce
 app.post(  '/api/instances/peer',      auth.verifyMiddleware, instancesAPI.addPeer);
 app.delete('/api/instances/peer/:idx', auth.verifyMiddleware, instancesAPI.removePeer);
+app.post(  '/api/install-instance',      auth.verifyMiddleware, instancesAPI.startInstall);
+app.get(   '/api/install-instance/log',  auth.verifyMiddleware, instancesAPI.getInstallLog);
 
 // -- Remote (tunnel service management via compose override) --
 const remoteAPI = require('./api/remote');

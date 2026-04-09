@@ -1726,3 +1726,5 @@ select.form-input {
 .danger-zone-details { border-color: #ef444433; }
 .danger-zone-details > summary { color: #ef4444; }
 .danger-zone-details > summary::before { color: #ef4444; }
+
+@keyframes spin { to { transform: rotate(360deg); } }

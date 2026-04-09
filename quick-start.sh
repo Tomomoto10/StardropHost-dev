@@ -66,6 +66,12 @@ print_step()    { echo ""; echo -e "${BOLD}$1${NC}"; }
 
 COMPOSE_CMD=""
 
+# -- Flags --
+_YES=false
+for _arg in "$@"; do
+    [ "$_arg" = "--yes" ] && _YES=true
+done
+
 # ===========================================
 # Detect real user BEFORE any root elevation.
 #
@@ -84,6 +90,10 @@ else
     REAL_USER="root"
     REAL_HOME="/root"
 fi
+
+# Allow override from environment (used when launched from the web panel dashboard)
+[ -n "$STARDROP_REAL_HOME" ] && REAL_HOME="$STARDROP_REAL_HOME"
+[ -n "$STARDROP_REAL_USER" ] && REAL_USER="$STARDROP_REAL_USER"
 
 # ===========================================
 # Root check — elevate with sudo (preferred)
@@ -780,6 +790,7 @@ _copy_log_on_exit() {
 trap _copy_log_on_exit EXIT
 
 confirm() {
+    if [ "$_YES" = "true" ]; then return 0; fi
     local answer
     echo -ne "${YELLOW}${BOLD}$1 [y/N]: ${NC}"
     read -r answer </dev/tty

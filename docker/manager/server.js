@@ -281,6 +281,68 @@ async function removeRemote() {
   try { fs.unlinkSync(COMPOSE_OVERRIDE); } catch {}
 }
 
+// -- Install new instance --
+
+let _installProcess = null;
+const INSTALL_LOG  = path.join(PROJECT_DIR, 'data', 'panel', 'install-instance.log');
+const INSTALL_STATUS = path.join(PROJECT_DIR, 'data', 'panel', 'install-instance-status.json');
+
+function writeInstallStatus(status, message) {
+  try {
+    fs.mkdirSync(path.dirname(INSTALL_STATUS), { recursive: true });
+    fs.writeFileSync(INSTALL_STATUS, JSON.stringify({ status, message, updatedAt: Date.now() }));
+  } catch {}
+}
+
+function installInstance() {
+  if (_installProcess && !_installProcess.exitCode !== null) return false; // already running
+
+  const env       = buildComposeEnv();
+  const parentDir = path.dirname(PROJECT_DIR);
+
+  // Clear old log
+  try { fs.mkdirSync(path.dirname(INSTALL_LOG), { recursive: true }); fs.writeFileSync(INSTALL_LOG, ''); } catch {}
+  writeInstallStatus('running', 'Starting installation...');
+
+  const command = [
+    'docker run --rm',
+    '-v /var/run/docker.sock:/var/run/docker.sock',
+    `-v ${parentDir}:${parentDir}`,
+    `-e STARDROP_REAL_HOME=${parentDir}`,
+    `-w ${parentDir}`,
+    'alpine',
+    `sh -c "apk add -q git bash curl docker-cli docker-cli-compose && git config --global --add safe.directory '*' && bash ${PROJECT_DIR}/quick-start.sh --yes"`,
+  ].join(' ');
+
+  const logStream = fs.createWriteStream(INSTALL_LOG, { flags: 'a' });
+  const child = spawn('sh', ['-lc', command], {
+    cwd: parentDir, env, detached: true, stdio: ['ignore', logStream, logStream],
+  });
+
+  _installProcess = child;
+
+  child.on('close', (code) => {
+    logStream.end();
+    writeInstallStatus(code === 0 ? 'done' : 'error', code === 0 ? 'Installation complete' : `Exited with code ${code}`);
+    _installProcess = null;
+  });
+
+  child.unref();
+  return true;
+}
+
+function getInstallLog() {
+  const running = _installProcess !== null;
+  let status = null;
+  try { status = JSON.parse(fs.readFileSync(INSTALL_STATUS, 'utf-8')); } catch {}
+  let lines = [];
+  try {
+    const raw = fs.readFileSync(INSTALL_LOG, 'utf-8');
+    lines = raw.split('\n').filter(l => l.trim()).slice(-100);
+  } catch {}
+  return { running, status: status?.status || (running ? 'running' : 'idle'), lines };
+}
+
 function updateServer(updateAll = false) {
   const env        = buildComposeEnv();
   const parentDir  = path.dirname(PROJECT_DIR);
@@ -355,6 +417,21 @@ const server = http.createServer(async (req, res) => {
       updateServer(body?.updateAll === true);
       sendJson(res, 202, { success: true, action: 'update' });
     } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/install-instance') {
+    try {
+      const started = installInstance();
+      if (!started) return sendJson(res, 409, { error: 'Installation already in progress' });
+      sendJson(res, 202, { success: true, action: 'install-instance' });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/install-instance/log') {
+    try { sendJson(res, 200, getInstallLog()); }
+    catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 

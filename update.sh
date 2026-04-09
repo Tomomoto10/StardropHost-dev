@@ -140,10 +140,8 @@ if [ "$_IS_SIBLING" = "false" ]; then
                 *)     print_info "Will update all instances after this one" ;;
             esac
         else
-            # No TTY (running from dashboard) — skip siblings; use the dashboard checkbox to update all
-            _UPDATE_SIBLINGS=()
-            print_info "Non-interactive run — updating this instance only"
-            print_info "Use the dashboard update checkbox to update all instances"
+            # No TTY (running from dashboard) — always update all siblings automatically
+            print_info "Non-interactive run — updating all instances"
         fi
         echo ""
     fi
@@ -249,10 +247,7 @@ fi
 print_info "Gracefully shutting down the server and web panel..."
 $COMPOSE_CMD down
 # Force-remove any containers that survived (restart:unless-stopped race condition)
-docker rm -f "${CONTAINER_PREFIX}" \
-             "${CONTAINER_PREFIX}-manager" \
-             "${CONTAINER_PREFIX}-steam-auth" \
-             "${CONTAINER_PREFIX}-init" >/dev/null 2>&1 || true
+$COMPOSE_CMD rm -sf >/dev/null 2>&1 || true
 print_success "Containers stopped"
 
 # Schedule SMAPI update — remove old binary and write a marker file so the

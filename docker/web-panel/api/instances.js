@@ -9,9 +9,30 @@
  */
 
 const fs   = require('fs');
+const http = require('http');
 const path = require('path');
 const { execSync } = require('child_process');
 const config = require('../server');
+
+function callManager(method, urlPath, body = null) {
+  return new Promise((resolve, reject) => {
+    const payload = body ? JSON.stringify(body) : null;
+    const url     = new URL(urlPath, config.MANAGER_URL);
+    const options = {
+      hostname: url.hostname, port: url.port || 80,
+      path: url.pathname, method,
+      headers: { 'Content-Type': 'application/json', ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {}) },
+    };
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve(data); } });
+    });
+    req.on('error', reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
 
 const PEERS_FILE = path.join(config.DATA_DIR, 'instances.json');
 
@@ -123,4 +144,20 @@ function removePeer(req, res) {
   res.json({ success: true, peers });
 }
 
-module.exports = { getInstances, registerPeer, addPeer, removePeer };
+// POST /api/install-instance — proxy to manager
+async function startInstall(req, res) {
+  try {
+    const data = await callManager('POST', '/install-instance');
+    res.status(data.error ? 409 : 202).json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
+
+// GET /api/install-instance/log — proxy to manager
+async function getInstallLog(req, res) {
+  try {
+    const data = await callManager('GET', '/install-instance/log');
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
+
+module.exports = { getInstances, registerPeer, addPeer, removePeer, startInstall, getInstallLog };

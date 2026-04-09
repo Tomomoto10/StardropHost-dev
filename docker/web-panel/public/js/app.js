@@ -4840,7 +4840,7 @@ function showUpdateScreen(startedAt) {
         clearInterval(_updateElapsedTimer);
         clearInterval(_updateStatusPoll);
         localStorage.removeItem('stardrop_updating');
-        window.location.reload();
+        window.location.replace(window.location.pathname + '#dashboard');
       }
     }, 1000);
   }
@@ -4864,7 +4864,7 @@ function _startUpdateStatusPoll() {
         clearInterval(_updateStatusPoll);
         clearInterval(_updateElapsedTimer);
         localStorage.removeItem('stardrop_updating');
-        window.location.reload();
+        window.location.replace(window.location.pathname + '#dashboard');
         return;
       }
       // Panel still up — check if update is still active
@@ -4941,7 +4941,7 @@ async function reloadUpdateScreen() {
     const res = await fetch('/api/auth/status', { cache: 'no-store' });
     if (res.ok) {
       localStorage.removeItem('stardrop_updating');
-      window.location.reload();
+      window.location.replace(window.location.pathname + '#dashboard');
       return;
     }
   } catch {}
@@ -4970,7 +4970,7 @@ async function killUpdate() {
   clearInterval(_updateElapsedTimer);
   clearInterval(_updateStatusPoll);
   localStorage.removeItem('stardrop_updating');
-  window.location.reload();
+  window.location.replace(window.location.pathname + '#dashboard');
 }
 
 // Legacy alias — kept so any remaining callers don't break
@@ -5157,14 +5157,39 @@ async function selfUpdate() {
 
 function closeSelfUpdateModal() {
   document.getElementById('selfUpdateModal').style.display = 'none';
+  const pwInput = document.getElementById('selfUpdatePasswordInput');
+  const pwErr   = document.getElementById('selfUpdatePasswordError');
+  if (pwInput) pwInput.value = '';
+  if (pwErr)   pwErr.style.display = 'none';
 }
 
 async function confirmSelfUpdate() {
   const btn      = document.getElementById('selfUpdateConfirmBtn');
   const allCheck = document.getElementById('selfUpdateAllCheck');
-  btn.disabled = true;
-  btn.textContent = 'Updating...';
+  const pwInput  = document.getElementById('selfUpdatePasswordInput');
+  const pwErr    = document.getElementById('selfUpdatePasswordError');
 
+  const password = pwInput?.value?.trim() || '';
+  if (!password) {
+    if (pwErr) { pwErr.textContent = 'Password required'; pwErr.style.display = ''; }
+    pwInput?.focus();
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Verifying...';
+  if (pwErr) pwErr.style.display = 'none';
+
+  const check = await API.post('/api/auth/verify-password', { password }).catch(() => null);
+  if (!check?.valid) {
+    if (pwErr) { pwErr.textContent = 'Incorrect password'; pwErr.style.display = ''; }
+    btn.disabled = false;
+    btn.textContent = 'Update Now';
+    pwInput?.select();
+    return;
+  }
+
+  btn.textContent = 'Updating...';
   const updateAll = !!(allCheck?.checked && allCheck.closest('#selfUpdateAllRow')?.style.display !== 'none');
   const data = await API.post('/api/server/update', { updateAll }).catch(() => null);
   if (data?.success || data?.action === 'update') {
@@ -5174,6 +5199,101 @@ async function confirmSelfUpdate() {
     showToast(data?.error || 'Update failed', 'error');
     btn.disabled = false;
     btn.textContent = 'Update Now';
+  }
+}
+
+// ─── Install New Instance ─────────────────────────────────────────
+
+let _installRunning  = false;
+let _installPollTimer = null;
+let _installKnownPeerCount = 0;
+
+function openInstallModal() {
+  _installRunning = false;
+  document.getElementById('installConfirmView').style.display = '';
+  document.getElementById('installProgressView').style.display = 'none';
+  document.getElementById('installPasswordInput').value = '';
+  document.getElementById('installPasswordError').style.display = 'none';
+  document.getElementById('installConfirmBtn').disabled = false;
+  document.getElementById('installConfirmBtn').textContent = 'Install';
+  document.getElementById('installInstanceModal').style.display = '';
+  setTimeout(() => document.getElementById('installPasswordInput').focus(), 50);
+}
+
+function closeInstallModal() {
+  document.getElementById('installInstanceModal').style.display = 'none';
+  if (_installPollTimer) { clearInterval(_installPollTimer); _installPollTimer = null; }
+}
+
+async function startInstallInstance() {
+  const btn     = document.getElementById('installConfirmBtn');
+  const pwInput = document.getElementById('installPasswordInput');
+  const pwErr   = document.getElementById('installPasswordError');
+
+  const password = pwInput?.value?.trim() || '';
+  if (!password) {
+    pwErr.textContent = 'Password required'; pwErr.style.display = '';
+    pwInput?.focus(); return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  pwErr.style.display = 'none';
+
+  const check = await API.post('/api/auth/verify-password', { password }).catch(() => null);
+  if (!check?.valid) {
+    pwErr.textContent = 'Incorrect password'; pwErr.style.display = '';
+    btn.disabled = false; btn.textContent = 'Install';
+    pwInput?.select(); return;
+  }
+
+  const data = await API.post('/api/install-instance').catch(() => null);
+  if (!data?.success) {
+    showToast(data?.error || 'Failed to start installation', 'error');
+    btn.disabled = false; btn.textContent = 'Install'; return;
+  }
+
+  _installRunning = true;
+  _installKnownPeerCount = _serversPeers.length;
+  document.getElementById('installConfirmView').style.display = 'none';
+  document.getElementById('installProgressView').style.display = '';
+  document.getElementById('installLogBox').textContent = 'Starting…';
+
+  _installPollTimer = setInterval(_pollInstall, 2000);
+}
+
+async function _pollInstall() {
+  const data = await API.get('/api/install-instance/log').catch(() => null);
+  if (!data) return;
+
+  const box = document.getElementById('installLogBox');
+  if (box && data.lines?.length) {
+    box.textContent = data.lines.join('\n');
+    box.scrollTop = box.scrollHeight;
+  }
+
+  const label = document.getElementById('installProgressLabel');
+
+  if (data.status === 'done') {
+    clearInterval(_installPollTimer); _installPollTimer = null;
+    _installRunning = false;
+    if (label) label.textContent = 'Installation complete — detecting new instance…';
+    // Poll instances until a new peer appears, then refresh and close
+    let attempts = 0;
+    const detectTimer = setInterval(async () => {
+      attempts++;
+      const inst = await API.get('/api/instances').catch(() => null);
+      const peerCount = inst?.peers?.length || 0;
+      if (peerCount > _installKnownPeerCount || attempts > 15) {
+        clearInterval(detectTimer);
+        closeInstallModal();
+        loadServersPage();
+        if (peerCount > _installKnownPeerCount) showToast('New instance detected', 'success');
+      }
+    }, 2000);
+  } else if (data.status === 'error') {
+    clearInterval(_installPollTimer); _installPollTimer = null;
+    _installRunning = false;
+    if (label) label.textContent = 'Installation failed — see log above';
   }
 }
 
@@ -5195,8 +5315,9 @@ async function checkAllUpdates() {
 
 // ─── Servers (multi-instance) ────────────────────────────────────
 
-let _serversEnabled = !!localStorage.getItem('stardrop_servers_enabled');
-let _serversPeers   = [];  // loaded from API
+let _serversEnabled  = !!localStorage.getItem('stardrop_servers_enabled');
+let _serversPeers    = [];  // loaded from API
+let _selfContainerIp = '';  // container IP from /api/instances self.host
 
 // On page load — if URL contains ?peers=... auto-import them then clean URL
 function _checkIncomingPeers() {
@@ -5211,7 +5332,7 @@ function _checkIncomingPeers() {
       // Register each incoming peer that isn't this server
       incoming.forEach(p => {
         if (!p.host || !p.port) return;
-        if (p.host === currentHost && p.port === currentPort) return;
+        if (p.port === currentPort) return;  // same port = this instance regardless of IP
         API.post('/api/instances/peer', { name: p.name || p.host, host: p.host, port: p.port })
           .catch(() => null);
       });
@@ -5248,6 +5369,7 @@ async function loadServersPage() {
   const self  = data.self  || {};
   const peers = data.peers || [];
   _serversPeers = peers;
+  if (self.host) _selfContainerIp = self.host;
 
   // Use the browser's hostname for scanning — the container IP from self.host is
   // unreachable from the browser and would cause all port-scan fetches to fail.
@@ -5312,8 +5434,9 @@ async function loadServersPage() {
   }
 
   html += `
-    <div style="margin-top:16px">
+    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-secondary" type="button" onclick="openAddServerModal()">+ Add Server</button>
+      <button class="btn btn-secondary" type="button" onclick="openInstallModal()">+ Install New Instance</button>
     </div>`;
 
   container.innerHTML = html;
@@ -5446,7 +5569,7 @@ async function _connectToServer(idx) {
   // Use the browser's own hostname (what the user actually connects to), not the
   // container-internal IP that hostname -I returns inside Docker.
   const selfData = {
-    host: _cachedLanIp || window.location.hostname,
+    host: _selfContainerIp || _cachedLanIp || window.location.hostname,
     port: parseInt(window.location.port || '18642', 10),
     name: lastStatusData?.live?.farmName || 'StardropHost',
   };
