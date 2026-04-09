@@ -5134,13 +5134,22 @@ async function selfUpdate() {
   const btn = document.getElementById('selfUpdateConfirmBtn');
   if (btn) { btn.disabled = false; btn.textContent = 'Update Now'; }
 
-  // Show "Update all instances" checkbox only when peers are registered
+  // Show "Update all instances" checkbox only when peers are registered.
+  // _serversPeers is only loaded when the Servers tab has been visited,
+  // so fetch from the API directly to get the current peer count.
   const allRow   = document.getElementById('selfUpdateAllRow');
   const allCheck = document.getElementById('selfUpdateAllCheck');
-  if (allRow && allCheck) {
-    const hasPeers = _serversEnabled && _serversPeers.length > 0;
-    allRow.style.display   = hasPeers ? 'flex' : 'none';
-    allCheck.checked       = hasPeers; // default on when peers exist
+  if (allRow && allCheck && _serversEnabled) {
+    try {
+      const d = await API.get('/api/instances');
+      const hasPeers = (d?.peers?.length || 0) > 0;
+      allRow.style.display = hasPeers ? 'flex' : 'none';
+      allCheck.checked     = hasPeers;
+    } catch {
+      allRow.style.display = 'none';
+    }
+  } else if (allRow) {
+    allRow.style.display = 'none';
   }
 
   document.getElementById('selfUpdateModal').style.display = '';

@@ -131,13 +131,19 @@ if [ "$_IS_SIBLING" = "false" ]; then
         if [ "$_UPDATE_ALL" = "true" ]; then
             # Dashboard passed --all flag — no prompt needed
             print_info "Updating all instances (requested from dashboard)"
-        else
+        elif { true </dev/tty; } 2>/dev/null; then
+            # Interactive terminal available — ask the user
             printf "  Update all %d instance(s) together? [Y/n] " "$((${#_UPDATE_SIBLINGS[@]} + 1))"
             read -r _UPDATE_ALL_INPUT </dev/tty
             case "$_UPDATE_ALL_INPUT" in
                 [Nn]*) _UPDATE_SIBLINGS=() ; print_info "Updating this instance only" ;;
                 *)     print_info "Will update all instances after this one" ;;
             esac
+        else
+            # No TTY (running from dashboard) — skip siblings; use the dashboard checkbox to update all
+            _UPDATE_SIBLINGS=()
+            print_info "Non-interactive run — updating this instance only"
+            print_info "Use the dashboard update checkbox to update all instances"
         fi
         echo ""
     fi
