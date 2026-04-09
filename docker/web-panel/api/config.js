@@ -64,9 +64,7 @@ const CONFIG_SCHEMA = {
   'Gameplay': [
     { key: 'CROP_SAVER_ENABLED', label: 'Crop Saver', type: 'boolean', default: 'false', hidden: true },
   ],
-  'Server': [
-    { key: 'LAN_IP', label: 'LAN IP', type: 'text', default: '', hidden: true },
-  ],
+  'Server': [],
   'Updates': [
     { key: 'PANEL_UPDATE_CHECK_HOURS', label: 'Update check interval', type: 'number', default: '24',
       description: 'How often to check for panel and game updates (hours). Leave empty to disable.' },
@@ -236,8 +234,7 @@ function getConfig(req, res) {
 
   const serverMode = (env.SERVER_MODE || process.env.SERVER_MODE || 'lan')
     .replace(/['"]/g, '').trim() || 'lan';
-  const lanIp = (env.LAN_IP || process.env.LAN_IP || '').trim();
-  res.json({ groups, serverMode, lanIp });
+  res.json({ groups, serverMode });
 }
 
 function updateConfig(req, res) {

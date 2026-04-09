@@ -148,7 +148,6 @@ function normalizeJoinHost(host) {
 
 function getNetworkInfo(requestHost = '') {
   const configuredPublicIp = process.env.PUBLIC_IP || '';
-  const configuredLanIp    = process.env.LAN_IP    || '';
   let localIps = [];
 
   try {
@@ -163,7 +162,7 @@ function getNetworkInfo(requestHost = '') {
     ? hostFromRequest : '';
 
   return {
-    joinIp: configuredPublicIp || configuredLanIp || derivedJoinIp || localIps[0] || '',
+    joinIp: configuredPublicIp || derivedJoinIp || localIps[0] || '',
     localIps,
     joinPort: 24642,
     panelPort: parseInt(process.env.PANEL_PORT || '18642', 10),

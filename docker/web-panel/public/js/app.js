@@ -1268,6 +1268,8 @@ let lastRemoteData         = null;
 let _remoteOptimisticState = null;  // 'starting' | 'stopping' | null
 let _remoteYaml            = '';
 let _remoteAddressCache    = { game: '', dashboard: '' };
+let _cachedLanIp           = '';
+let _networkDetailsCached  = false;
 let _configRevealTimer     = null;
 let _configCountdownTimer  = null;
 
@@ -1852,11 +1854,18 @@ function updateDashboardUI(data) {
   ramBar.className      = 'progress-fill' + (memPct > 80 ? ' danger' : memPct > 60 ? ' warn' : '');
   ramBarSys.style.width = Math.min(sysMemPct, 100) + '%';
 
-  // Details
-  const net = data.network || {};
-  setText('detail-join-ip',    net.joinIp || '--');
-  setText('detail-local-ips',  net.localIps?.[0] || '--');
-  setText('detail-panel-port', net.panelPort || 18642);
+  // Details — static after first load, no need to update on every poll
+  if (!_networkDetailsCached) {
+    const net = data.network || {};
+    const displayIp = net.joinIp || net.localIps?.[0] || '';
+    if (displayIp) {
+      _cachedLanIp = displayIp;
+      setText('detail-join-ip',    displayIp);
+      setText('detail-local-ips',  net.localIps?.[0] || displayIp);
+      setText('detail-panel-port', net.panelPort || 18642);
+      _networkDetailsCached = true;
+    }
+  }
   const vncBadge = document.getElementById('vncTopbarBadge');
   if (vncBadge) vncBadge.style.display = data.vncEnabled ? '' : 'none';
 
@@ -4003,32 +4012,6 @@ function stopBackupStatusPolling() {
 }
 
 
-function _lanIpDirty() {
-  const btn = document.getElementById('lanIpSaveBtn');
-  if (btn) btn.style.display = '';
-}
-
-async function _clearLanIp() {
-  const input = document.getElementById('lanIpInput');
-  if (input) input.value = '';
-  await saveLanIp();
-}
-
-async function saveLanIp() {
-  const input = document.getElementById('lanIpInput');
-  const btn   = document.getElementById('lanIpSaveBtn');
-  const val   = input?.value?.trim() || '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-  try {
-    await API.put('/api/config', { LAN_IP: val });
-    if (btn) btn.style.display = 'none';
-    showToast('LAN IP saved — restart to apply', 'success');
-  } catch {
-    showToast('Failed to save LAN IP', 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
-  }
-}
 
 // ─── Config ──────────────────────────────────────────────────────
 
@@ -4184,23 +4167,6 @@ async function loadConfig() {
 
       card.insertBefore(remoteRow, card.firstChild.nextSibling);
       card.insertBefore(statusRow, card.firstChild.nextSibling);
-
-      // LAN IP row — appended after config items
-      const lanIpRow = document.createElement('div');
-      lanIpRow.className = 'config-item';
-      lanIpRow.id = 'lanIpRow';
-      lanIpRow.innerHTML =
-        `<div><div class="config-label">LAN IP</div></div>
-         <div class="config-value" style="gap:8px;flex-wrap:wrap">
-           <input id="lanIpInput" class="input" type="text" placeholder="e.g. 192.168.0.100"
-             style="width:280px;font-size:13px" value="${escapeHtml(data.lanIp || '')}" oninput="_lanIpDirty()">
-           <button class="btn btn-sm btn-icon" onclick="_clearLanIp()" title="Clear">×</button>
-           <button class="btn btn-sm btn-secondary" id="lanIpSaveBtn" onclick="saveLanIp()" style="display:none">Save</button>
-           <button class="btn btn-sm btn-icon" onclick="copyRemoteAddr('lanIpInput')" title="Copy">
-             <svg class="icon"><use href="#icon-copy"></use></svg>
-           </button>
-         </div>`;
-      card.appendChild(lanIpRow);
 
     }
 
@@ -5270,7 +5236,10 @@ function _updateRemoteBadge() {
 }
 
 function _populateConnectionAddresses() {
-  const lanIp    = lastStatusData?.network?.joinIp || lastStatusData?.network?.localIps?.[0] || '--';
+  // Cache LAN IP on first valid read — never overwrite with remote domain
+  const rawIp = lastStatusData?.network?.joinIp || lastStatusData?.network?.localIps?.[0] || '';
+  if (rawIp && rawIp !== '--' && !_cachedLanIp) _cachedLanIp = rawIp;
+  const lanIp = _cachedLanIp || rawIp || '--';
   const gamePort = 24642;
   const dashPort = lastStatusData?.panelPort || 18642;
 
