@@ -131,7 +131,7 @@ if [ "$_IS_SIBLING" = "false" ]; then
         if [ "$_UPDATE_ALL" = "true" ]; then
             # Dashboard passed --all flag — no prompt needed
             print_info "Updating all instances (requested from dashboard)"
-        elif { true </dev/tty; } 2>/dev/null; then
+        elif [ -t 0 ]; then
             # Interactive terminal available — ask the user
             printf "  Update all %d instance(s) together? [Y/n] " "$((${#_UPDATE_SIBLINGS[@]} + 1))"
             read -r _UPDATE_ALL_INPUT </dev/tty
