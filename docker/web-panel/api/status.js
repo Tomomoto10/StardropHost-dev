@@ -157,12 +157,8 @@ function getNetworkInfo(requestHost = '') {
       .filter(ip => ip && ip !== '127.0.0.1' && ip !== '::1');
   } catch {}
 
-  const hostFromRequest = normalizeJoinHost(requestHost);
-  const derivedJoinIp = hostFromRequest && hostFromRequest !== 'localhost' && hostFromRequest !== '127.0.0.1'
-    ? hostFromRequest : '';
-
   return {
-    joinIp: configuredPublicIp || derivedJoinIp || localIps[0] || '',
+    joinIp: configuredPublicIp || localIps[0] || '',
     localIps,
     joinPort: 24642,
     panelPort: parseInt(process.env.PANEL_PORT || '18642', 10),

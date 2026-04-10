@@ -5361,30 +5361,36 @@ function _enterServersEditMode() { _serversEditMode = true;  loadServersPage(); 
 function _exitServersEditMode()  { _serversEditMode = false; loadServersPage(); }
 
 // On page load — if URL contains ?peers=... auto-import them then clean URL
-function _checkIncomingPeers() {
+async function _checkIncomingPeers() {
   const params = new URLSearchParams(window.location.search);
   const encoded = params.get('peers');
   if (!encoded) return;
-  try {
-    const incoming = JSON.parse(atob(encoded));
-    if (Array.isArray(incoming) && incoming.length) {
-      const currentHost = window.location.hostname;
-      const currentPort = parseInt(window.location.port || '18642', 10);
-      // Register each incoming peer that isn't this server
-      incoming.forEach(p => {
-        if (!p.host || !p.port) return;
-        if (p.port === currentPort) return;  // same port = this instance regardless of IP
-        API.post('/api/instances/peer', { name: p.name || p.host, host: p.host, port: p.port })
-          .catch(() => null);
-      });
-      // Enable servers tab automatically when peers arrive
-      if (!_serversEnabled) _setMultiInstanceEnabled(true);
-    }
-  } catch {}
-  // Clean URL
+
+  // Clean URL immediately before any async work
   const url = new URL(window.location.href);
   url.searchParams.delete('peers');
   history.replaceState(null, '', url.pathname + url.hash);
+
+  try {
+    const incoming = JSON.parse(atob(encoded));
+    if (!Array.isArray(incoming) || !incoming.length) return;
+
+    // Use the server's real panel port — window.location.port may be a
+    // playit.gg tunnel port which would cause ghost peer entries.
+    let selfPort = lastStatusData?.panelPort || null;
+    if (!selfPort) {
+      try { const d = await API.get('/api/instances'); selfPort = d?.self?.port || null; } catch {}
+    }
+    selfPort = selfPort || parseInt(window.location.port || '18642', 10);
+
+    incoming.forEach(p => {
+      if (!p.host || !p.port) return;
+      if (p.port === selfPort) return;
+      API.post('/api/instances/peer', { name: p.name || p.host, host: p.host, port: p.port })
+        .catch(() => null);
+    });
+    if (!_serversEnabled) _setMultiInstanceEnabled(true);
+  } catch {}
 }
 
 function _setMultiInstanceEnabled(enabled) {
@@ -5621,8 +5627,8 @@ async function _connectToServer(idx) {
   // container-internal IP that hostname -I returns inside Docker.
   const selfData = {
     host: _selfContainerIp || _cachedLanIp || window.location.hostname,
-    port: parseInt(window.location.port || '18642', 10),
-    name: lastStatusData?.live?.farmName || 'StardropHost',
+    port: lastStatusData?.panelPort || parseInt(window.location.port || '18642', 10),
+    name: lastStatusData?.live?.farmName || lastStatusData?.farmName || 'StardropHost',
   };
   const allPeers = [selfData, ..._serversPeers.filter((_, i) => i !== idx)];
   const encoded  = btoa(JSON.stringify(allPeers));
