@@ -603,10 +603,11 @@ body {
 /* Console page — logs + terminal combined, fills viewport without page scroll.
    100vh minus: sidebar header (~64px) + page-container padding (48px top+bottom)
    Must use .page.active.console-page to beat .page.active { display:block } specificity */
-.page.active.console-page { display: flex; flex-direction: column; height: calc(100vh - 112px); }
+.page.active.console-page { display: flex; flex-direction: column; height: calc(100vh - 112px); gap: 16px; }
 
 .console-card {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -638,6 +639,40 @@ body {
   min-height: 0;
   margin-bottom: 0;
 }
+
+/* Logs card — separate collapsible card below the terminal */
+.logs-card {
+  flex-shrink: 0;
+  height: 260px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.logs-card.expanded {
+  flex: 1;
+  flex-shrink: 1;
+  height: unset;
+  min-height: 0;
+}
+.logs-expand-row {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 0;
+  flex-shrink: 0;
+}
+.btn-logs-expand {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+.btn-logs-expand:hover { color: var(--text-primary); }
+.logs-expand-icon { transition: transform 0.2s ease; }
+.logs-card.expanded .logs-expand-icon { transform: rotate(180deg); }
 
 .log-line         { padding: 1px 0; }
 .log-line.error   { color: var(--accent-error); }

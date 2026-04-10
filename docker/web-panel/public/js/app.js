@@ -2348,6 +2348,10 @@ function toggleLogDlMenu() {
   if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
 
+function toggleLogsExpand() {
+  document.getElementById('logsCard').classList.toggle('expanded');
+}
+
 async function downloadSmapiLog() {
   try {
     const data = await API.get('/api/logs?type=all&lines=10000');
