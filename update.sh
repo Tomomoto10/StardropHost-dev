@@ -69,9 +69,11 @@ print_step()    { echo ""; echo -e "${BOLD}$1${NC}"; }
 # -- Flags --
 _IS_SIBLING=false   # set when called from another instance's update (skip re-prompting)
 _UPDATE_ALL=false   # set when dashboard requests update of all instances (no interactive prompt)
+_SHOW_LOGS=false    # set with --log to tail startup logs after update
 for _arg in "$@"; do
     [ "$_arg" = "--sibling" ] && _IS_SIBLING=true
     [ "$_arg" = "--all"     ] && _UPDATE_ALL=true
+    [ "$_arg" = "--log"     ] && _SHOW_LOGS=true
 done
 
 # -- Require root --
@@ -309,11 +311,12 @@ echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━
 echo -e "${GREEN}${BOLD}  Update complete!${NC}"
 echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
+if [ "$_SHOW_LOGS" = "true" ]; then
 echo -e "  Showing startup logs for 15 seconds..."
 echo ""
-
 sleep 2
 timeout 15 docker logs -f "${CONTAINER_PREFIX}" 2>/dev/null || true
+fi
 
 echo ""
 echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

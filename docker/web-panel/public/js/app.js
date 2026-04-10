@@ -5551,7 +5551,8 @@ async function loadServersPage() {
                   <span id="peer-status-label-${i}" style="font-size:12px;color:var(--text-muted)">—</span>
                   <span id="peer-players-${i}" style="font-size:12px;color:var(--text-muted)"></span>
                 </div>
-                <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(s.host)} · Port ${s.port}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(s.host)}</div>
+                <div style="font-size:11px;color:var(--text-muted)">Port ${s.port}</div>
               </div>
               <div id="peer-chat-${i}" style="display:none">
                 <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">
