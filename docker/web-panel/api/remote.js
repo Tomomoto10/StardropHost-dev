@@ -179,6 +179,18 @@ async function removeService(req, res) {
   }
 }
 
+// Called once on panel init — broadcasts current remote state to peers so
+// instances that were already configured before this feature existed are detected.
+async function syncPeers(req, res) {
+  try {
+    const { body } = await callManager('GET', '/remote/status');
+    broadcastRemoteStatus(!!(body.configured));
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: false });
+  }
+}
+
 // Reads local instances.json — no HTTP probing needed.
 // Peers announce their remoteActive status via /api/instances/register.
 function getPeerStatus(req, res) {
@@ -191,4 +203,4 @@ function getPeerStatus(req, res) {
   }
 }
 
-module.exports = { getStatus, applyCompose, startService, stopService, removeService, getAddresses, saveAddresses, getPeerStatus };
+module.exports = { getStatus, applyCompose, startService, stopService, removeService, getAddresses, saveAddresses, syncPeers, getPeerStatus };

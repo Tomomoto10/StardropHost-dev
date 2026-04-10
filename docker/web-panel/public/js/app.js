@@ -1388,6 +1388,7 @@ function init() {
   setupWebSocket();
   loadDashboard();
   loadRemoteStatus();
+  API.post('/api/remote/sync-peers').catch(() => {}); // broadcast remote state to peers on startup
   loadBackupStatus();
   renderQuickActions();
   loadPanelVersion();
@@ -5458,7 +5459,7 @@ async function loadServersPage() {
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
-            ${s.name ? `<div style="font-weight:600;font-size:15px;margin-bottom:2px">${escapeHtml(s.name)}</div>` : ''}
+            ${(() => { const n = /^Instance \(port \d+\)$/.test(s.name) ? 'Connect to Setup' : s.name; return n ? `<div style="font-weight:600;font-size:15px;margin-bottom:2px">${escapeHtml(n)}</div>` : ''; })()}
             <div style="font-size:12px;color:var(--text-muted)">${escapeHtml(s.host)}</div>
             <div style="font-size:12px;color:var(--text-muted)">Port ${s.port}</div>
           </div>

@@ -305,7 +305,7 @@ function installInstance() {
   writeInstallStatus('running', 'Starting installation...');
 
   const command = [
-    'docker run --rm',
+    'docker run --rm --name stardrop-install',
     '-v /var/run/docker.sock:/var/run/docker.sock',
     `-v ${parentDir}:${parentDir}`,
     `-e STARDROP_REAL_HOME=${parentDir}`,
