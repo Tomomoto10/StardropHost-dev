@@ -146,10 +146,17 @@ function normalizeJoinHost(host) {
   return firstHost.replace(/:\d+$/, '');
 }
 
-function getNetworkInfo(requestHost = '') {
-  const configuredPublicIp = process.env.PUBLIC_IP || '';
-  let localIps = [];
+function isLanIp(ip) {
+  return /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(ip);
+}
 
+// Server-side LAN IP cache — set once on the first request that arrives from a
+// private IP address (local network access). Stays fixed for the process lifetime
+// so remote connections always see the real LAN IP, not the tunnel domain.
+let _cachedLanIp = process.env.PUBLIC_IP || '';
+
+function getNetworkInfo(requestHost = '') {
+  let localIps = [];
   try {
     localIps = execSync('hostname -I 2>/dev/null', { encoding: 'utf-8' })
       .trim()
@@ -157,11 +164,20 @@ function getNetworkInfo(requestHost = '') {
       .filter(ip => ip && ip !== '127.0.0.1' && ip !== '::1');
   } catch {}
 
+  // Cache the LAN IP on the first request that comes from a private IP address.
+  // hostname -I returns the container IP (172.x.x.x) so we rely on the request
+  // host instead — when the user first opens the dashboard on their local network
+  // the Host header is the real machine IP (192.168.x.x).
+  if (!_cachedLanIp) {
+    const reqIp = normalizeJoinHost(requestHost);
+    if (reqIp && isLanIp(reqIp)) _cachedLanIp = reqIp;
+  }
+
   return {
-    joinIp: configuredPublicIp || localIps[0] || '',
+    joinIp:      _cachedLanIp || localIps[0] || '',
     localIps,
-    joinPort: 24642,
-    panelPort: parseInt(process.env.PANEL_PORT || '18642', 10),
+    joinPort:    24642,
+    panelPort:   parseInt(process.env.PANEL_PORT || '18642', 10),
     metricsPort: parseInt(process.env.METRICS_PORT || '9090', 10),
   };
 }
