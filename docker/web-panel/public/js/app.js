@@ -3342,6 +3342,7 @@ function _updateChatBadges() {
   const hasAny = Object.values(_chatNotifs).some(Boolean);
   const sb = document.getElementById('chatNavBadge');
   if (sb) sb.style.display = hasAny ? '' : 'none';
+  if (hasAny) API.post('/api/instances/chat-ts', { ts: Math.floor(Date.now() / 1000) }).catch(() => {});
   if (currentPage === 'chat') renderChatPlayerPills();
   _updateMenuToggleDot();
 }
@@ -5543,16 +5544,23 @@ async function loadServersPage() {
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
           <div style="min-width:0">
             <div style="font-weight:600;font-size:15px;margin-bottom:4px">${escapeHtml(peerName)}</div>
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
-              <span id="peer-status-dot-${i}" class="status-dot offline"></span>
-              <span id="peer-status-label-${i}" style="font-size:12px;color:var(--text-muted)">—</span>
-              <span id="peer-players-${i}" style="font-size:12px;color:var(--text-muted)"></span>
+            <div style="display:flex;align-items:flex-start;gap:16px">
+              <div>
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                  <span id="peer-status-dot-${i}" class="status-dot offline"></span>
+                  <span id="peer-status-label-${i}" style="font-size:12px;color:var(--text-muted)">—</span>
+                  <span id="peer-players-${i}" style="font-size:12px;color:var(--text-muted)"></span>
+                </div>
+                <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(s.host)} · Port ${s.port}</div>
+              </div>
+              <div id="peer-chat-${i}" style="display:none">
+                <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">
+                  <span class="notif-dot"></span>
+                  <span style="font-size:12px;color:#ef4444">Chat</span>
+                </div>
+                <div id="peer-chat-label-${i}" style="font-size:11px;color:var(--text-muted)"></div>
+              </div>
             </div>
-            <div id="peer-chat-${i}" style="display:none;align-items:center;gap:5px;margin-bottom:2px">
-              <span class="status-dot restarting"></span>
-              <span style="font-size:12px;color:var(--accent-warn)" id="peer-chat-label-${i}">Chat</span>
-            </div>
-            <div style="font-size:11px;color:var(--text-muted)">Port ${s.port}</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
             <button class="btn btn-sm btn-primary" type="button" onclick="_connectToServer(${i})">Connect</button>
@@ -5612,8 +5620,8 @@ async function _refreshPeerStatuses(selfHost, peers) {
       const chatEl  = document.getElementById(`peer-chat-${i}`);
       const chatLbl = document.getElementById(`peer-chat-label-${i}`);
       if (chatEl && lastTs > seenTs) {
-        chatEl.style.display = 'flex';
-        if (chatLbl) chatLbl.textContent = `Chat · ${_timeAgo(lastTs)}`;
+        chatEl.style.display = '';
+        if (chatLbl) chatLbl.textContent = `${_timeAgo(lastTs)} ago`;
       } else if (chatEl) {
         chatEl.style.display = 'none';
       }

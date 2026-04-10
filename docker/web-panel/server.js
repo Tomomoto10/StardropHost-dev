@@ -173,6 +173,7 @@ const instancesAPI = require('./api/instances');
 app.get(   '/api/instances',           instancesAPI.getInstances);   // no auth — public discovery
 app.post(  '/api/instances/register',  instancesAPI.registerPeer);   // no auth — cross-instance announce
 app.post(  '/api/instances/peer',      auth.verifyMiddleware, instancesAPI.addPeer);
+app.post(  '/api/instances/chat-ts',   auth.verifyMiddleware, instancesAPI.writeChatTs);
 app.delete('/api/instances/peer/:idx', auth.verifyMiddleware, instancesAPI.removePeer);
 app.post(  '/api/install-instance',      auth.verifyMiddleware, instancesAPI.startInstall);
 app.get(   '/api/install-instance/log',  auth.verifyMiddleware, instancesAPI.getInstallLog);

@@ -14,7 +14,21 @@ const path = require('path');
 const { execSync } = require('child_process');
 const config = require('../server');
 const { readRemoteActive } = require('./remote');
-const { getLastChatTs }   = require('./chat');
+
+const CHAT_TS_FILE = path.join(config.DATA_DIR, 'chat-ts.json');
+
+function readChatTs() {
+  try { return JSON.parse(fs.readFileSync(CHAT_TS_FILE, 'utf-8')).ts || 0; } catch { return 0; }
+}
+
+function writeChatTs(req, res) {
+  try {
+    const ts = parseInt(req.body?.ts, 10) || Math.floor(Date.now() / 1000);
+    fs.mkdirSync(path.dirname(CHAT_TS_FILE), { recursive: true });
+    fs.writeFileSync(CHAT_TS_FILE, JSON.stringify({ ts }));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
 
 function callManager(method, urlPath, body = null) {
   return new Promise((resolve, reject) => {
@@ -95,7 +109,7 @@ function getInstances(req, res) {
       serverState:  live?.serverState || '',
       playerCount:  Array.isArray(live?.players) ? live.players.filter(p => !p.isHost).length : 0,
       remoteActive: readRemoteActive(),
-      lastChatTs:   getLastChatTs(),
+      lastChatTs:   readChatTs(),
     },
     peers:           loadPeers().filter(p => p.port !== config.PORT),
     multiInstance:   detectMultiInstance(),
@@ -173,4 +187,4 @@ async function getInstallLog(req, res) {
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
-module.exports = { getInstances, registerPeer, addPeer, removePeer, startInstall, getInstallLog };
+module.exports = { getInstances, registerPeer, addPeer, removePeer, startInstall, getInstallLog, writeChatTs };
