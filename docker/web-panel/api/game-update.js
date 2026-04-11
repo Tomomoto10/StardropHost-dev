@@ -15,6 +15,21 @@ const LOG_FILE     = path.join(config.DATA_DIR, 'game-update.log');
 const CREDS_FILE   = path.join(config.DATA_DIR, 'game-update-creds.json');
 const MANIFEST     = path.join(config.GAME_DIR, 'steamapps', 'appmanifest_413150.acf');
 const UPDATE_SCRIPT = '/home/steam/scripts/game-update.sh';
+const ENV_FILE     = config.ENV_FILE || '/home/steam/web-panel/data/runtime.env';
+
+function readEnvKey(key) {
+  try {
+    const content = fs.readFileSync(ENV_FILE, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx < 1) continue;
+      if (trimmed.slice(0, eqIdx).trim() === key) return trimmed.slice(eqIdx + 1).trim();
+    }
+  } catch {}
+  return '';
+}
 
 // Track the running update process
 let updateProcess = null;
@@ -70,6 +85,7 @@ function getStatus(req, res) {
     update:         update                || null,
     log:            logLines,
     running:        updateProcess !== null,
+    gameProvider:   readEnvKey('GAME_PROVIDER') || 'steam',
   });
 }
 

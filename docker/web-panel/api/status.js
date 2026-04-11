@@ -466,6 +466,15 @@ function collectStatus(req = null) {
     status.gameUpdateAvailable = false;
   }
 
+  // Game provider (steam|gog) — read from runtime.env
+  try {
+    const envContent = fs.readFileSync(config.ENV_FILE, 'utf-8');
+    const match = envContent.match(/^GAME_PROVIDER=(.+)$/m);
+    status.gameProvider = match ? match[1].trim() : 'steam';
+  } catch {
+    status.gameProvider = 'steam';
+  }
+
   // -- Panel update availability (written by panel-update.js background check) --
   // Same freshness gate — suppress stale result until background check runs (~5s after start).
   try {

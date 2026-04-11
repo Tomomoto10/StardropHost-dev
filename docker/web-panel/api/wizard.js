@@ -18,6 +18,24 @@ const auth    = require('../auth');
 
 const WIZARD_STATE_FILE = path.join(config.DATA_DIR, 'wizard-state.json');
 
+// -- Wizard-complete guard --
+// These endpoints are intentionally unauthenticated during the wizard (no account exists yet).
+// Once setup is done they must not remain open — gate them with this check.
+function wizardCompleteGuard(req, res) {
+  if (auth.isSetupComplete()) {
+    res.status(403).json({ error: 'Wizard already completed' });
+    return true;
+  }
+  return false;
+}
+
+// Allowed roots for file-system access via wizard endpoints
+const WIZARD_ALLOWED_ROOTS = ['/host-parent', '/home/steam'];
+
+function isUnderAllowedRoot(resolved) {
+  return WIZARD_ALLOWED_ROOTS.some(r => resolved === r || resolved.startsWith(r + '/'));
+}
+
 // -- State helpers --
 
 function defaultState() {
@@ -219,8 +237,8 @@ function submitStep1(req, res) {
 function submitStep2(req, res) {
   const { method, gamePath } = req.body || {};
 
-  if (!method || !['local', 'path', 'steam'].includes(method)) {
-    return res.status(400).json({ error: 'Method must be one of: local, path, steam' });
+  if (!method || !['local', 'path', 'steam', 'gog'].includes(method)) {
+    return res.status(400).json({ error: 'Method must be one of: local, path, steam, gog' });
   }
 
   if (method === 'local') {
@@ -250,6 +268,18 @@ function submitStep2(req, res) {
     writeEnvValues({ GAME_PATH: actualGameDir });
   }
 
+  if (method === 'gog') {
+    // Record provider so the update path knows which container to use.
+    // The actual download is driven by the frontend via /api/gog/* endpoints.
+    writeEnvValues({ GAME_PROVIDER: 'gog' });
+    const state = readState();
+    state.steps[2].complete = true;
+    state.steps[2].method   = 'gog';
+    state.currentStep = 3;
+    writeState(state);
+    return res.json({ success: true, message: 'GOG download configured', nextStep: 3 });
+  }
+
   if (method === 'steam') {
     const { steamUsername, steamPassword, steamGuardCode } = req.body || {};
     if (!steamUsername || typeof steamUsername !== 'string' || !steamUsername.trim()) {
@@ -261,6 +291,7 @@ function submitStep2(req, res) {
     // Write credentials + flag to runtime.env — the entrypoint.sh waiting loop
     // re-reads this every 30s and runs steamcmd to download the game.
     const envUpdates = {
+      GAME_PROVIDER:   'steam',
       STEAM_DOWNLOAD:  'true',
       STEAM_USERNAME:  steamUsername.trim(),
       STEAM_PASSWORD:  steamPassword,
@@ -494,6 +525,7 @@ function listSaves(req, res) {
 
 // Poll whether the game is loaded and hosting (wizard step 5)
 function getGameReadyStatus(req, res) {
+  if (wizardCompleteGuard(req, res)) return;
   const { spawnSync } = require('child_process');
 
   function pgrepRunning(pattern) {
@@ -536,6 +568,7 @@ function getGameReadyStatus(req, res) {
 
 // SMAPI log tail for wizard step 7 — no auth required (runs before dashboard login)
 function getWizardSmapiLog(req, res) {
+  if (wizardCompleteGuard(req, res)) return;
   const smapi = config.SMAPI_LOG || '/home/steam/.config/StardewValley/ErrorLogs/SMAPI-latest.txt';
   const lines = Math.min(parseInt(req.query.lines || '150', 10), 400);
 
@@ -642,6 +675,7 @@ function factoryReset(_req, res) {
 
 // Scan /host-parent for sibling stardrophost install directories that contain game files
 function scanInstalls(req, res) {
+  if (wizardCompleteGuard(req, res)) return;
   const hostParent = '/host-parent';
   const results = [];
   if (!fs.existsSync(hostParent)) return res.json({ installs: [], available: false });
@@ -672,11 +706,11 @@ function scanInstalls(req, res) {
 
 // Browse a directory on the server (restricted to /host-parent and /home/steam)
 function browseDir(req, res) {
+  if (wizardCompleteGuard(req, res)) return;
   const reqPath  = req.query.path || '/host-parent';
   const resolved = path.resolve(reqPath);
 
-  const ALLOWED = ['/host-parent', '/home/steam'];
-  if (!ALLOWED.some(a => resolved === a || resolved.startsWith(a + '/'))) {
+  if (!isUnderAllowedRoot(resolved)) {
     return res.status(403).json({ error: 'Path not allowed' });
   }
   if (!fs.existsSync(resolved)) return res.status(404).json({ error: 'Path not found' });
@@ -700,6 +734,7 @@ function browseDir(req, res) {
 
 // Scan sibling stardrophost installs for Stardew Valley saves
 function scanInstanceSaves(req, res) {
+  if (wizardCompleteGuard(req, res)) return;
   const hostParent = '/host-parent';
   if (!fs.existsSync(hostParent)) return res.json({ saves: [], available: false });
 
@@ -739,13 +774,14 @@ function scanInstanceSaves(req, res) {
 
 // Scan a server directory for Stardew Valley save folders
 function scanSaveImport(req, res) {
+  if (wizardCompleteGuard(req, res)) return;
   const dir = req.query.dir;
   if (!dir || typeof dir !== 'string') return res.status(400).json({ error: 'dir required' });
 
-  // Basic safety: reject obviously dangerous paths
   const resolved = path.resolve(dir);
-  const BLOCKED = ['/', '/proc', '/sys', '/dev', '/run'];
-  if (BLOCKED.includes(resolved)) return res.status(400).json({ error: 'Directory not allowed' });
+  if (!isUnderAllowedRoot(resolved)) {
+    return res.status(403).json({ error: 'Directory not allowed' });
+  }
 
   const saves = [];
   function scan(d, depth) {
@@ -768,13 +804,26 @@ function scanSaveImport(req, res) {
 
 // Copy a save from a server path into the saves directory
 function importSave(req, res) {
+  if (wizardCompleteGuard(req, res)) return;
   const { savePath, saveName } = req.body || {};
   if (!savePath || !saveName) return res.status(400).json({ error: 'savePath and saveName required' });
 
-  const dest = path.join(config.SAVES_DIR, saveName);
+  // savePath must be under an allowed root — prevents copying arbitrary container paths
+  const resolvedSrc = path.resolve(savePath);
+  if (!isUnderAllowedRoot(resolvedSrc)) {
+    return res.status(403).json({ error: 'Source path not allowed' });
+  }
+
+  // saveName must not traverse out of the saves directory
+  const cleanName = path.basename(saveName);
+  if (!cleanName || cleanName !== saveName) {
+    return res.status(400).json({ error: 'Invalid save name' });
+  }
+
+  const dest = path.join(config.SAVES_DIR, cleanName);
   try {
     if (!fs.existsSync(config.SAVES_DIR)) fs.mkdirSync(config.SAVES_DIR, { recursive: true });
-    fs.cpSync(savePath, dest, { recursive: true });
+    fs.cpSync(resolvedSrc, dest, { recursive: true });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

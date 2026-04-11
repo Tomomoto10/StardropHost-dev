@@ -250,6 +250,9 @@ fi
 # ===========================================
 LOG_STAMP=$(date +%Y%m%d-%H%M%S)
 LOG_FILE="/tmp/stardrop-install-${INSTANCE_NUM}-${LOG_STAMP}.log"
+# Create the log file with restricted permissions before tee opens it,
+# so it is never world-readable even momentarily.
+touch "$LOG_FILE" && chmod 600 "$LOG_FILE"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 # ===========================================
@@ -370,6 +373,13 @@ check_docker() {
         echo "  Try installing it manually:"
         echo "    sudo apt-get install -y docker-compose-plugin"
         exit 1
+    fi
+
+    # Enable Docker to start automatically on boot (systemd only — skip silently otherwise)
+    if command -v systemctl &>/dev/null && systemctl is-system-running --quiet 2>/dev/null; then
+        systemctl enable docker     2>/dev/null || true
+        systemctl enable containerd 2>/dev/null || true
+        print_success "Docker enabled at boot (systemd)"
     fi
 
     # Add the real user to the docker group so they can run docker
@@ -527,7 +537,7 @@ EOF
 
     print_step "Step 3b: Creating data directories..."
     print_info "Saves, logs, mods, and backups all live under $INSTALL_DIR/data/"
-    mkdir -p data/{saves,game,logs,backups,custom-mods,panel,steam-session}
+    mkdir -p data/{saves,game,logs,backups,custom-mods,panel}
 
     # The container runs as UID 1000 (steam user) so data/ must be owned by
     # that UID. The rest of the install dir stays owned by the real user.

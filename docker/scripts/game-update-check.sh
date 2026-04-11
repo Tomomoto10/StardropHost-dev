@@ -28,16 +28,11 @@ write_status() {
 }
 
 check_for_update() {
-    # Only meaningful if game was Steam-downloaded (manifest exists)
-    if [ ! -f "$MANIFEST" ]; then
-        write_status '{"available":false,"reason":"no_manifest","checkedAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
-        return
-    fi
-
-    # Prefer installedBuild from the check file (written by game-update.sh after a
-    # successful download). This records the Steam API build number rather than the
-    # ACF buildid, which on Linux may differ from the cross-platform Steam build ID
-    # even when the game is fully up to date.
+    # Try reading a stored installedBuild first.
+    # This is written by game-update.sh (Steam) or gog.js (GOG) after every
+    # successful download, and is the canonical "what's installed" reference
+    # for both providers. For GOG users there is no ACF manifest, so this is
+    # the only source of truth.
     local installed_build=""
     if [ -f "$STATUS_FILE" ]; then
         installed_build=$(python3 -c "
@@ -50,8 +45,13 @@ except Exception:
 " 2>/dev/null || true)
     fi
 
-    # Fall back to ACF if no stored build
+    # Fall back to Steam ACF manifest (Steam installs that pre-date the stored build)
     if [ -z "$installed_build" ]; then
+        if [ ! -f "$MANIFEST" ]; then
+            # No manifest and no stored build — game not yet installed
+            write_status '{"available":false,"reason":"no_manifest","checkedAt":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+            return
+        fi
         installed_build=$(grep '"buildid"' "$MANIFEST" 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
     fi
 

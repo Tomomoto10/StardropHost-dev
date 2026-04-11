@@ -134,3 +134,28 @@ services:
       - 8.8.4.4
     environment:
       - STEAM_AUTH_PORT=18700
+
+  # --- GOG Downloader ---
+  # Downloads/updates Stardew Valley from GOG.
+  # Credentials are ephemeral — stored in the container's /Configs only
+  # while it runs. /Configs is NOT mounted to the host so tokens are
+  # gone the moment the container stops. restart: no, started on-demand.
+  # Port 18701 is intentionally NOT exposed to host.
+  stardrop-gog-downloader:
+    build:
+      context: ..
+      dockerfile: StardropHost/docker/gog-downloader/Dockerfile
+    image: stardrop-gog-downloader:local
+    container_name: ${CONTAINER_PREFIX:-stardrop}-gog-downloader
+    restart: no
+    profiles:
+      - gog-downloader
+    networks:
+      - stardrop-net
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      - GOG_AUTH_PORT=18701
+    volumes:
+      - ./data/game:/Downloads

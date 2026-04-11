@@ -101,12 +101,17 @@ fi
 cd "$SCRIPT_DIR" || { echo -e "${RED}[ERR]  Cannot cd to $SCRIPT_DIR${NC}"; exit 1; }
 _UPDATE_STATUS_FILE="$SCRIPT_DIR/data/panel/update-status.json"
 
-# -- Load .env so compose has all variables before any docker compose command --
+# -- Extract specific variables from .env without sourcing it as shell code --
+# Sourcing .env with set -a would execute any shell code inside it as root.
+# Docker Compose reads .env natively, so we only need to extract the variables
+# the script itself uses for display and sibling detection.
+_env_get() {
+    grep -E "^${1}=" "$SCRIPT_DIR/.env" 2>/dev/null \
+        | head -1 | cut -d= -f2- | tr -d '"' | sed "s/^'//;s/'$//"
+}
 if [ -f "$SCRIPT_DIR/.env" ]; then
-    set -a
-    # shellcheck disable=SC1091
-    source "$SCRIPT_DIR/.env"
-    set +a
+    _env_panel_port=$(_env_get PANEL_PORT)
+    [ -n "$_env_panel_port" ] && PANEL_PORT="$_env_panel_port"
 fi
 
 print_header

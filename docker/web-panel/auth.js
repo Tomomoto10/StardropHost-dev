@@ -92,7 +92,7 @@ async function initialize(dataDir) {
 
 function saveConfig() {
   if (!panelConfig) return;
-  fs.writeFileSync(configPath, JSON.stringify(panelConfig, null, 2), 'utf-8');
+  fs.writeFileSync(configPath, JSON.stringify(panelConfig, null, 2), { encoding: 'utf-8', mode: 0o600 });
 }
 
 // -- Rate limiting --
@@ -254,8 +254,8 @@ async function changePassword(req, res) {
     return res.status(400).json({ error: 'Old and new passwords are required' });
   }
 
-  if (newPassword.length < 6) {
-    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
   }
 
   if (newUsername !== undefined) {

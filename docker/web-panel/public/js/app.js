@@ -197,14 +197,16 @@ function wizSetMethod(method) {
   document.querySelectorAll('.wiz-method-btn').forEach(b => b.classList.toggle('active', b.dataset.method === method));
   document.getElementById('wiz-method-local').style.display = method === 'local' ? 'block' : 'none';
   document.getElementById('wiz-method-steam').style.display = method === 'steam' ? 'block' : 'none';
+  document.getElementById('wiz-method-gog').style.display   = method === 'gog'   ? 'block' : 'none';
   _wizState._method = method;
-  // Steam: hide the Continue row entirely — download button auto-advances
+  // Steam / GOG: hide Continue row — download button auto-advances
   // Local/path: show Continue row, enable once files are verified
   const continueRow = document.getElementById('wiz-step2-continue-row');
-  if (continueRow) continueRow.style.display = method === 'steam' ? 'none' : '';
+  if (continueRow) continueRow.style.display = (method === 'steam' || method === 'gog') ? 'none' : '';
   const nextBtn = document.getElementById('wiz-step2-next');
   if (nextBtn) nextBtn.disabled = !_wizState._filesFound;
-    if (method === 'local') wizScanInstalls();
+  if (method === 'local') wizScanInstalls();
+  if (method === 'gog')   _wizGogLoadAuthUrl();
 }
 
 // Called on step 2 entry — auto-shows the local tab and triggers scan
@@ -527,6 +529,126 @@ async function wizTriggerSteamDownload() {
   }
 }
 
+// ─── GOG Wizard ───────────────────────────────────────────────────
+
+let _wizGogMode = false;  // true while step 3 is showing a GOG download
+let _gogDlLogLines = 0;
+let _gogDlPollTimer = null;
+
+// Fetch the GOG auth URL from the backend and populate the wizard link
+async function _wizGogLoadAuthUrl() {
+  const linkEl  = document.getElementById('wiz-gog-auth-link');
+  if (!linkEl) return;
+  try {
+    const data = await API.get('/api/gog/auth-url');
+    if (data?.url) {
+      linkEl.href        = data.url;
+      linkEl.textContent = data.url;
+    }
+  } catch {
+    if (linkEl) linkEl.textContent = 'Could not load URL — check panel connection';
+  }
+}
+
+// Login button: start container → login → trigger download → advance to step 3
+async function wizGogLogin() {
+  const redirectInput = document.getElementById('wiz-gog-redirect');
+  const statusEl      = document.getElementById('wiz-gog-status');
+  const btn           = document.getElementById('wiz-gog-login-btn');
+
+  const redirectUrl = redirectInput?.value?.trim();
+  if (!redirectUrl) {
+    if (statusEl) { statusEl.style.color = 'var(--accent-error)'; statusEl.textContent = 'Paste the redirect URL first.'; }
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting GOG service…'; }
+  if (statusEl) { statusEl.style.color = ''; statusEl.textContent = 'Starting GOG downloader…'; }
+
+  // Start the container
+  try {
+    await API.post('/api/gog/container/start');
+  } catch {
+    if (statusEl) { statusEl.style.color = 'var(--accent-error)'; statusEl.textContent = '❌ Could not start GOG service — check manager logs.'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Login to GOG & Start Download'; }
+    return;
+  }
+
+  // Poll for container readiness (up to 20s)
+  if (statusEl) statusEl.textContent = 'Waiting for GOG service…';
+  let ready = false;
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const s = await API.get('/api/gog/status');
+      if (s?.state !== 'unavailable') { ready = true; break; }
+    } catch {}
+  }
+  if (!ready) {
+    if (statusEl) { statusEl.style.color = 'var(--accent-error)'; statusEl.textContent = '❌ GOG service failed to start.'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Login to GOG & Start Download'; }
+    return;
+  }
+
+  // Attempt login
+  if (statusEl) statusEl.textContent = 'Logging in to GOG…';
+  let loginOk = false;
+  try {
+    const data = await API.post('/api/gog/login', { redirectUrl });
+    if (data?.success) {
+      loginOk = true;
+    } else {
+      if (statusEl) { statusEl.style.color = 'var(--accent-error)'; statusEl.textContent = `❌ ${data?.error || 'Login failed — check the URL and try again.'}`; }
+    }
+  } catch (e) {
+    if (statusEl) { statusEl.style.color = 'var(--accent-error)'; statusEl.textContent = `❌ ${e.message || 'Network error'}`; }
+  }
+
+  if (!loginOk) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Login to GOG & Start Download'; }
+    return;
+  }
+
+  // Save step 2 and start download
+  if (statusEl) { statusEl.style.color = 'var(--accent)'; statusEl.textContent = '✅ Logged in — starting download…'; }
+  try {
+    await API.post('/api/wizard/step/2', { method: 'gog' });
+    await API.post('/api/gog/download');
+  } catch {}
+
+  _wizGogMode    = true;
+  _gogDlLogLines = 0;
+  const dlStatus = document.getElementById('wiz-dl-status');
+  if (dlStatus) dlStatus.textContent = 'Connecting to GOG…';
+  const guardRow = document.getElementById('wiz-dl-guard-row');
+  if (guardRow) guardRow.style.display = 'none'; // Steam-only
+  setTimeout(() => { wizGoToStep(3); wizPollDownloadProgress(); }, 1000);
+}
+
+// Step 3 — poll GOG log and render lines in the download log box
+async function _wizPollGogLog(logEl, cntEl) {
+  try {
+    const data = await API.get('/api/gog/log');
+    if (!data?.lines?.length) return data;
+    const newLines = data.lines.slice(_gogDlLogLines);
+    if (!newLines.length) return data;
+    if (_gogDlLogLines === 0) logEl.innerHTML = '';
+    _gogDlLogLines = data.lines.length;
+    const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
+    newLines.forEach(line => {
+      const div = document.createElement('div');
+      div.style.color = /error|fail/i.test(line) ? '#ef4444' : /✅|complete/i.test(line) ? 'var(--accent)' : '';
+      div.textContent = line;
+      logEl.appendChild(div);
+    });
+    if (cntEl) cntEl.textContent = `${_gogDlLogLines} lines`;
+    if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+    return data;
+  } catch { return null; }
+}
+
+// ─── End GOG Wizard ───────────────────────────────────────────────
+
 // Step 3 — poll game-ready + stream setup.log while download/install is running
 const _DL_STAGE_PCT = { waiting: 5, no_game_files: 5, copying: 15, downloading: 30, installing: 65, starting: 90, loading: 95, running: 97, hosting: 99, ready: 100 };
 const _DL_STAGE_TXT = {
@@ -674,10 +796,56 @@ async function wizSubmitSteamcmdGuard() {
 }
 
 async function wizPollDownloadProgress() {
-  const bar     = document.getElementById('wiz-dl-bar');
-  const lbl     = document.getElementById('wiz-dl-status');
-  const logEl   = document.getElementById('wiz-dl-log');
-  const cntEl   = document.getElementById('wiz-dl-log-count');
+  const bar   = document.getElementById('wiz-dl-bar');
+  const lbl   = document.getElementById('wiz-dl-status');
+  const logEl = document.getElementById('wiz-dl-log');
+  const cntEl = document.getElementById('wiz-dl-log-count');
+
+  // ── GOG branch ──────────────────────────────────────────────────
+  if (_wizGogMode) {
+    const gogData = await _wizPollGogLog(logEl, cntEl);
+    const state   = gogData?.state;
+
+    if (state === 'done') {
+      clearTimeout(_steamDlPollTimer);
+      _steamDlPollTimer = null;
+      _wizState._gameMethod = 'gog';
+      if (bar) bar.style.width = '100%';
+      if (lbl) { lbl.style.color = 'var(--accent)'; lbl.textContent = '✅ Game installed — continuing setup…'; }
+      try { await API.post('/api/gog/record-version'); } catch {}
+      setTimeout(() => wizGoToStep(4), 1200);
+      return;
+    }
+
+    if (state === 'error') {
+      clearTimeout(_steamDlPollTimer);
+      _steamDlPollTimer = null;
+      if (bar) bar.style.width = '30%';
+      if (lbl) { lbl.style.color = 'var(--accent-error,#ef4444)'; lbl.textContent = '❌ Download failed — go back and try again.'; }
+      _wizShowStep3BackBtn('GOG download failed — go back to Step 2 and try again.');
+      return;
+    }
+
+    if (state === 'downloading' && bar) {
+      // Crude pct from log — look for "[XX%]" pattern
+      const lines = logEl?.querySelectorAll('div');
+      if (lines?.length) {
+        const last = lines[lines.length - 1].textContent;
+        const m = last.match(/\[(\d+)%\]/);
+        if (m) bar.style.width = Math.min(5 + Math.round(parseInt(m[1]) * 0.85), 90) + '%';
+      }
+    } else if (bar && state === 'logging-in') {
+      bar.style.width = '10%';
+    } else if (bar && state === 'logged-in') {
+      bar.style.width = '20%';
+    }
+
+    if (_wizState.currentStep === 3) {
+      _steamDlPollTimer = setTimeout(wizPollDownloadProgress, 3000);
+    }
+    return;
+  }
+  // ── end GOG branch ──────────────────────────────────────────────
 
   try {
     const data  = await API.get('/api/wizard/game-ready');
@@ -1223,8 +1391,9 @@ async function wizComplete() {
   // Mark wizard complete in backend state regardless of step-check results
   try { await API.post('/api/wizard/force-complete'); } catch {}
 
-  // Stop steam-auth container — only needed during wizard Steam download
+  // Stop download containers — only needed during wizard download steps
   API.post('/api/steam/container/stop').catch(() => null);
+  API.post('/api/gog/container/stop').catch(() => null);
 
   // For existing-save path: save is already on disk — auto-select if needed.
   // For new-farm path: save won't exist until Day 1 ends; don't block here.
@@ -1251,6 +1420,7 @@ function _checkSteamAuthOrInit() {
 }
 
 // ─── Global State ────────────────────────────────────────────────
+let _gameProvider          = 'steam'; // updated from status polling
 let ws                     = null;
 let currentPage            = 'dashboard';
 let logAutoScroll          = true;
@@ -1928,17 +2098,19 @@ function updateDashboardUI(data) {
   _renderPanelNotif(document.getElementById('configPanelUpdateNotif'));
 
   // Game update notification (dashboard + config tab)
+  _gameProvider = data.gameProvider || 'steam';
   function _renderGameNotif(el) {
     if (!el) return;
     if (liveRunning && data.gameUpdateAvailable) {
-      const builds = data.gameUpdateBuilds || {};
-      const sub = builds.latest ? `Build ${builds.current || '?'} → ${builds.latest}` : 'A new version is available';
+      const builds   = data.gameUpdateBuilds || {};
+      const sub      = builds.latest ? `Build ${builds.current || '?'} → ${builds.latest}` : 'A new version is available';
+      const provider = _gameProvider === 'gog' ? 'GOG' : 'Steam';
       el.innerHTML = `
         <div class="update-notification" onclick="openGameUpdateModal()" title="Click to update">
           <div class="update-notification-icon">⬆</div>
           <div class="update-notification-text">
             <div class="update-notification-title">Stardew Valley update available</div>
-            <div class="update-notification-sub">${escapeHtml(sub)} — click to update via Steam</div>
+            <div class="update-notification-sub">${escapeHtml(sub)} — click to update via ${provider}</div>
           </div>
           <span style="color:var(--accent);font-size:18px;flex-shrink:0">›</span>
         </div>`;
@@ -2416,7 +2588,11 @@ function toggleLogDlMenu() {
 }
 
 function toggleLogsExpand() {
-  document.getElementById('logsCard').classList.toggle('expanded');
+  const card = document.getElementById('logsCard');
+  card.classList.toggle('expanded');
+  if (card.classList.contains('expanded')) {
+    setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'end' }), 0);
+  }
 }
 
 async function downloadSmapiLog() {
@@ -5084,21 +5260,116 @@ function startContainerReconnectPolling() {
 let _guPollTimer = null;
 let _guGuardAttempted = false;
 
+let _guIsGog = false;
+
 function openGameUpdateModal() {
-  // Reset to step 1
   _guGuardAttempted = false;
-  document.getElementById('guStep1').style.display = '';
+  _guIsGog = _gameProvider === 'gog';
+
+  // Show the right step 1
+  const gogStep1 = document.getElementById('guGogStep1');
+  if (_guIsGog) {
+    document.getElementById('guStep1').style.display = 'none';
+    if (gogStep1) {
+      gogStep1.style.display = '';
+      // Populate auth URL
+      API.get('/api/gog/auth-url').then(d => {
+        const link = document.getElementById('guGogAuthUrl');
+        if (link && d?.url) { link.href = d.url; link.textContent = 'Open GOG auth page'; }
+      }).catch(() => {});
+    }
+  } else {
+    document.getElementById('guStep1').style.display = '';
+    if (gogStep1) gogStep1.style.display = 'none';
+    document.getElementById('guUsername').value = '';
+    document.getElementById('guPassword').value = '';
+    if (document.getElementById('guGuardCode')) document.getElementById('guGuardCode').value = '';
+  }
+
   document.getElementById('guStep2').style.display = 'none';
   document.getElementById('guStep3').style.display = 'none';
-  document.getElementById('guUsername').value = '';
-  document.getElementById('guPassword').value = '';
-  if (document.getElementById('guGuardCode')) document.getElementById('guGuardCode').value = '';
+  const guLogEl = document.getElementById('guLog');
+  if (guLogEl) { guLogEl.textContent = ''; delete guLogEl.dataset.lineCount; }
   document.getElementById('gameUpdateModal').style.display = '';
 }
 
 function closeGameUpdateModal() {
   document.getElementById('gameUpdateModal').style.display = 'none';
   if (_guPollTimer) { clearTimeout(_guPollTimer); _guPollTimer = null; }
+}
+
+async function gogUpdateLogin() {
+  const gogStep1   = document.getElementById('guGogStep1');
+  const redirectEl = document.getElementById('guGogRedirect');
+  const errEl      = document.getElementById('guGogError');
+  const btn        = document.getElementById('guGogLoginBtn');
+
+  function showErr(msg) {
+    if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+  }
+  function clearErr() {
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+  }
+
+  const redirectUrl = redirectEl?.value?.trim();
+  if (!redirectUrl) { showErr('Paste the redirect URL first.'); return; }
+
+  clearErr();
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+
+  // Start container
+  try {
+    await API.post('/api/gog/container/start');
+  } catch {
+    showErr('❌ Could not start GOG service.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Login & Download Update'; }
+    return;
+  }
+
+  // Wait for readiness (up to 20s)
+  if (btn) btn.textContent = 'Waiting for service…';
+  let ready = false;
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try { const s = await API.get('/api/gog/status'); if (s?.state !== 'unavailable') { ready = true; break; } } catch {}
+  }
+  if (!ready) {
+    showErr('❌ GOG service failed to start.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Login & Download Update'; }
+    return;
+  }
+
+  // Login
+  if (btn) btn.textContent = 'Logging in…';
+  try {
+    const data = await API.post('/api/gog/login', { redirectUrl });
+    if (!data?.success) {
+      showErr(`❌ ${data?.error || 'Login failed — check URL and try again.'}`);
+      if (btn) { btn.disabled = false; btn.textContent = 'Login & Download Update'; }
+      return;
+    }
+  } catch (e) {
+    showErr(`❌ ${e.message || 'Network error'}`);
+    if (btn) { btn.disabled = false; btn.textContent = 'Login & Download Update'; }
+    return;
+  }
+
+  // Kick off download, transition to step 3
+  try { await API.post('/api/gog/download'); } catch {}
+
+  if (gogStep1) gogStep1.style.display = 'none';
+  const step3 = document.getElementById('guStep3');
+  if (step3) step3.style.display = '';
+  const guStatus = document.getElementById('guStatus');
+  if (guStatus) { guStatus.textContent = 'Downloading from GOG…'; guStatus.style.color = 'var(--accent)'; }
+  const guLog = document.getElementById('guLog');
+  if (guLog) { guLog.textContent = ''; delete guLog.dataset.lineCount; }
+  const doneBtn    = document.getElementById('guDoneBtn');
+  const restartBtn = document.getElementById('guRestartBtn');
+  if (doneBtn)    doneBtn.style.display = 'none';
+  if (restartBtn) restartBtn.style.display = 'none';
+
+  _guStartPolling();
 }
 
 async function gameUpdateStart() {
@@ -5163,13 +5434,63 @@ function _guStartPolling() {
 }
 
 async function _guPoll() {
+  const statusEl   = document.getElementById('guStatus');
+  const logEl      = document.getElementById('guLog');
+  const doneBtn    = document.getElementById('guDoneBtn');
+  const restartBtn = document.getElementById('guRestartBtn');
+
+  // ── GOG branch ─────────────────────────────────────────────────
+  if (_guIsGog) {
+    const gogData = await API.get('/api/gog/log').catch(() => null);
+    if (!gogData) { _guPollTimer = setTimeout(_guPoll, 3000); return; }
+
+    // Append new log lines
+    if (logEl && gogData.lines?.length) {
+      const existing = logEl.dataset.lineCount ? parseInt(logEl.dataset.lineCount) : 0;
+      const newLines = gogData.lines.slice(existing);
+      if (newLines.length) {
+        if (existing === 0) logEl.textContent = '';
+        newLines.forEach(line => {
+          logEl.textContent += line + '\n';
+        });
+        logEl.dataset.lineCount = gogData.lines.length;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    const state = gogData.state;
+    if (statusEl) {
+      statusEl.textContent =
+        state === 'logging-in'  ? 'Logging in to GOG…' :
+        state === 'logged-in'   ? 'Logged in — preparing download…' :
+        state === 'downloading' ? 'Downloading game files…' :
+        state === 'done'        ? 'Download complete!' :
+        state === 'error'       ? `Error: ${gogData.error || 'Download failed'}` :
+                                  'Working…';
+      statusEl.style.color = state === 'error' ? '#ef4444' : 'var(--accent)';
+    }
+
+    if (state === 'done') {
+      try { await API.post('/api/gog/record-version'); } catch {}
+      API.post('/api/gog/container/stop').catch(() => null);
+      if (doneBtn)    doneBtn.style.display = '';
+      if (restartBtn) restartBtn.style.display = '';
+      const notif = document.getElementById('gameUpdateNotification');
+      if (notif) notif.style.display = 'none';
+      return;
+    }
+    if (state === 'error') {
+      API.post('/api/gog/container/stop').catch(() => null);
+      if (doneBtn) doneBtn.style.display = '';
+      return;
+    }
+    _guPollTimer = setTimeout(_guPoll, 3000);
+    return;
+  }
+  // ── end GOG branch ─────────────────────────────────────────────
+
   const data = await API.get('/api/game-update/status').catch(() => null);
   if (!data) { _guPollTimer = setTimeout(_guPoll, 3000); return; }
-
-  const statusEl  = document.getElementById('guStatus');
-  const logEl     = document.getElementById('guLog');
-  const doneBtn   = document.getElementById('guDoneBtn');
-  const restartBtn = document.getElementById('guRestartBtn');
 
   // Update log display (log is an array of lines)
   if (logEl && data.log?.length) {

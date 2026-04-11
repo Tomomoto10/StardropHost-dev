@@ -149,12 +149,23 @@ app.get('/api/farm/overview',        auth.verifyMiddleware, farmAPI.getFarmOverv
 app.get('/api/farm/live',            auth.verifyMiddleware, farmAPI.getLiveStatus);
 app.post('/api/farm/name',           auth.verifyMiddleware, farmAPI.setFarmName);
 
-// -- Game update --
+// -- Game update (Steam) --
 const gameUpdateAPI = require('./api/game-update');
 app.get( '/api/game-update/status', auth.verifyMiddleware, gameUpdateAPI.getStatus);
 app.post('/api/game-update/check',  auth.verifyMiddleware, gameUpdateAPI.checkNow);
 app.post('/api/game-update/start',  auth.verifyMiddleware, gameUpdateAPI.startUpdate);
 app.post('/api/game-update/guard',  auth.verifyMiddleware, gameUpdateAPI.submitGuard);
+
+// -- Game update (GOG) --
+const gogAPI = require('./api/gog');
+app.get( '/api/gog/status',           auth.verifyMiddleware, gogAPI.getStatus);
+app.get( '/api/gog/auth-url',         auth.verifyMiddleware, gogAPI.getAuthUrl);
+app.post('/api/gog/login',            auth.verifyMiddleware, gogAPI.login);
+app.post('/api/gog/download',         auth.verifyMiddleware, gogAPI.startDownload);
+app.get( '/api/gog/log',              auth.verifyMiddleware, gogAPI.getLog);
+app.post('/api/gog/record-version',   auth.verifyMiddleware, gogAPI.recordVersion);
+app.post('/api/gog/container/start',  auth.verifyMiddleware, gogAPI.startContainer);
+app.post('/api/gog/container/stop',   auth.verifyMiddleware, gogAPI.stopContainer);
 
 // -- Panel update --
 const panelUpdateAPI = require('./api/panel-update');

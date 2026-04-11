@@ -50,6 +50,18 @@ function callManager(method, urlPath, body = null) {
   });
 }
 
+// Simple rate limit for the public /register endpoint — max 10 registrations per IP per minute
+const _registerAttempts = new Map();
+function registerRateLimit(req) {
+  const ip  = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now  = Date.now();
+  const entry = _registerAttempts.get(ip) || { count: 0, window: now };
+  if (now - entry.window > 60000) { entry.count = 0; entry.window = now; }
+  entry.count += 1;
+  _registerAttempts.set(ip, entry);
+  return entry.count > 10;
+}
+
 const PEERS_FILE = path.join(config.DATA_DIR, 'instances.json');
 
 function loadPeers() {
@@ -120,6 +132,9 @@ function getInstances(req, res) {
 // cross-instance announces to add themselves without needing a token
 function registerPeer(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  if (registerRateLimit(req)) {
+    return res.status(429).json({ error: 'Too many registration attempts' });
+  }
   return addPeerInternal(req.body, res);
 }
 

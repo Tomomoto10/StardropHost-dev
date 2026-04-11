@@ -20,12 +20,13 @@ const COMPOSE_OVERRIDE = `${PROJECT_DIR}/docker-compose.override.yml`;
 const DEFAULT_ENV_FILE = `${PROJECT_DIR}/.env`;
 const RUNTIME_ENV_FILE = `${PROJECT_DIR}/data/panel/runtime.env`;
 
-const ALLOWED_SERVICES = new Set(['stardrop-server', 'stardrop-steam-auth']);
+const ALLOWED_SERVICES = new Set(['stardrop-server', 'stardrop-steam-auth', 'stardrop-gog-downloader']);
 
 const PREFIX = process.env.CONTAINER_PREFIX || 'stardrop';
 const SERVICE_CONTAINERS = {
-  'stardrop-server':    PREFIX,
-  'stardrop-steam-auth': `${PREFIX}-steam-auth`,
+  'stardrop-server':         PREFIX,
+  'stardrop-steam-auth':     `${PREFIX}-steam-auth`,
+  'stardrop-gog-downloader': `${PREFIX}-gog-downloader`,
 };
 
 // -- Helpers --
@@ -126,7 +127,10 @@ function stopService(service) {
 }
 
 // Services that require a compose profile to start (excluded from plain `up -d`)
-const PROFILE_SERVICES = { 'stardrop-steam-auth': 'steam-auth' };
+const PROFILE_SERVICES = {
+  'stardrop-steam-auth':     'steam-auth',
+  'stardrop-gog-downloader': 'gog-downloader',
+};
 
 function startService(service) {
   const profile = PROFILE_SERVICES[service] ? `--profile ${PROFILE_SERVICES[service]} ` : '';
