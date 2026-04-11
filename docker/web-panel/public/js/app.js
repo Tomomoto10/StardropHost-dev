@@ -5510,7 +5510,6 @@ async function loadServersPage() {
           ${selfFarmName ? `<div style="font-weight:600;font-size:15px;margin-bottom:2px">${escapeHtml(selfFarmName)}</div>` : ''}
           <div style="font-size:12px;color:var(--text-muted)">Port ${selfPort}</div>
         </div>
-        <span style="font-size:11px;background:var(--accent);color:#fff;padding:3px 10px;border-radius:10px;white-space:nowrap">This Instance</span>
       </div>
     </div>`;
 
@@ -5522,8 +5521,7 @@ async function loadServersPage() {
         <button class="btn btn-sm btn-secondary" type="button" onclick="_toggleServersMenu(event)">Manage ▾</button>
         <div id="serversMenu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;min-width:150px;z-index:100;overflow:hidden">
           <div style="padding:8px 14px;cursor:pointer;font-size:13px" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background=''" onclick="_closeServersMenu();openInstallModal()">Install</div>
-          <div style="padding:8px 14px;cursor:pointer;font-size:13px" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background=''" onclick="_closeServersMenu();_enterServersEditMode()">Remove</div>
-          <div style="padding:8px 14px;cursor:pointer;font-size:13px" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background=''" onclick="_closeServersMenu();openAddServerModal()">Add</div>
+          <div style="padding:8px 14px;cursor:pointer;font-size:13px" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background=''" onclick="_closeServersMenu();_enterServersEditMode()">Edit</div>
         </div>
       </div>
     </div>`;
@@ -5537,8 +5535,8 @@ async function loadServersPage() {
     </div>`;
   } else {
     peers.forEach((s, i) => {
-      const alias      = s.remoteAlias || '';
-      const peerName   = /^Instance \(port \d+\)$/.test(s.name) ? 'Connect to Setup' : (s.name || 'Connect to Setup');
+      const alias    = s.remoteAlias || '';
+      const peerName = /^Instance \(port \d+\)$/.test(s.name) ? 'Connect to Setup' : (s.name || 'Connect to Setup');
       html += `
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
@@ -5565,7 +5563,7 @@ async function loadServersPage() {
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
             <button class="btn btn-sm btn-primary" type="button" onclick="_connectToServer(${i})">Connect</button>
-            <button class="btn btn-sm btn-icon" type="button" onclick="_removeServer(${i})" title="Remove" style="display:${_serversEditMode ? '' : 'none'}">×</button>
+            <button class="btn btn-sm btn-icon" type="button" onclick="_removeServer(${i})" title="Remove" style="display:${_serversEditMode && !s.autoDiscovered ? '' : 'none'}">×</button>
           </div>
         </div>
         <div style="margin-top:10px;display:flex;align-items:center;gap:6px">
@@ -5585,6 +5583,14 @@ async function loadServersPage() {
         </div>
       </div>`;
     });
+  }
+
+  // "+" add button shown in edit mode (right-aligned, below cards)
+  if (_serversEditMode) {
+    html += `
+    <div style="display:flex;justify-content:flex-end;margin-top:4px">
+      <button class="btn btn-sm btn-secondary" type="button" onclick="openAddServerModal()" title="Add instance" style="font-size:18px;line-height:1;padding:2px 12px">+</button>
+    </div>`;
   }
 
   container.innerHTML = html;
@@ -5660,6 +5666,7 @@ async function _scanForInstances(selfHost, selfPort, knownPeers) {
           name: d.self.name || 'Connect to Setup',
           host: d.self.host || selfHost,
           port,
+          autoDiscovered: true,
         });
         found = true;
       } catch { /* port not running or timeout */ }

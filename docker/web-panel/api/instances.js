@@ -129,7 +129,7 @@ function addPeer(req, res) {
 }
 
 function addPeerInternal(body, res) {
-  const { name, host, port, remoteAlias, remoteActive } = body || {};
+  const { name, host, port, remoteAlias, remoteActive, autoDiscovered } = body || {};
   if (!host || !port) return res.status(400).json({ error: 'host and port required' });
   const peers = loadPeers();
   const p     = parseInt(port, 10);
@@ -145,14 +145,16 @@ function addPeerInternal(body, res) {
       name: name || peers[idx].name || host,
       host,
       port: p,
-      ...(remoteAlias  !== undefined && { remoteAlias }),
-      ...(remoteActive !== undefined && { remoteActive: !!remoteActive }),
+      ...(remoteAlias    !== undefined && { remoteAlias }),
+      ...(remoteActive   !== undefined && { remoteActive: !!remoteActive }),
+      ...(autoDiscovered !== undefined && { autoDiscovered: !!autoDiscovered }),
     };
   } else {
     peers.push({
       name: name || host, host, port: p,
-      ...(remoteAlias  !== undefined && { remoteAlias }),
-      ...(remoteActive !== undefined && { remoteActive: !!remoteActive }),
+      ...(remoteAlias    !== undefined && { remoteAlias }),
+      ...(remoteActive   !== undefined && { remoteActive: !!remoteActive }),
+      ...(autoDiscovered !== undefined && { autoDiscovered: !!autoDiscovered }),
     });
   }
   savePeers(peers);
