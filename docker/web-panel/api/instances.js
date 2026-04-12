@@ -221,6 +221,7 @@ async function getInstallLog(req, res) {
 async function startUninstall(req, res) {
   const port = parseInt(req.body?.port, 10);
   if (!port) return res.status(400).json({ error: 'port required' });
+  if (port === config.PORT) return res.status(400).json({ error: 'Cannot uninstall the current instance' });
 
   // Remove the peer entry immediately so the card disappears on reload
   const peers = loadPeers();

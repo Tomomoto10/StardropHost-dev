@@ -1,9 +1,10 @@
 # StardropHost — Security Audit (April 2026)
 
-All findings and fixes from the pre-beta security review. Covers three areas:
+All findings and fixes from the pre-beta security review. Covers four areas:
 1. Credential & auth flows (Steam + GOG)
 2. Web dashboard API security
 3. Install/update scripts (`quick-start.sh`, `update.sh`)
+4. Multi-instance install/uninstall (dashboard-triggered)
 
 ---
 
@@ -193,6 +194,50 @@ Only `PANEL_PORT` is extracted; no arbitrary code can execute.
 | `source .env` as root | Arbitrary code execution from .env file | High | Fixed |
 | Auto-boot | No systemd enable for Docker on restart | Info | Added |
 | Manager auth | No shared secret (Docker network only) | Low | Deferred |
+| Uninstall self-destruct | Authenticated caller could uninstall the running instance | Medium | Fixed |
+
+---
+
+---
+
+## 4. Multi-Instance Install / Uninstall
+
+### Install (`POST /api/install-instance`)
+**Risk reviewed:** Dashboard-triggered install runs `quick-start.sh --yes` as root inside a disposable Alpine container with Docker socket access.
+
+**Findings — all OK:**
+- Route requires `verifyMiddleware` (JWT). Unauthenticated callers get 401.
+- Frontend additionally re-verifies the admin password via `/api/auth/verify-password` before calling the endpoint — two-factor confirmation.
+- No user-supplied data flows into the shell command; `PROJECT_DIR` is set from the container env at startup (trusted, not user input).
+- Script runs inside a throwaway `docker run --rm alpine` container. If the script fails or is killed, the container is removed automatically.
+- One concurrent install enforced — `_installProcess` guard returns 409 if already running.
+
+**No changes required.**
+
+---
+
+### Uninstall (`POST /api/uninstall-instance`)
+**Risk reviewed:** Dashboard-triggered uninstall passes a port number from the browser into a shell environment variable, which the script uses to locate and `rm -rf` an instance directory.
+
+**Finding 1 — FIXED:** No guard against self-uninstall. An authenticated API caller passing the current instance's own panel port would cause `docker compose down` and `rm -rf` on the running instance.
+
+**Fix** (`api/instances.js`):
+```js
+if (port === config.PORT) return res.status(400).json({ error: 'Cannot uninstall the current instance' });
+```
+The current instance's port is never shown in the Servers tab UI (filtered in `getInstances`), so this is only reachable via a raw API call.
+
+**Finding 2 — no issue:** `port` is parsed with `parseInt(..., 10)` twice — once in the web panel and once in the manager — before being interpolated into the shell command via `-e UNINSTALL_PORT=${port}`. An integer cannot carry a shell injection payload.
+
+**Finding 3 — no issue:** `uninstall.sh` derives the target directory from a fixed candidate list (`$SEARCH_HOME/stardrophost`, `stardrophost-2`, … `stardrophost-10`). The port value is used only in a string comparison (`[ "$port_val" = "$UNINSTALL_PORT" ]`), never as a path component or shell command.
+
+**Finding 4 — no issue:** `STARDROP_REAL_HOME` (parent directory) is derived from `path.dirname(PROJECT_DIR)` in the manager, which comes from the container env at startup — not user input.
+
+**Overall posture:**
+- Route requires `verifyMiddleware` (JWT).
+- Frontend re-verifies admin password before calling — two-factor confirmation.
+- One concurrent uninstall enforced — `_uninstallProcess` guard returns 409 if already running.
+- Peer registry entry is removed immediately on the web-panel side regardless of script outcome, so no stale card can remain.
 
 ---
 

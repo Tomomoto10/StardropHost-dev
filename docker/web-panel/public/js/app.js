@@ -5974,10 +5974,11 @@ async function loadServersPage() {
             style="width:220px;flex-shrink:0;font-size:12px;padding:4px 8px;height:28px"
             placeholder="http://host.playit.plus:1049"
             value="${escapeHtml(alias)}"
+            ${alias ? 'readonly' : ''}
             oninput="_onAliasInput(${i})"
-            onkeydown="if(event.key==='Enter'){_saveRemoteAlias(${i},this.value.trim());this.blur();}">
+            onkeydown="if(event.key==='Enter'){_saveRemoteAliasBtn(${i});}">
           <button id="alias-save-${i}" class="btn btn-sm btn-primary"
-            style="height:28px;padding:0 10px;font-size:12px;display:${alias ? '' : 'none'}"
+            style="height:28px;padding:0 10px;font-size:12px;display:none"
             onclick="_saveRemoteAliasBtn(${i})">Save</button>
           <button id="alias-clear-${i}" class="btn btn-sm btn-icon"
             style="height:28px;width:28px;display:${alias ? '' : 'none'}"
@@ -6129,16 +6130,26 @@ function _onAliasInput(idx) {
 }
 
 async function _saveRemoteAliasBtn(idx) {
-  const input = document.getElementById(`alias-input-${idx}`);
+  const input    = document.getElementById(`alias-input-${idx}`);
+  const saveBtn  = document.getElementById(`alias-save-${idx}`);
+  const clearBtn = document.getElementById(`alias-clear-${idx}`);
   if (!input) return;
-  await _saveRemoteAlias(idx, input.value.trim());
+  const val = input.value.trim();
+  if (!val) return;
+  await _saveRemoteAlias(idx, val);
+  input.readOnly = true;
+  if (saveBtn)  saveBtn.style.display  = 'none';
+  if (clearBtn) clearBtn.style.display = '';
   showToast('Remote alias saved', 'success');
 }
 
 async function _clearRemoteAlias(idx) {
-  const input = document.getElementById(`alias-input-${idx}`);
-  if (input) input.value = '';
-  _onAliasInput(idx);
+  const input    = document.getElementById(`alias-input-${idx}`);
+  const saveBtn  = document.getElementById(`alias-save-${idx}`);
+  const clearBtn = document.getElementById(`alias-clear-${idx}`);
+  if (input) { input.value = ''; input.readOnly = false; input.focus(); }
+  if (saveBtn)  saveBtn.style.display  = 'none';
+  if (clearBtn) clearBtn.style.display = 'none';
   await _saveRemoteAlias(idx, '');
 }
 
