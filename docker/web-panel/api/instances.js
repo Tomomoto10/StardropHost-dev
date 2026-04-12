@@ -188,6 +188,19 @@ function removePeer(req, res) {
   res.json({ success: true, peers });
 }
 
+// DELETE /api/instances/peer/by-port/:port
+function removePeerByPort(req, res) {
+  const port  = parseInt(req.params.port, 10);
+  const peers = loadPeers();
+  const idx   = peers.findIndex(p => p.port === port);
+  if (isNaN(port) || idx < 0) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  peers.splice(idx, 1);
+  savePeers(peers);
+  res.json({ success: true, peers });
+}
+
 // POST /api/install-instance — proxy to manager
 async function startInstall(req, res) {
   try {
@@ -204,4 +217,4 @@ async function getInstallLog(req, res) {
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
-module.exports = { getInstances, registerPeer, addPeer, removePeer, startInstall, getInstallLog, writeChatTs };
+module.exports = { getInstances, registerPeer, addPeer, removePeer, removePeerByPort, startInstall, getInstallLog, writeChatTs };

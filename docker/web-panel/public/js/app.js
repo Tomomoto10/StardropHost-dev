@@ -5962,36 +5962,47 @@ function _timeAgo(ts) {
 }
 
 // Scan sibling ports (18642–18651) for other StardropHost instances.
-// Any found that aren't already known get registered as peers automatically.
+// New instances get registered automatically; auto-discovered peers that
+// no longer respond are removed automatically.
 async function _scanForInstances(selfHost, selfPort, knownPeers) {
   const BASE_PORT = 18642;
-  const knownPorts = new Set([selfPort, ...knownPeers.map(p => p.port)]);
-  let found = false;
+  // Auto-discovered peers need to be re-checked each scan; manually-added peers are never auto-removed.
+  const autoDiscovered = new Map(knownPeers.filter(p => p.autoDiscovered).map(p => [p.port, p]));
+  const skipPorts      = new Set([selfPort, ...knownPeers.filter(p => !p.autoDiscovered).map(p => p.port)]);
+  let changed = false;
 
   const checks = [];
   for (let port = BASE_PORT; port <= BASE_PORT + 9; port++) {
-    if (knownPorts.has(port)) continue;
+    if (skipPorts.has(port)) continue;
     checks.push((async () => {
       try {
         const res = await fetch(`http://${selfHost}:${port}/api/instances`,
           { signal: AbortSignal.timeout(2000) });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error();
         const d = await res.json();
-        if (!d?.self) return; // not a StardropHost instance
-        // Register it as a peer — prefer the instance's own container IP over the scan host
-        await API.post('/api/instances/peer', {
-          name: d.self.name || 'Connect to Setup',
-          host: d.self.host || selfHost,
-          port,
-          autoDiscovered: true,
-        });
-        found = true;
-      } catch { /* port not running or timeout */ }
+        if (!d?.self) throw new Error(); // not a StardropHost instance
+        // Port is alive — register if new
+        if (!autoDiscovered.has(port)) {
+          await API.post('/api/instances/peer', {
+            name: d.self.name || 'Connect to Setup',
+            host: d.self.host || selfHost,
+            port,
+            autoDiscovered: true,
+          });
+          changed = true;
+        }
+      } catch {
+        // Port is unreachable — remove the auto-discovered card if one exists
+        if (autoDiscovered.has(port)) {
+          await API.del(`/api/instances/peer/by-port/${port}`).catch(() => null);
+          changed = true;
+        }
+      }
     })());
   }
 
   await Promise.all(checks);
-  if (found) loadServersPage(); // refresh to show newly discovered instances
+  if (changed) loadServersPage();
 }
 
 function openAddServerModal() {
