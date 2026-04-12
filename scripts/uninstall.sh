@@ -1,6 +1,6 @@
 #!/bin/bash
 # ===========================================
-# StardropHost | uninstall.sh
+# StardropHost | scripts/uninstall.sh
 # ===========================================
 # Completely removes StardropHost from this
 # machine. Reverses everything quick-start.sh
@@ -13,7 +13,7 @@
 #   6. Optionally removes Docker entirely
 #
 # Usage:
-#   sudo bash uninstall.sh
+#   sudo bash scripts/uninstall.sh
 # ===========================================
 
 set +e
@@ -295,8 +295,7 @@ for dir in "${INSTANCES[@]}"; do
     else
         # Remove code and config files
         for item in docker steam-auth docker-compose.yml .env .gitignore \
-                     quick-start.sh update.sh backup.sh health-check.sh \
-                     uninstall.sh verify-deployment.sh CLAUDE.md README.md \
+                     quick-start.sh update.sh scripts CLAUDE.md README.md \
                      MODS_LIST.md .git logs; do
             rm -rf "$dir/$item" 2>/dev/null || true
         done

@@ -10,7 +10,7 @@ Access at `http://your-server-ip:18642`
 The setup wizard handles everything on first visit:
 
 1. Create your admin password
-2. Install game files (local copy or Steam download)
+2. Install game files (local copy, Steam download, or GOG download)
 3. Set CPU and RAM limits
 4. Optionally configure Steam for invite codes
 

@@ -37,6 +37,10 @@ screenshots/*
 !screenshots/panel/Saves.png
 
 
+# -- Node.js --
+node_modules/
+
+
 # -- C# Build Artifacts --
 bin/
 obj/

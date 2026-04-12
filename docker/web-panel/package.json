@@ -1,6 +1,6 @@
 {
   "name": "stardrophost-web-panel",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Web management panel for StardropHost",
   "main": "server.js",
   "scripts": {

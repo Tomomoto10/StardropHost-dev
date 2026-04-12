@@ -12,12 +12,13 @@
 # Warning: takes 10-20 minutes on first run.
 #
 # Usage:
-#   sudo bash rebuild-fresh.sh
+#   sudo bash scripts/rebuild-fresh.sh
 # ===========================================
 
 set +e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # -- Colors --
 RED='\033[0;31m'
@@ -58,15 +59,15 @@ fi
 
 # -- Detect container prefix from .env --
 CONTAINER_PREFIX="stardrop"
-if [ -f "$SCRIPT_DIR/.env" ]; then
-    _prefix=$(grep -E '^CONTAINER_PREFIX=' "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'")
+if [ -f "$PROJECT_DIR/.env" ]; then
+    _prefix=$(grep -E '^CONTAINER_PREFIX=' "$PROJECT_DIR/.env" 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'")
     [ -n "$_prefix" ] && CONTAINER_PREFIX="$_prefix"
 fi
 
-cd "$SCRIPT_DIR" || { echo -e "${RED}[ERR]  Cannot cd to $SCRIPT_DIR${NC}"; exit 1; }
+cd "$PROJECT_DIR" || { echo -e "${RED}[ERR]  Cannot cd to $PROJECT_DIR${NC}"; exit 1; }
 
 print_header
-print_info "Directory:  $SCRIPT_DIR"
+print_info "Directory:  $PROJECT_DIR"
 print_info "Container:  ${CONTAINER_PREFIX}-server"
 print_warning "All cached layers will be discarded. This takes 10-20 minutes."
 echo ""

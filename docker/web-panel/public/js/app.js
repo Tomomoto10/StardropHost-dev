@@ -163,10 +163,13 @@ function showWizard(status) {
   // Populate the game path hint
   const gpEl = document.getElementById('wiz-game-path');
   if (gpEl) gpEl.textContent = '/home/stardew-server/stardrophost/data/game/';
-  // Map backend step to UI step (new step 3 is download progress; backend 3→UI 4, 4→5, 5→6)
+  // Map backend step to UI step (step 5 removed — resources+timezone now combined on UI step 4)
+  // backend 2→UI 2, backend 3-4→UI 4, backend 5+→UI 6
   const bs = status.currentStep || 2;
-  let uiStep = bs <= 2 ? 2 : bs + 1; // backend 3→UI 4, backend 4→UI 5, backend 5→UI 6
-  if (uiStep < 2) uiStep = 2;
+  let uiStep;
+  if (bs <= 2)      uiStep = 2;
+  else if (bs <= 4) uiStep = 4;
+  else              uiStep = 6;
   wizGoToStep(uiStep);
 }
 
@@ -174,9 +177,9 @@ function wizGoToStep(n) {
   document.querySelectorAll('.wiz-step').forEach(el => el.style.display = 'none');
   const step = document.getElementById(`wiz-step-${n}`);
   if (step) step.style.display = 'block';
-  // Update dots (steps 2-7 → dots 0-5)
-  document.querySelectorAll('.wiz-dot').forEach((dot, i) => {
-    const dotStep = i + 2;
+  // Update dots using data-step attribute
+  document.querySelectorAll('.wiz-dot').forEach(dot => {
+    const dotStep = parseInt(dot.dataset.step, 10);
     dot.classList.toggle('done',   dotStep < n);
     dot.classList.toggle('active', dotStep === n);
   });
@@ -185,8 +188,8 @@ function wizGoToStep(n) {
   // Step 2: auto-scan on entry
   if (n === 2) wizInitStep2();
 
-  // Step 5: build timezone picker
-  if (n === 5) {
+  // Step 4: build timezone picker
+  if (n === 4) {
     if (!document.getElementById('wiz-tz-picker-search')) {
       buildTzPicker('wiz-tz-picker', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
     }
@@ -1050,36 +1053,25 @@ async function wizSubmitStep2() {
 async function wizSubmitStep3(skip) {
   const cpu = skip ? '' : (document.getElementById('wiz-cpu').value.trim());
   const mem = skip ? '' : (document.getElementById('wiz-mem').value.trim());
+  const tz  = tzPickerValue('wiz-tz-picker');
   try {
     await API.post('/api/wizard/step/3', { cpuLimit: cpu, memoryLimit: mem });
     _wizState._cpu = cpu; _wizState._mem = mem;
-    wizGoToStep(5);
-    buildTzPicker('wiz-tz-picker', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
-  } catch (e) {
-    showToast(e.message || 'Failed to save — try again', 'error');
-  }
-}
-
-async function wizSubmitStep4() {
-  const tz   = tzPickerValue('wiz-tz-picker');
-  const mode = document.getElementById('wiz-server-mode')?.value || 'lan';
-  try {
-    await API.post('/api/wizard/step/4', { timezone: tz || undefined, serverMode: mode });
-    // Populate confirm lines for step 6
+    await API.post('/api/wizard/step/4', { timezone: tz || undefined, serverMode: 'lan' });
+    // Populate confirm lines for step 7
     const gm = _wizState._gameMethod;
     document.getElementById('wiz-confirm-game').textContent =
       `✅ Game files: ${gm === 'steam' ? 'Steam download configured' : 'Copied manually'}`;
-    const cpu = _wizState._cpu, mem = _wizState._mem;
     document.getElementById('wiz-confirm-resources').textContent =
       cpu || mem ? `✅ Resources: CPU=${cpu||'unlimited'}, RAM=${mem||'unlimited'}` : '✅ Resources: no limits set';
     document.getElementById('wiz-confirm-server').textContent = '✅ Server: open (no password)';
-    // Load farm step (step 6)
     wizGoToStep(6);
     wizLoadFarmStep();
   } catch (e) {
     showToast(e.message || 'Failed to save — try again', 'error');
   }
 }
+
 
 function wizToggleExperimentalCabins(checked) {
   const sel     = document.getElementById('wiz-cabin-count');
@@ -4411,6 +4403,8 @@ async function loadConfig() {
         remText = 'Not Setup'; remCls = 'offline';
       } else if (lastRemoteData.anyRunning) {
         remText = 'Connected'; remCls = 'running';
+      } else if (lastRemoteData.remoteActive) {
+        remText = 'Connecting...'; remCls = 'restarting';
       } else {
         remText = 'Stopped'; remCls = 'offline';
       }
@@ -4435,7 +4429,9 @@ async function loadConfig() {
         ? `<button class="btn btn-sm btn-secondary" type="button" onclick="navigateTo('remote')">Setup</button>`
         : lastRemoteData.anyRunning
           ? `<button class="btn btn-sm btn-secondary" type="button" onclick="stopRemoteService()"${_rdis}>Pause</button>`
-          : `<button class="btn btn-sm btn-success" type="button" onclick="startRemoteService()"${_rdis}>Resume</button>`;
+          : lastRemoteData.remoteActive
+            ? `<button class="btn btn-sm btn-secondary" type="button" onclick="stopRemoteService()"${_rdis}>Stop</button>`
+            : `<button class="btn btn-sm btn-success" type="button" onclick="startRemoteService()"${_rdis}>Resume</button>`;
 
       const remoteRow = document.createElement('div');
       remoteRow.className = 'config-item';
@@ -6271,6 +6267,8 @@ function _updateRemoteBadge() {
     text = 'Not Setup'; orbClass = 'offline';
   } else if (lastRemoteData.anyRunning) {
     text = 'Active'; orbClass = 'running';
+  } else if (lastRemoteData.remoteActive) {
+    text = 'Connecting...'; orbClass = 'restarting';
   } else {
     text = 'Stopped'; orbClass = 'offline';
   }
@@ -6375,8 +6373,9 @@ function _renderRemoteServices(services, anyRunning) {
   const stopBtn  = document.getElementById('remoteStopBtn');
   if (!el) return;
 
-  if (startBtn) startBtn.style.display = anyRunning ? 'none' : '';
-  if (stopBtn)  stopBtn.style.display  = anyRunning ? ''     : 'none';
+  const isConnecting = !anyRunning && !!lastRemoteData?.remoteActive;
+  if (startBtn) startBtn.style.display = (anyRunning || isConnecting) ? 'none' : '';
+  if (stopBtn)  stopBtn.style.display  = (anyRunning || isConnecting) ? ''     : 'none';
 
   if (!services.length) {
     el.innerHTML = '<span style="color:var(--text-muted);font-size:13px">No services found in config.</span>';
@@ -6385,10 +6384,12 @@ function _renderRemoteServices(services, anyRunning) {
 
   el.innerHTML = services.map(s => {
     const running = s.running;
-    const dot     = running ? 'running' : 'offline';
+    const dot     = running ? 'running' : isConnecting ? 'restarting' : 'offline';
     const label   = running
       ? '<span style="font-weight:500;color:#22c55e">Active</span>'
-      : '<span style="font-weight:500;color:var(--text-muted)">Stopped</span>';
+      : isConnecting
+        ? '<span style="font-weight:500;color:var(--accent-warn)">Connecting...</span>'
+        : '<span style="font-weight:500;color:var(--text-muted)">Stopped</span>';
     return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
       <span class="status-dot ${dot}"></span>
       <span style="font-size:13px;color:var(--text-secondary);font-family:monospace">${s.name}</span>

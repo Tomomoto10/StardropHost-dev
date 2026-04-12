@@ -69,7 +69,7 @@ bash tests/test-steam-guard.sh
 ### Verify a live deployment
 
 ```bash
-./verify-deployment.sh
+bash scripts/verify-deployment.sh
 ```
 
 ---

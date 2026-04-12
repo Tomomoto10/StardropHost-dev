@@ -98,7 +98,7 @@ function callManager(method, urlPath, body = null) {
 async function getStatus(req, res) {
   try {
     const { body } = await callManager('GET', '/remote/status');
-    res.json(body);
+    res.json({ ...body, remoteActive: readRemoteActive() });
   } catch {
     res.json({ configured: false, services: [], error: 'Manager not reachable' });
   }
@@ -131,6 +131,7 @@ async function startService(req, res) {
 async function stopService(req, res) {
   try {
     const { status, body } = await callManager('POST', '/remote/stop');
+    if (status < 300) writeRemoteActive(false);  // user explicitly stopped
     res.status(status).json(body);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -147,11 +148,19 @@ async function removeService(req, res) {
   }
 }
 
-// Called on panel startup to sync file state with manager (handles pre-existing config)
+// Called on panel startup to sync file state with manager (handles pre-existing config).
+// Only overwrites remoteActive when the truth is certain: not configured → false,
+// services actually running → true. If configured but not running, preserve the
+// existing value so an explicit stop isn't forgotten across panel restarts.
 async function syncRemoteActive() {
   try {
     const { body } = await callManager('GET', '/remote/status');
-    writeRemoteActive(!!(body.configured));
+    if (!body.configured) {
+      writeRemoteActive(false);
+    } else if (body.anyRunning) {
+      writeRemoteActive(true);
+    }
+    // configured + not running: leave the persisted remoteActive as-is
   } catch {}
 }
 

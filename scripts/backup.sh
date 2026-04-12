@@ -3,10 +3,13 @@
 # StardropHost | backup.sh
 # ===========================================
 # Backs up your Stardew Valley save files.
-# Usage: ./backup.sh
+# Usage: bash scripts/backup.sh
 # ===========================================
 
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # -- Colors --
 GREEN='\033[0;32m'
@@ -18,8 +21,8 @@ NC='\033[0m'
 BOLD='\033[1m'
 
 # -- Config --
-SAVES_DIR="./data/saves"
-BACKUP_DIR="./data/backups"
+SAVES_DIR="$PROJECT_DIR/data/saves"
+BACKUP_DIR="$PROJECT_DIR/data/backups"
 MAX_BACKUPS=7
 TIMESTAMP=$(date -u '+%Y-%m-%dT%H-%M-%S')
 BACKUP_FILE="stardrop-manual-backup-$TIMESTAMP.zip"
@@ -60,7 +63,7 @@ create_backup() {
 
     print_info "Creating backup: $BACKUP_FILE"
 
-    (cd data && zip -r "$BACKUP_DIR/$BACKUP_FILE" saves) 2>/dev/null
+    (cd "$PROJECT_DIR/data" && zip -r "$BACKUP_DIR/$BACKUP_FILE" saves) 2>/dev/null
 
     backup_size=$(du -h "$BACKUP_DIR/$BACKUP_FILE" | cut -f1)
     print_success "Backup created: $BACKUP_FILE ($backup_size)"

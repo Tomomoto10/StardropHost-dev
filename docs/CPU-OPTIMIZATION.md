@@ -1,6 +1,6 @@
 # CPU Optimization — LOW_PERF_MODE
 
-**Date:** 2026-03-09
+**Date:** 2026-04-12
 **Applies to:** StardropHost v1.0.0+
 
 ---

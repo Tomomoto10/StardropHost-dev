@@ -3,10 +3,13 @@
 # StardropHost | health-check.sh
 # ===========================================
 # Checks if your server is running correctly.
-# Usage: ./health-check.sh
+# Usage: bash scripts/health-check.sh
 # ===========================================
 
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # -- Colors --
 GREEN='\033[0;32m'
@@ -68,7 +71,7 @@ check_container_running() {
             echo -e "  Start it: ${CYAN}docker compose up -d${NC}"
         else
             print_info "Container does not exist"
-            echo -e "  Run: ${CYAN}./quick-start.sh${NC}"
+            echo -e "  Run: ${CYAN}bash quick-start.sh${NC}"
         fi
         return 1
     fi
@@ -182,13 +185,13 @@ check_resources() {
 check_disk_space() {
     print_test "8. Checking disk space..."
 
-    if [ ! -d "./data" ]; then
+    if [ ! -d "$PROJECT_DIR/data" ]; then
         print_warning "Data directory not found"
         return 1
     fi
 
-    data_size=$(du -sh ./data 2>/dev/null | cut -f1 || echo "unknown")
-    available_space=$(df -h . | tail -1 | awk '{print $4}')
+    data_size=$(du -sh "$PROJECT_DIR/data" 2>/dev/null | cut -f1 || echo "unknown")
+    available_space=$(df -h "$PROJECT_DIR" | tail -1 | awk '{print $4}')
 
     echo -e "  ${CYAN}Data size:${NC}       $data_size"
     echo -e "  ${CYAN}Available space:${NC} $available_space"

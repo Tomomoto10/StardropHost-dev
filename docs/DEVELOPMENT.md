@@ -12,14 +12,10 @@ StardropHost/
 │   │   ├── startup_preferences     # Template for Stardew launch prefs
 │   │   └── 10-monitor.conf         # Xorg modesetting config
 │   ├── mods/                       # Pre-built SMAPI mods (copied into image)
-│   │   ├── AlwaysOnServer/
-│   │   ├── AutoHideHost/
-│   │   ├── ServerAutoLoad/
-│   │   └── SkillLevelGuard/
 │   ├── mods-source/
-│   │   ├── AutoHideHost_v1.0.1/    # C# source for AutoHideHost (reference)
-│   │   ├── StardropDashboard/        # C# source — built at container startup (Step 3.5)
-│   │   └── FarmAutoCreate/         # C# source — built at container startup (Step 3.6)
+│   │   ├── StardropHost.Dependencies/  # C# source — built at container startup (Step 3.5)
+│   │   ├── StardropDashboard/          # C# source — built at container startup (Step 3.5)
+│   │   └── FarmAutoCreate/             # C# source — built at container startup (Step 3.6)
 │   ├── scripts/
 │   │   ├── entrypoint.sh           # Container startup (main logic)
 │   │   ├── init-container.sh       # One-shot: permissions + directory setup
@@ -32,10 +28,12 @@ StardropHost/
 │   │   ├── event-handler.sh        # Game event dispatch with cooldowns
 │   │   ├── vnc-monitor.sh          # VNC lifecycle management
 │   │   └── set-resolution.sh       # Xvfb resolution control
+│   ├── gog-downloader/
+│   │   └── server.js               # GOG download sidecar (ephemeral)
 │   ├── manager/
-│   │   └── server.js               # Manager sidecar (port 18700 internal)
+│   │   └── server.js               # Manager sidecar (port 3001 internal)
 │   ├── steam-auth/
-│   │   └── server.js               # Steam auth sidecar — invite codes only (port 18700 internal)
+│   │   └── server.js               # Steam auth sidecar — invite codes only (port 3000 internal)
 │   └── web-panel/
 │       ├── server.js               # Express entry point (port 18642)
 │       ├── auth.js                 # JWT + bcrypt auth
@@ -50,16 +48,18 @@ StardropHost/
 │           ├── config.js           # Runtime config (env file read/write)
 │           ├── vnc.js              # VNC toggle + one-time password
 │           ├── terminal.js         # WebSocket PTY terminal
-│           └── steam.js            # Steam invite-code relay (steam-auth sidecar proxy)
-├── tests/
-│   ├── test-new-features.sh        # Offline script logic tests
-│   ├── test-steam-guard.sh         # steam-auth API tests (needs container)
-│   ├── cleanup-tests.sh            # Remove test containers + tmp dirs
-│   └── README.md
+│           ├── steam.js            # Steam invite-code relay (steam-auth sidecar proxy)
+│           └── gog.js              # GOG download relay (gog-downloader sidecar proxy)
+├── scripts/                        # Host-side utility scripts
+│   ├── backup.sh                   # Manual save backup with rotation
+│   ├── health-check.sh             # Host-level container health check
+│   ├── rebuild-fresh.sh            # Full clean rebuild (no cache)
+│   ├── uninstall.sh                # Remove all containers, images, and files
+│   └── verify-deployment.sh        # Post-deploy smoke test
 ├── docs/
 ├── docker-compose.yml
-├── verify-deployment.sh
-└── backup.sh
+├── quick-start.sh                  # First-run install script
+└── update.sh                       # Incremental update (pull + rebuild)
 ```
 
 ---
@@ -131,9 +131,11 @@ entrypoint.sh
 
 ## Key Design Decisions
 
-### StardropDashboard and FarmAutoCreate mods (built at container startup)
+### Source-built mods (built at container startup)
 
-Both mods are built from source inside the running container (Steps 3.5/3.6 in entrypoint.sh), **not** at image build time. This is intentional: `ModBuildConfig` needs `StardewValley.dll` and `StardewModdingAPI.dll`, which only exist after game files are mounted at runtime. NuGet packages are pre-restored during `docker build` (the `dotnet restore` layer in Dockerfile) so the runtime builds work offline.
+`StardropHost.Dependencies`, `StardropDashboard`, and `FarmAutoCreate` are all built from source inside the running container (Steps 3.5/3.6 in entrypoint.sh), **not** at image build time. This is intentional: `ModBuildConfig` needs `StardewValley.dll` and `StardewModdingAPI.dll`, which only exist after game files are mounted at runtime. NuGet packages are pre-restored during `docker build` (the `dotnet restore` layer in Dockerfile) so the runtime builds work offline.
+
+**StardropHost.Dependencies** is the core server mod — consolidates headless operation, host hiding, save loading, auto-sleep, network tuning, chat bridge, and kick/ban into a single package.
 
 **StardropDashboard** writes live server status to `/home/steam/web-panel/data/live-status.json`, which the web panel reads for the dashboard.
 
@@ -246,7 +248,7 @@ sudo chown -R 1000:1000 ./data/
 - [ ] `docker build` succeeds cleanly
 - [ ] Setup wizard completes end-to-end
 - [ ] Game launches and players can connect
-- [ ] `./verify-deployment.sh` passes
+- [ ] `bash scripts/verify-deployment.sh` passes
 
 ---
 
@@ -265,5 +267,5 @@ See `Docs/CPU-OPTIMIZATION.md` for `LOW_PERF_MODE` details.
 
 ---
 
-**Last Updated:** 2026-03-17
+**Last Updated:** 2026-04-12
 **Version:** v1.0.0

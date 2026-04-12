@@ -4,7 +4,7 @@
 # ===========================================
 # Verifies all components are working after
 # deployment.
-# Usage: ./verify-deployment.sh
+# Usage: bash scripts/verify-deployment.sh
 # ===========================================
 
 # -- Colors --
