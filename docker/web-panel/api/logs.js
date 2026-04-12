@@ -89,6 +89,38 @@ function parseLogLevel(line) {
   return 'info';
 }
 
+// Lines safe to hide — not real errors in a server environment
+const LOG_SUPPRESS = [
+  "Steam achievements won't work because Steam isn't loaded",
+];
+
+// Core SMAPI sources that don't need a leader prefix
+const CORE_SOURCES = new Set(['smapi', 'game', 'stardrop', 'stardropsavegamemanager', 'stardropgamemanager', 'server']);
+
+// Transform a raw SMAPI log line:
+//  1. Strip "TRACE " from the inner bracket so it reads [HH:MM:SS Source]
+//  2. For non-core (mod) sources, prepend "Source Name - " before the message
+function transformLogLine(text) {
+  // Strip TRACE level from inner timestamp bracket
+  let t = text.replace(/(\[\d{2}:\d{2}:\d{2})\s+TRACE\s+/g, '$1 ');
+
+  // Match: optional outer timestamp + inner [HH:MM:SS Source] + message
+  const m = t.match(/^((?:\[\d{4}-\d{2}-\d{2}[^\]]*\]\s*)?)(\[(\d{2}:\d{2}:\d{2})\s+([^\]]+)\])\s+(.+)$/s);
+  if (m) {
+    const outer   = m[1];
+    const bracket = m[2];
+    const source  = m[4].trim();
+    const message = m[5];
+    if (!CORE_SOURCES.has(source.toLowerCase())) {
+      // CamelCase → space-separated for display
+      const label = source.replace(/([a-z])([A-Z])/g, '$1 $2');
+      t = `${outer}${bracket} ${label} - ${message}`;
+    }
+  }
+
+  return t;
+}
+
 // -- HTTP Handlers --
 
 function getLogs(req, res) {
@@ -120,10 +152,10 @@ function getLogs(req, res) {
       allLines = allLines.filter(l => l.toLowerCase().includes(searchLower));
     }
 
-    const result = allLines.slice(-lines).map(line => ({
-      text:  line,
-      level: parseLogLevel(line),
-    }));
+    const result = allLines
+      .filter(line => !LOG_SUPPRESS.some(s => line.includes(s)))
+      .slice(-lines)
+      .map(line => ({ text: transformLogLine(line), level: parseLogLevel(line) }));
 
     res.json({ lines: result, total: allLines.length, file: path.basename(logPath), exists: true });
   } catch (e) {
@@ -192,11 +224,12 @@ function subscribeLogs(ws, filter) {
 
         for (const line of lines) {
           if (source.filtered && !matchesFilter(filter, line)) continue;
+          if (LOG_SUPPRESS.some(s => line.includes(s))) continue;
           if (ws.readyState !== 1) break;
 
           ws.send(JSON.stringify({
             type: 'log',
-            line: { text: line, level: parseLogLevel(line) },
+            line: { text: transformLogLine(line), level: parseLogLevel(line) },
           }));
         }
       });

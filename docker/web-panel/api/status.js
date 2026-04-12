@@ -69,13 +69,18 @@ let cachedStatus = null;
 let cacheTime = 0;
 const CACHE_TTL = 3000;
 
+// Log lines that are safe to suppress — not real errors in a server environment
+const LOG_SUPPRESS = [
+  'Galaxy auth failure: FAILURE_REASON_GALAXY_SERVICE_NOT_AVAILABLE',
+];
+
 // -- Read SMAPI log lines --
 function readRecentLogLines(limit = 400) {
   try {
     if (!fs.existsSync(config.SMAPI_LOG)) return [];
     return fs.readFileSync(config.SMAPI_LOG, 'utf-8')
       .split('\n')
-      .filter(Boolean)
+      .filter(line => line && !LOG_SUPPRESS.some(s => line.includes(s)))
       .slice(-limit);
   } catch {
     return [];
