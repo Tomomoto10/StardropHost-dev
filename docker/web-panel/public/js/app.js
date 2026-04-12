@@ -2085,6 +2085,7 @@ function updateDashboardUI(data) {
       _cachedLanIp = displayIp;
       setText('detail-join-ip',    displayIp);
       setText('detail-local-ips',  net.localIps?.[0] || displayIp);
+      setText('detail-game-port',  net.joinPort  || 24642);
       setText('detail-panel-port', net.panelPort || 18642);
       _networkDetailsCached = true;
     }
@@ -5965,6 +5966,7 @@ async function loadServersPage() {
         <div>
           <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Current Instance</div>
           ${selfFarmName ? `<div style="font-weight:600;font-size:15px;margin-bottom:2px">${escapeHtml(selfFarmName)}</div>` : ''}
+          ${self.host ? `<div style="font-size:11px;color:var(--text-muted)">${escapeHtml(self.host)}</div>` : ''}
           <div style="font-size:12px;color:var(--text-muted)">Port ${selfPort}</div>
         </div>
       </div>

@@ -176,7 +176,7 @@ function getNetworkInfo(requestHost = '') {
   return {
     joinIp:      _cachedLanIp || localIps[0] || '',
     localIps,
-    joinPort:    24642,
+    joinPort:    parseInt(process.env.GAME_PORT || '24642', 10),
     panelPort:   parseInt(process.env.PANEL_PORT || '18642', 10),
     metricsPort: parseInt(process.env.METRICS_PORT || '9090', 10),
   };
