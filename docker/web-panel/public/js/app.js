@@ -5775,10 +5775,12 @@ async function _pollUninstall() {
 
   const label = document.getElementById('uninstallProgressLabel');
 
-  if (data.status === 'done') {
+  const alreadyGone = data.status === 'error' &&
+    data.lines?.some(l => l.includes('No instance found'));
+
+  if (data.status === 'done' || alreadyGone) {
     clearInterval(_uninstallPollTimer); _uninstallPollTimer = null;
     _uninstallRunning = false;
-    if (label) label.textContent = 'Instance removed.';
     document.getElementById('uninstallInstanceModal').style.display = 'none';
     _exitServersEditMode();
   } else if (data.status === 'error') {
