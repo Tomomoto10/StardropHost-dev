@@ -1450,27 +1450,29 @@
           </div>
 
           <div id="wiz-method-gog" style="display:none">
-            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
-              Open the GOG login link below in your browser. After logging in you'll be redirected to a blank page — copy that page's full URL and paste it here.
-            </p>
-            <div style="margin-bottom:14px">
-              <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:5px">GOG Login URL</label>
-              <a id="wiz-gog-auth-link" href="#" target="_blank" rel="noopener noreferrer"
-                 style="display:block;font-size:11px;word-break:break-all;color:var(--accent);background:var(--bg-primary);padding:8px 10px;border-radius:6px;border:1px solid var(--border);text-decoration:none">
-                Loading…
-              </a>
+            <!-- Phase 1: open auth URL -->
+            <div id="wiz-gog-phase1">
+              <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
+                Click the GOG login link below in your browser. After logging in you'll be redirected to a blank page — copy that page's full URL, come back to this tab and paste it into the link entry box.
+              </p>
+              <button id="wiz-gog-get-link-btn" class="btn btn-primary" style="width:100%;margin-bottom:10px"
+                      onclick="wizGogGetLink()">Login and get link</button>
             </div>
-            <div style="margin-bottom:14px">
-              <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:5px">
-                Paste Redirect URL
-                <span style="font-weight:400;color:var(--text-muted)"> — the address of the blank page after login</span>
-              </label>
-              <input id="wiz-gog-redirect" class="input" type="text"
-                     placeholder="https://embed.gog.com/on_login_success?origin=client&code=…"
-                     style="width:100%">
+            <!-- Phase 2: paste redirect URL + download (shown after clicking Login and get link) -->
+            <div id="wiz-gog-phase2" style="display:none">
+              <div style="margin-bottom:14px">
+                <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:5px">
+                  Paste redirect URL
+                  <span style="font-weight:400;color:var(--text-muted)"> — the address of the blank page after login</span>
+                </label>
+                <input id="wiz-gog-redirect" class="input" type="text"
+                       placeholder="https://embed.gog.com/on_login_success?origin=client&code=…"
+                       oninput="wizGogOnRedirectInput()"
+                       style="width:100%">
+              </div>
+              <button id="wiz-gog-login-btn" class="btn btn-primary" style="width:100%;margin-bottom:10px"
+                      onclick="wizGogLogin()" disabled>Download</button>
             </div>
-            <button id="wiz-gog-login-btn" class="btn btn-primary" style="width:100%;margin-bottom:10px"
-                    onclick="wizGogLogin()">Login to GOG &amp; Start Download</button>
             <div id="wiz-gog-status" style="font-size:13px;color:var(--text-muted);min-height:16px"></div>
           </div>
         </div><!-- /wiz-method-choice -->
@@ -1998,23 +2000,32 @@
   <div id="gameUpdateModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeGameUpdateModal()">
     <div class="modal-dialog" style="width:480px;max-width:95vw">
       <h3>Update Stardew Valley</h3>
-      <!-- GOG Step 1: Auth URL + redirect paste (shown for GOG users instead of guStep1) -->
+      <!-- GOG Step 1: container loading → login and get link → paste and download -->
       <div id="guGogStep1" style="display:none">
-        <p style="color:var(--text-secondary);margin-bottom:12px">Open the GOG login link in your browser. After logging in, copy the full URL of the blank redirect page and paste it below.</p>
-        <div style="margin-bottom:12px">
-          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:5px">GOG Login URL</label>
-          <a id="guGogAuthUrl" href="#" target="_blank" rel="noopener noreferrer"
-             style="display:block;font-size:11px;word-break:break-all;color:var(--accent);background:var(--bg-secondary);padding:6px 8px;border-radius:4px;text-decoration:none">
-            Loading…
-          </a>
+        <!-- Loading: shown while container is starting -->
+        <div id="guGogLoading" style="text-align:center;padding:24px 0">
+          <div style="width:32px;height:32px;border:3px solid rgba(167,139,250,0.2);border-top-color:#a78bfa;border-radius:50%;animation:loader-spin 0.9s linear infinite;margin:0 auto 12px"></div>
+          <p style="color:var(--text-secondary);font-size:13px;margin:0">Starting GOG service…</p>
         </div>
-        <input type="text" id="guGogRedirect" class="input"
-               placeholder="https://embed.gog.com/on_login_success?origin=client&code=…"
-               style="width:100%;margin-bottom:12px">
-        <div id="guGogError" style="color:var(--accent-error);font-size:13px;margin-bottom:10px;display:none"></div>
-        <div class="modal-actions">
-          <button class="btn btn-sm btn-secondary" type="button" onclick="closeGameUpdateModal()">Cancel</button>
-          <button class="btn btn-sm btn-primary" type="button" id="guGogLoginBtn" onclick="gogUpdateLogin()">Login &amp; Download Update</button>
+        <!-- Phase 1: open auth URL (shown once container is ready) -->
+        <div id="guGogPhase1" style="display:none">
+          <p style="color:var(--text-secondary);margin-bottom:16px">Click the button below to open the GOG login page. After logging in you'll be redirected to a blank page — copy that page's full URL, come back here and paste it into the link entry box.</p>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-secondary" type="button" onclick="closeGameUpdateModal()">Cancel</button>
+            <button class="btn btn-sm btn-primary" type="button" onclick="gogUpdateGetLink()">Login and get link</button>
+          </div>
+        </div>
+        <!-- Phase 2: paste redirect URL + download -->
+        <div id="guGogPhase2" style="display:none">
+          <input type="text" id="guGogRedirect" class="input"
+                 placeholder="https://embed.gog.com/on_login_success?origin=client&code=…"
+                 oninput="gogUpdateOnRedirectInput()"
+                 style="width:100%;margin-bottom:12px">
+          <div id="guGogError" style="color:var(--accent-error);font-size:13px;margin-bottom:10px;display:none"></div>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-secondary" type="button" onclick="closeGameUpdateModal()">Cancel</button>
+            <button class="btn btn-sm btn-primary" type="button" id="guGogLoginBtn" onclick="gogUpdateLogin()" disabled>Download</button>
+          </div>
         </div>
       </div>
       <!-- Steam Step 1: Login -->

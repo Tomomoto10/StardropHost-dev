@@ -143,8 +143,8 @@ services:
   # Port 18701 is intentionally NOT exposed to host.
   stardrop-gog-downloader:
     build:
-      context: ..
-      dockerfile: StardropHost/docker/gog-downloader/Dockerfile
+      context: .
+      dockerfile: docker/gog-downloader/Dockerfile
     image: stardrop-gog-downloader:local
     container_name: ${CONTAINER_PREFIX:-stardrop}-gog-downloader
     restart: no

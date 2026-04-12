@@ -160,6 +160,10 @@ let _wizState = {};
 function showWizard(status) {
   _wizState = status;
   document.getElementById('wizard-overlay').style.display = 'block';
+  // Pre-warm download containers — both restart:no so not running yet.
+  // Starting early gives the image build/pull time before the user needs them.
+  API.post('/api/steam/container/start').catch(() => {});
+  API.post('/api/gog/container/start').catch(() => {});
   // Populate the game path hint
   const gpEl = document.getElementById('wiz-game-path');
   if (gpEl) gpEl.textContent = '/home/stardew-server/stardrophost/data/game/';
@@ -209,7 +213,6 @@ function wizSetMethod(method) {
   const nextBtn = document.getElementById('wiz-step2-next');
   if (nextBtn) nextBtn.disabled = !_wizState._filesFound;
   if (method === 'local') wizScanInstalls();
-  if (method === 'gog')   _wizGogLoadAuthUrl();
 }
 
 // Called on step 2 entry — auto-shows the local tab and triggers scan
@@ -538,22 +541,38 @@ let _wizGogMode = false;  // true while step 3 is showing a GOG download
 let _gogDlLogLines = 0;
 let _gogDlPollTimer = null;
 
-// Fetch the GOG auth URL from the backend and populate the wizard link
-async function _wizGogLoadAuthUrl() {
-  const linkEl  = document.getElementById('wiz-gog-auth-link');
-  if (!linkEl) return;
+// Phase 1: open auth URL in new tab, reveal paste area
+async function wizGogGetLink() {
+  const statusEl = document.getElementById('wiz-gog-status');
+  let authUrl;
   try {
     const data = await API.get('/api/gog/auth-url');
-    if (data?.url) {
-      linkEl.href        = data.url;
-      linkEl.textContent = data.url;
-    }
-  } catch {
-    if (linkEl) linkEl.textContent = 'Could not load URL — check panel connection';
+    authUrl = data?.url;
+  } catch {}
+
+  if (!authUrl) {
+    if (statusEl) { statusEl.style.color = 'var(--accent-error)'; statusEl.textContent = 'Could not load login URL — check panel connection.'; }
+    return;
   }
+
+  window.open(authUrl, '_blank', 'noopener,noreferrer');
+
+  // Container was already pre-warmed on wizard open; this is a no-op if already up
+  API.post('/api/gog/container/start').catch(() => {});
+
+  document.getElementById('wiz-gog-phase1').style.display = 'none';
+  document.getElementById('wiz-gog-phase2').style.display = 'block';
+  if (statusEl) { statusEl.style.color = 'var(--text-muted)'; statusEl.textContent = 'Complete the GOG login in your browser, then paste the redirect URL above.'; }
 }
 
-// Login button: start container → login → trigger download → advance to step 3
+// Enable Download button once a URL is pasted
+function wizGogOnRedirectInput() {
+  const input = document.getElementById('wiz-gog-redirect');
+  const btn   = document.getElementById('wiz-gog-login-btn');
+  if (btn) btn.disabled = !input?.value?.trim();
+}
+
+// Phase 2: login + start download
 async function wizGogLogin() {
   const redirectInput = document.getElementById('wiz-gog-redirect');
   const statusEl      = document.getElementById('wiz-gog-status');
@@ -565,22 +584,12 @@ async function wizGogLogin() {
     return;
   }
 
-  if (btn) { btn.disabled = true; btn.textContent = 'Starting GOG service…'; }
-  if (statusEl) { statusEl.style.color = ''; statusEl.textContent = 'Starting GOG downloader…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Connecting…'; }
+  if (statusEl) { statusEl.style.color = ''; statusEl.textContent = 'Waiting for GOG service…'; }
 
-  // Start the container
-  try {
-    await API.post('/api/gog/container/start');
-  } catch {
-    if (statusEl) { statusEl.style.color = 'var(--accent-error)'; statusEl.textContent = '❌ Could not start GOG service — check manager logs.'; }
-    if (btn) { btn.disabled = false; btn.textContent = 'Login to GOG & Start Download'; }
-    return;
-  }
-
-  // Poll for container readiness (up to 20s)
-  if (statusEl) statusEl.textContent = 'Waiting for GOG service…';
+  // Poll for container readiness — it's been starting since wizard opened (up to 30s)
   let ready = false;
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 30; i++) {
     await new Promise(r => setTimeout(r, 1000));
     try {
       const s = await API.get('/api/gog/status');
@@ -589,7 +598,7 @@ async function wizGogLogin() {
   }
   if (!ready) {
     if (statusEl) { statusEl.style.color = 'var(--accent-error)'; statusEl.textContent = '❌ GOG service failed to start.'; }
-    if (btn) { btn.disabled = false; btn.textContent = 'Login to GOG & Start Download'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Download'; }
     return;
   }
 
@@ -608,7 +617,7 @@ async function wizGogLogin() {
   }
 
   if (!loginOk) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Login to GOG & Start Download'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Download'; }
     return;
   }
 
@@ -5268,11 +5277,20 @@ function openGameUpdateModal() {
     document.getElementById('guStep1').style.display = 'none';
     if (gogStep1) {
       gogStep1.style.display = '';
-      // Populate auth URL
-      API.get('/api/gog/auth-url').then(d => {
-        const link = document.getElementById('guGogAuthUrl');
-        if (link && d?.url) { link.href = d.url; link.textContent = 'Open GOG auth page'; }
-      }).catch(() => {});
+      // Reset to loading state
+      const loading = document.getElementById('guGogLoading');
+      const phase1  = document.getElementById('guGogPhase1');
+      const phase2  = document.getElementById('guGogPhase2');
+      const errEl   = document.getElementById('guGogError');
+      const redirect = document.getElementById('guGogRedirect');
+      if (loading)  loading.style.display  = '';
+      if (phase1)   phase1.style.display   = 'none';
+      if (phase2)   phase2.style.display   = 'none';
+      if (errEl)  { errEl.style.display = 'none'; errEl.textContent = ''; }
+      if (redirect) redirect.value = '';
+      // Start container and wait for readiness
+      API.post('/api/gog/container/start').catch(() => {});
+      _gogUpdateWaitForContainer();
     }
   } else {
     document.getElementById('guStep1').style.display = '';
@@ -5292,68 +5310,88 @@ function openGameUpdateModal() {
 function closeGameUpdateModal() {
   document.getElementById('gameUpdateModal').style.display = 'none';
   if (_guPollTimer) { clearTimeout(_guPollTimer); _guPollTimer = null; }
+  if (_guIsGog) API.post('/api/gog/container/stop').catch(() => null);
 }
 
+// Poll until the GOG container is ready, then reveal phase 1
+async function _gogUpdateWaitForContainer() {
+  const modal   = document.getElementById('gameUpdateModal');
+  const loading = document.getElementById('guGogLoading');
+  const phase1  = document.getElementById('guGogPhase1');
+  const errEl   = document.getElementById('guGogError');
+
+  for (let i = 0; i < 60; i++) {
+    if (modal?.style.display === 'none') return; // modal was closed
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const s = await API.get('/api/gog/status');
+      if (s?.state !== 'unavailable') {
+        if (loading) loading.style.display = 'none';
+        if (phase1)  phase1.style.display  = '';
+        return;
+      }
+    } catch {}
+  }
+
+  // Timed out — show error in phase 2 area so Cancel button is reachable
+  if (loading) loading.style.display = 'none';
+  const phase2 = document.getElementById('guGogPhase2');
+  if (phase2) phase2.style.display = '';
+  if (errEl) { errEl.textContent = '❌ GOG service failed to start — please try again.'; errEl.style.display = ''; }
+}
+
+// Phase 1: open auth URL, reveal paste area
+async function gogUpdateGetLink() {
+  let authUrl;
+  try {
+    const data = await API.get('/api/gog/auth-url');
+    authUrl = data?.url;
+  } catch {}
+  if (!authUrl) return;
+  window.open(authUrl, '_blank', 'noopener,noreferrer');
+  document.getElementById('guGogPhase1').style.display = 'none';
+  document.getElementById('guGogPhase2').style.display = '';
+}
+
+// Enable Download button once a URL is pasted
+function gogUpdateOnRedirectInput() {
+  const input = document.getElementById('guGogRedirect');
+  const btn   = document.getElementById('guGogLoginBtn');
+  if (btn) btn.disabled = !input?.value?.trim();
+}
+
+// Phase 2: login with redirect URL + start download
 async function gogUpdateLogin() {
-  const gogStep1   = document.getElementById('guGogStep1');
   const redirectEl = document.getElementById('guGogRedirect');
   const errEl      = document.getElementById('guGogError');
   const btn        = document.getElementById('guGogLoginBtn');
 
-  function showErr(msg) {
-    if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
-  }
-  function clearErr() {
-    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
-  }
+  function showErr(msg) { if (errEl) { errEl.textContent = msg; errEl.style.display = ''; } }
+  function clearErr()   { if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; } }
 
   const redirectUrl = redirectEl?.value?.trim();
   if (!redirectUrl) { showErr('Paste the redirect URL first.'); return; }
 
   clearErr();
-  if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Logging in…'; }
 
-  // Start container
-  try {
-    await API.post('/api/gog/container/start');
-  } catch {
-    showErr('❌ Could not start GOG service.');
-    if (btn) { btn.disabled = false; btn.textContent = 'Login & Download Update'; }
-    return;
-  }
-
-  // Wait for readiness (up to 20s)
-  if (btn) btn.textContent = 'Waiting for service…';
-  let ready = false;
-  for (let i = 0; i < 20; i++) {
-    await new Promise(r => setTimeout(r, 1000));
-    try { const s = await API.get('/api/gog/status'); if (s?.state !== 'unavailable') { ready = true; break; } } catch {}
-  }
-  if (!ready) {
-    showErr('❌ GOG service failed to start.');
-    if (btn) { btn.disabled = false; btn.textContent = 'Login & Download Update'; }
-    return;
-  }
-
-  // Login
-  if (btn) btn.textContent = 'Logging in…';
   try {
     const data = await API.post('/api/gog/login', { redirectUrl });
     if (!data?.success) {
       showErr(`❌ ${data?.error || 'Login failed — check URL and try again.'}`);
-      if (btn) { btn.disabled = false; btn.textContent = 'Login & Download Update'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Download'; }
       return;
     }
   } catch (e) {
     showErr(`❌ ${e.message || 'Network error'}`);
-    if (btn) { btn.disabled = false; btn.textContent = 'Login & Download Update'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Download'; }
     return;
   }
 
   // Kick off download, transition to step 3
   try { await API.post('/api/gog/download'); } catch {}
 
-  if (gogStep1) gogStep1.style.display = 'none';
+  document.getElementById('guGogStep1').style.display = 'none';
   const step3 = document.getElementById('guStep3');
   if (step3) step3.style.display = '';
   const guStatus = document.getElementById('guStatus');
@@ -5697,6 +5735,7 @@ async function _pollInstall() {
       if (peerCount > _installKnownPeerCount || attempts > 15) {
         clearInterval(detectTimer);
         closeInstallModal();
+        _serversEditMode = false;
         loadServersPage();
         if (peerCount > _installKnownPeerCount) showToast('New instance detected', 'success');
       }
