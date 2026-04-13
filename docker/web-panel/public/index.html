@@ -512,30 +512,118 @@
 
         <!-- ── Farm Overview ──────────────────────────────────── -->
         <section id="page-farm" class="page">
+
           <div class="card" id="farm-live-card">
-            <h3>Live Status</h3>
+            <h3>World Status</h3>
             <div id="farmLiveData">
               <div class="empty-state">Loading live data...</div>
             </div>
           </div>
+
+          <details class="card admin-cred-details" id="farm-admin-card">
+            <summary>World Controls</summary>
+            <div style="padding-top:10px">
+              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px">Commands sent directly to the running game via SMAPI.</p>
+              <div style="display:flex;flex-direction:column;gap:0">
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Shared Money</span>
+                  <input type="number" id="worldSetMoney" class="form-input" placeholder="Amount" min="0" style="width:150px">
+                  <button class="btn btn-sm btn-primary" onclick="setMoneyCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Set Time</span>
+                  <input type="number" id="worldSetTime" class="form-input" placeholder="6am–2am = 0600–2600" min="600" max="2600" style="width:150px">
+                  <button class="btn btn-sm btn-primary" onclick="setTimeCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Time Shortcuts</span>
+                  <button class="btn btn-sm" onclick="worldCmd('debug', 'addminute', null, null, 'Success: +10 min')">+10 Min</button>
+                  <button class="btn btn-sm" onclick="worldCmd('debug', 'addhour', null, null, 'Success: +1 hour')">+1 Hour</button>
+                  <button class="btn btn-sm btn-warning" onclick="endDayCmd(this)">End Day</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Set Day</span>
+                  <input type="number" id="worldSetDay" class="form-input" placeholder="1 – 28" min="1" max="28" style="width:100px">
+                  <button class="btn btn-sm btn-primary" onclick="setDayCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Set Season</span>
+                  <select id="worldSetSeason" class="form-input" style="width:150px">
+                    <option value="spring">Spring</option>
+                    <option value="summer">Summer</option>
+                    <option value="fall">Fall</option>
+                    <option value="winter">Winter</option>
+                  </select>
+                  <button class="btn btn-sm btn-primary" onclick="setSeasonCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Set Year</span>
+                  <input type="number" id="worldSetYear" class="form-input" placeholder="Year" min="1" style="width:100px">
+                  <button class="btn btn-sm btn-primary" onclick="setYearCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Pause the Game</span>
+                  <button class="btn btn-sm" id="worldPauseBtn" onclick="toggleWorldPause()">Pause</button>
+                  <span id="worldPauseState" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
+                </div>
+
+                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span class="admin-cmd-label" style="margin:0">Freeze Time</span>
+                    <button class="btn btn-sm" id="worldFreezeBtn" onclick="toggleWorldFreeze()">Toggle Freeze</button>
+                    <span id="worldFreezeState" style="font-size:12px;color:var(--text-muted)"></span>
+                  </div>
+                  <div style="position:relative;display:flex;align-items:center;gap:6px;width:100%;max-width:340px">
+                    <input type="text" id="worldFreezeMsg" class="form-input" placeholder="Chat message on toggle (optional)" style="flex:1">
+                    <button id="worldFreezeMsgColorBtn" class="freeze-color-dot" onclick="toggleFreezeMsgColors(event)" title="Chat color"></button>
+                    <div id="worldFreezeMsgColorPicker" class="freeze-color-picker" style="display:none"></div>
+                  </div>
+                </div>
+
+                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px;border-bottom:none">
+                  <span class="admin-cmd-label" style="margin:0">Clear</span>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    <select id="worldClearLocation" class="form-input" style="width:auto">
+                      <option value="Farm">Farm</option>
+                      <option value="FarmHouse">Farm House</option>
+                      <option value="Greenhouse">Greenhouse</option>
+                      <option value="Town">Town</option>
+                      <option value="Beach">Beach</option>
+                      <option value="Forest">Forest</option>
+                      <option value="Desert">Desert</option>
+                    </select>
+                    <select id="worldClearType" class="form-input" style="width:auto">
+                      <option value="debris">Debris</option>
+                      <option value="crops">Crops</option>
+                      <option value="grass">Grass</option>
+                      <option value="trees">Trees</option>
+                      <option value="fruit-trees">Fruit Trees</option>
+                      <option value="furniture">Furniture</option>
+                      <option value="removable">Removable</option>
+                      <option value="everything">Everything</option>
+                    </select>
+                    <button class="btn btn-sm btn-primary" onclick="worldCmd('world_clear ' + document.getElementById('worldClearLocation').value, document.getElementById('worldClearType').value)">Clear</button>
+                  </div>
+                </div>
+
+              </div>
+              <div id="worldCmdResult" style="display:none;margin-top:10px;font-size:13px;padding:8px;border-radius:6px"></div>
+            </div>
+          </details>
+
           <div class="card" id="farm-info-card">
-            <h3>Farm Info</h3>
+            <h3>Farm Status</h3>
             <div id="farmInfoData">
               <div class="empty-state">Loading save data...</div>
             </div>
           </div>
-
-          <details class="card admin-cred-details" id="farm-cc-card">
-            <summary>Community Center
-              <span id="farmCCSummary" style="margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);font-weight:400">
-                <span id="farmCCSummaryText">--</span>
-                <span class="cc-room-bar" style="width:80px"><span id="farmCCSummaryFill" class="cc-room-fill" style="width:0%"></span></span>
-              </span>
-            </summary>
-            <div id="farmCCData" style="padding-top:8px">
-              <div class="empty-state">Loading save data...</div>
-            </div>
-          </details>
 
           <details class="card admin-cred-details" id="farm-controls-card">
             <summary>Farm Controls</summary>
@@ -645,101 +733,15 @@
             </div>
           </details>
 
-          <details class="card admin-cred-details" id="farm-admin-card">
-            <summary>World Controls</summary>
-            <div style="padding-top:10px">
-              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px">Commands sent directly to the running game via SMAPI.</p>
-              <div style="display:flex;flex-direction:column;gap:0">
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Shared Money</span>
-                  <input type="number" id="worldSetMoney" class="form-input" placeholder="Amount" min="0" style="width:150px">
-                  <button class="btn btn-sm btn-primary" onclick="setMoneyCmd(this)">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Set Time</span>
-                  <input type="number" id="worldSetTime" class="form-input" placeholder="6am–2am = 0600–2600" min="600" max="2600" style="width:150px">
-                  <button class="btn btn-sm btn-primary" onclick="setTimeCmd(this)">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Time Shortcuts</span>
-                  <button class="btn btn-sm" onclick="worldCmd('debug', 'addminute', null, null, 'Success: +10 min')">+10 Min</button>
-                  <button class="btn btn-sm" onclick="worldCmd('debug', 'addhour', null, null, 'Success: +1 hour')">+1 Hour</button>
-                  <button class="btn btn-sm btn-warning" onclick="endDayCmd(this)">End Day</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Set Day</span>
-                  <input type="number" id="worldSetDay" class="form-input" placeholder="1 – 28" min="1" max="28" style="width:100px">
-                  <button class="btn btn-sm btn-primary" onclick="setDayCmd(this)">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Set Season</span>
-                  <select id="worldSetSeason" class="form-input" style="width:150px">
-                    <option value="spring">Spring</option>
-                    <option value="summer">Summer</option>
-                    <option value="fall">Fall</option>
-                    <option value="winter">Winter</option>
-                  </select>
-                  <button class="btn btn-sm btn-primary" onclick="setSeasonCmd(this)">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Set Year</span>
-                  <input type="number" id="worldSetYear" class="form-input" placeholder="Year" min="1" style="width:100px">
-                  <button class="btn btn-sm btn-primary" onclick="setYearCmd(this)">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Pause the Game</span>
-                  <button class="btn btn-sm" id="worldPauseBtn" onclick="toggleWorldPause()">Pause</button>
-                  <span id="worldPauseState" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
-                </div>
-
-                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:8px">
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <span class="admin-cmd-label" style="margin:0">Freeze Time</span>
-                    <button class="btn btn-sm" id="worldFreezeBtn" onclick="toggleWorldFreeze()">Toggle Freeze</button>
-                    <span id="worldFreezeState" style="font-size:12px;color:var(--text-muted)"></span>
-                  </div>
-                  <div style="position:relative;display:flex;align-items:center;gap:6px;width:100%;max-width:340px">
-                    <input type="text" id="worldFreezeMsg" class="form-input" placeholder="Chat message on toggle (optional)" style="flex:1">
-                    <button id="worldFreezeMsgColorBtn" class="freeze-color-dot" onclick="toggleFreezeMsgColors(event)" title="Chat color"></button>
-                    <div id="worldFreezeMsgColorPicker" class="freeze-color-picker" style="display:none"></div>
-                  </div>
-                </div>
-
-                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px;border-bottom:none">
-                  <span class="admin-cmd-label" style="margin:0">Clear</span>
-                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                    <select id="worldClearLocation" class="form-input" style="width:auto">
-                      <option value="Farm">Farm</option>
-                      <option value="FarmHouse">Farm House</option>
-                      <option value="Greenhouse">Greenhouse</option>
-                      <option value="Town">Town</option>
-                      <option value="Beach">Beach</option>
-                      <option value="Forest">Forest</option>
-                      <option value="Desert">Desert</option>
-                    </select>
-                    <select id="worldClearType" class="form-input" style="width:auto">
-                      <option value="debris">Debris</option>
-                      <option value="crops">Crops</option>
-                      <option value="grass">Grass</option>
-                      <option value="trees">Trees</option>
-                      <option value="fruit-trees">Fruit Trees</option>
-                      <option value="furniture">Furniture</option>
-                      <option value="removable">Removable</option>
-                      <option value="everything">Everything</option>
-                    </select>
-                    <button class="btn btn-sm btn-primary" onclick="worldCmd('world_clear ' + document.getElementById('worldClearLocation').value, document.getElementById('worldClearType').value)">Clear</button>
-                  </div>
-                </div>
-
-              </div>
-              <div id="worldCmdResult" style="display:none;margin-top:10px;font-size:13px;padding:8px;border-radius:6px"></div>
+          <details class="card admin-cred-details" id="farm-cc-card">
+            <summary>Community Center
+              <span id="farmCCSummary" style="margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);font-weight:400">
+                <span id="farmCCSummaryText">--</span>
+                <span class="cc-room-bar" style="width:80px"><span id="farmCCSummaryFill" class="cc-room-fill" style="width:0%"></span></span>
+              </span>
+            </summary>
+            <div id="farmCCData" style="padding-top:8px">
+              <div class="empty-state">Loading save data...</div>
             </div>
           </details>
 
