@@ -87,6 +87,10 @@ namespace StardropHostDependencies
         private static readonly FieldInfo _namingMenuTextBoxField =
             typeof(NamingMenu).GetField("textBox", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+        // ── Automation config (written by wizard, read on save load) ─────────
+        private const string AutomationConfigPath = "/home/steam/web-panel/data/automation.json";
+        private AutomationConfig? _auto = null;
+
         // ── Host Bot state ───────────────────────────────────────────────────
         private bool      _hasTriggeredSleep  = false;
         private bool      _isSleepInProgress  = false;
@@ -96,6 +100,14 @@ namespace StardropHostDependencies
         private int       _rehideTicks        = 0;
         private string?   _lastSkippedEventId = null;
         private DateTime? _lastSkipTime       = null;
+
+        // ── Festival state ────────────────────────────────────────────────────
+        private bool _warpingToFestival    = false;
+        private bool _startedFestivalEnd   = false;
+        private bool _festivalEventStarted = false;
+        private int  _festivalEventTick    = 0;
+        private int  _festivalLogThrottle  = 0;
+        private int  _festivalTimeoutTick  = 0;
 
         // ── Security config (blocklist/allowlist from web panel) ────────────────
         private const string SecurityConfigPath = "/home/steam/web-panel/data/security.json";
@@ -230,6 +242,7 @@ namespace StardropHostDependencies
             helper.Events.Multiplayer.PeerConnected      += OnPeerConnected;
             helper.Events.Multiplayer.PeerDisconnected   += OnPeerDisconnected;
             helper.Events.Player.Warped                  += OnWarped;
+            helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
 
             helper.ConsoleCommands.Add("kick",  "Kick a connected farmhand. Usage: kick <name|id>",          OnKickCommand);
             helper.ConsoleCommands.Add("ban",   "Ban a connected farmhand. Usage: ban <name|id>",             OnBanCommand);
@@ -269,6 +282,16 @@ namespace StardropHostDependencies
         {
             LoadBanMap();
 
+            // Load automation config (persisted from farm creation wizard)
+            try
+            {
+                if (File.Exists(AutomationConfigPath))
+                    _auto = JsonSerializer.Deserialize<AutomationConfig>(
+                        File.ReadAllText(AutomationConfigPath),
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (Exception ex) { Monitor.Log($"[Automation] Failed to load automation.json: {ex.Message}", LogLevel.Warn); }
+
             // Apply move-build permission from farm config (new-farm.json)
             if (_cfg?.MoveBuildPermission is string perm && perm != "off")
             {
@@ -306,6 +329,13 @@ namespace StardropHostDependencies
             _handledReadyCheck  = false;
             _lastSkippedEventId = null;
             _lastSkipTime       = null;
+
+            // Reset festival state each day
+            _warpingToFestival    = false;
+            _startedFestivalEnd   = false;
+            _festivalEventStarted = false;
+            _festivalEventTick    = 0;
+            _festivalTimeoutTick  = 0;
 
             // Guard window at day start — players may already be online
             _guardWindowEnd = DateTime.Now.AddSeconds(GuardWindowSeconds);
@@ -398,6 +428,10 @@ namespace StardropHostDependencies
                 return;
             }
 
+            // Festival start / leave (every tick)
+            HandleFestivalStart();
+            HandleFestivalLeave();
+
             // ReadyCheck + event skip (every 0.5s)
             if (e.Ticks % 30 == 0)
             {
@@ -418,6 +452,24 @@ namespace StardropHostDependencies
         {
             if (!Context.IsMainPlayer || !Context.IsWorldReady) return;
 
+            bool festivalDay = IsFestivalToday();
+
+            if (!festivalDay)
+            {
+                if (e.NewTime == 620)
+                    HandleMailbox();
+
+                if (e.NewTime == 630)
+                {
+                    HandleProgressionEvents();
+                    HandleSewersKey();
+                    HandleJojaMarket();
+                }
+
+                if (e.NewTime == 900)
+                    HandleFishingRod();
+            }
+
             // Auto-sleep at 2AM regardless of player state
             if (Game1.timeOfDay >= AutoSleepTime && !_hasTriggeredSleep && !_isSleepInProgress)
             {
@@ -425,6 +477,267 @@ namespace StardropHostDependencies
                 GoToBed();
                 _hasTriggeredSleep = true;
             }
+        }
+
+        private void OnOneSecondUpdateTicked(object? sender, OneSecondUpdateTickedEventArgs e)
+        {
+            if (!Context.IsMainPlayer || !Context.IsWorldReady) return;
+            HandleMinigame();
+            HandlePetAndCave();
+            HandleFestivalEvents();
+        }
+
+        private void HandleMinigame()
+        {
+            // Minigames (e.g. the intro bus ride on a new save) block isGameAvailable()
+            // and prevent farmhands from connecting. Force-quit any active minigame.
+            // Festival minigames are handled separately and should not be cleared here.
+            if (Game1.currentMinigame == null) return;
+            if (Game1.CurrentEvent?.isFestival == true) return;
+
+            Monitor.Log($"[Automation] Clearing minigame: {Game1.currentMinigame.GetType().Name}.", LogLevel.Info);
+            Game1.currentMinigame.forceQuit();
+            Game1.currentMinigame = null;
+        }
+
+        private void HandlePetAndCave()
+        {
+            if (_auto == null) return;
+
+            // Cave choice — inject event 65 and set caveChoice directly (no need for Demetrius event)
+            if (!Game1.player.eventsSeen.Contains("65"))
+            {
+                Game1.player.eventsSeen.Add("65");
+                if (_auto.MushroomsOrBats.Equals("mushrooms", StringComparison.OrdinalIgnoreCase))
+                {
+                    Game1.MasterPlayer.caveChoice.Value = 2;
+                    if (Game1.getLocationFromName("FarmCave") is FarmCave fc)
+                        fc.setUpMushroomHouse();
+                }
+                else
+                {
+                    Game1.MasterPlayer.caveChoice.Value = 1;
+                }
+                Monitor.Log($"[Automation] Cave choice set: {_auto.MushroomsOrBats}.", LogLevel.Info);
+            }
+
+            // Pet — use AlwaysOnServer reflection pattern: namePet runs continuously until pet exists
+            if (_auto.AcceptPet && !string.IsNullOrWhiteSpace(_auto.PetName))
+            {
+                if (!Game1.player.hasPet())
+                {
+                    try { Helper.Reflection.GetMethod(new Event(), "namePet").Invoke(_auto.PetName.Substring(0)); }
+                    catch { /* not in a state where this works yet */ }
+                }
+                else
+                {
+                    var pet = Game1.player.getPet();
+                    if (pet != null && pet.Name != _auto.PetName)
+                    {
+                        pet.Name        = _auto.PetName;
+                        pet.displayName = _auto.PetName;
+                    }
+                }
+            }
+        }
+
+        private void HandleProgressionEvents()
+        {
+            // Community Center door unlock — shown when host first visits CC area
+            if (!Game1.player.eventsSeen.Contains("611439"))
+            {
+                Game1.player.eventsSeen.Add("611439");
+                Game1.MasterPlayer.mailReceived.Add("ccDoorUnlock");
+                Monitor.Log("[Progression] Community Center door unlock applied (event 611439).", LogLevel.Info);
+            }
+
+            // Community Center completion — triggered once all 6 bundle rooms are done
+            var ccMails = new[] { "ccCraftsRoom", "ccVault", "ccFishTank", "ccBoilerRoom", "ccPantry", "ccBulletin" };
+            bool allRoomsComplete = ccMails.All(m => Game1.MasterPlayer.mailReceived.Contains(m));
+
+            if (allRoomsComplete && !Game1.player.eventsSeen.Contains("191393"))
+            {
+                if (Game1.getLocationFromName("CommunityCenter") is CommunityCenter cc)
+                {
+                    for (int i = 0; i < cc.areasComplete.Count; i++)
+                        cc.areasComplete[i] = true;
+                }
+                Game1.player.eventsSeen.Add("191393");
+                Monitor.Log("[Progression] Community Center completion applied (event 191393).", LogLevel.Info);
+            }
+        }
+
+        // ── Daily automation handlers ─────────────────────────────────────────
+
+        private void HandleMailbox()
+        {
+            // Open the mailbox (mailbox.Count + 1) times to clear all pending mail.
+            // Pattern from AlwaysOnServer reference.
+            int count = Game1.mailbox.Count + 1;
+            for (int i = 0; i < count; i++)
+            {
+                try { Helper.Reflection.GetMethod(Game1.currentLocation, "mailbox").Invoke(); }
+                catch { break; }
+            }
+            Monitor.Log($"[Automation] Mailbox checked ({count} mail(s)).", LogLevel.Info);
+        }
+
+        private void HandleSewersKey()
+        {
+            if (Game1.player.hasRustyKey) return;
+            if (LibraryMuseum.totalArtifacts >= 60)
+            {
+                Game1.player.eventsSeen.Add("295672");
+                Game1.player.eventsSeen.Add("66");
+                Game1.player.hasRustyKey = true;
+                Monitor.Log("[Automation] Rusty key granted (60+ artifacts donated).", LogLevel.Info);
+            }
+        }
+
+        private void HandleFishingRod()
+        {
+            if (Game1.player.eventsSeen.Contains("739330")) return;
+            Game1.player.increaseBackpackSize(1);
+            Game1.warpFarmer("Beach", 44, 35, 1);
+            Monitor.Log("[Automation] Fishing rod event — warped to Beach.", LogLevel.Info);
+        }
+
+        private void HandleJojaMarket()
+        {
+            if (_auto?.PurchaseJojaMembership != true) return;
+
+            bool CheckAndBuy(int cost, string mail, string label)
+            {
+                if (Game1.player.Money < cost || Game1.player.mailReceived.Contains(mail)) return false;
+                Game1.player.Money -= cost;
+                Game1.player.mailReceived.Add(mail);
+                Monitor.Log($"[Automation] Joja: {label} purchased.", LogLevel.Info);
+                return true;
+            }
+
+            if (!Game1.player.mailReceived.Contains("JojaMember"))
+            {
+                if (Game1.player.Money >= 5000)
+                {
+                    Game1.player.Money -= 5000;
+                    Game1.player.mailReceived.Add("JojaMember");
+                    Monitor.Log("[Automation] Joja: Membership purchased.", LogLevel.Info);
+                }
+                return; // need membership first
+            }
+
+            if (CheckAndBuy(15000, "jojaBoilerRoom", "Minecarts"))
+                Game1.player.mailReceived.Add("ccBoilerRoom");
+            if (CheckAndBuy(20000, "jojaFishTank", "Panning"))
+                Game1.player.mailReceived.Add("ccFishTank");
+            if (CheckAndBuy(25000, "jojaCraftsRoom", "Bridge"))
+                Game1.player.mailReceived.Add("ccCraftsRoom");
+            if (CheckAndBuy(35000, "jojaPantry", "Greenhouse"))
+                Game1.player.mailReceived.Add("ccPantry");
+            if (CheckAndBuy(40000, "jojaVault", "Bus"))
+            {
+                Game1.player.mailReceived.Add("ccVault");
+                Game1.player.eventsSeen.Add("502261");
+            }
+        }
+
+        // ── Festival handling ─────────────────────────────────────────────────
+
+        private bool CheckOthersReadyForFestival(string key)
+        {
+            int ready    = Game1.netReady.GetNumberReady(key);
+            int required = Game1.netReady.GetNumberRequired(key);
+            return ready > 0 && !Game1.netReady.IsReady(key) && ready >= required - 1;
+        }
+
+        private void HandleFestivalStart()
+        {
+            if (!Context.IsMainPlayer || !Context.IsWorldReady) return;
+            if (Game1.otherFarmers.Count == 0) return;
+            if (Game1.CurrentEvent?.isFestival == true || _warpingToFestival) return;
+            if (Game1.whereIsTodaysFest == null) return;
+            if (!CheckOthersReadyForFestival("festivalStart")) return;
+
+            _festivalLogThrottle++;
+            if (_festivalLogThrottle % 60 == 0)
+                Monitor.Log($"[Festival] Players ready for festival — warping host.", LogLevel.Info);
+
+            _warpingToFestival = true;
+            Game1.netReady.SetLocalReady("festivalStart", true);
+
+            var req = Game1.getLocationRequest(Game1.whereIsTodaysFest);
+            req.OnWarp += delegate { _warpingToFestival = false; };
+            int x = -1, y = -1;
+            Utility.getDefaultWarpLocation(Game1.whereIsTodaysFest, ref x, ref y);
+            Game1.warpFarmer(req, x, y, 2);
+        }
+
+        private void HandleFestivalLeave()
+        {
+            if (!Context.IsMainPlayer || !Context.IsWorldReady) return;
+            if (Game1.otherFarmers.Count == 0) return;
+            if (Game1.CurrentEvent?.isFestival != true || _startedFestivalEnd) return;
+            if (!CheckOthersReadyForFestival("festivalEnd")) return;
+
+            Monitor.Log("[Festival] Players ready to leave — triggering end dialogue.", LogLevel.Info);
+            Game1.CurrentEvent.TryStartEndFestivalDialogue(Game1.player);
+            _startedFestivalEnd = true;
+        }
+
+        private void HandleFestivalEvents()
+        {
+            if (Game1.CurrentEvent == null || !Game1.CurrentEvent.isFestival) return;
+            if (_startedFestivalEnd) return;
+
+            _festivalEventTick++;
+            _festivalTimeoutTick++;
+
+            // After 30s at the festival, auto-start the mini-event by answering the host NPC
+            const int AutoStartTicks = 30;
+            if (!_festivalEventStarted && _festivalEventTick == AutoStartTicks)
+            {
+                try
+                {
+                    var festivalHost = Helper.Reflection
+                        .GetField<NPC>(Game1.CurrentEvent, "festivalHost").GetValue();
+                    if (festivalHost != null)
+                    {
+                        Game1.CurrentEvent.answerDialogueQuestion(festivalHost, "yes");
+                        Monitor.Log("[Festival] Auto-started festival mini-event.", LogLevel.Info);
+                    }
+                }
+                catch (Exception ex) { Monitor.Log($"[Festival] Auto-start failed: {ex.Message}", LogLevel.Warn); }
+                _festivalEventStarted = true;
+            }
+
+            // Safety timeout — leave festival after 90 minutes game time (if players leave it)
+            // In practice HandleFestivalLeave handles the normal path; this is a fallback.
+            if (_festivalTimeoutTick >= 90 * 60 && !_startedFestivalEnd)
+            {
+                Monitor.Log("[Festival] Safety timeout — triggering festival end.", LogLevel.Info);
+                try { Game1.CurrentEvent.TryStartEndFestivalDialogue(Game1.player); }
+                catch { }
+                _startedFestivalEnd = true;
+            }
+        }
+
+        // ── Festival date helpers ─────────────────────────────────────────────
+
+        private static bool IsFestivalToday()
+        {
+            try
+            {
+                var now = StardewModdingAPI.Utilities.SDate.Now();
+                return now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(13, "spring")) ||
+                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(24, "spring")) ||
+                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(11, "summer")) ||
+                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(28, "summer")) ||
+                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(16, "fall"))   ||
+                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(27, "fall"))   ||
+                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(8,  "winter")) ||
+                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(25, "winter"));
+            }
+            catch { return false; }
         }
 
         private void OnSaving(object? sender, SavingEventArgs e)
@@ -865,15 +1178,8 @@ namespace StardropHostDependencies
             Game1.player.team.useSeparateWallets.Value =
                 cfg.MoneyStyle.Equals("separate", StringComparison.OrdinalIgnoreCase);
 
-            Game1.player.difficultyModifier = cfg.ProfitMargin switch
-            {
-                "75%"  => 0.75f,
-                "50%"  => 0.50f,
-                "25%"  => 0.25f,
-                _      => 1.00f,
-            };
-
-            Game1.whichFarm  = Math.Clamp(cfg.FarmType, 0, 6);
+            Game1.whichFarm     = Math.Clamp(cfg.FarmType, 0, 6);
+            Game1.whichModFarm  = null; // explicit reset — no mod farm support
             Game1.bundleType = cfg.CommunityCenterBundles.Equals("remixed", StringComparison.OrdinalIgnoreCase)
                                ? Game1.BundleType.Remixed : Game1.BundleType.Default;
 
@@ -895,6 +1201,16 @@ namespace StardropHostDependencies
             Game1.multiplayerMode = 2;
             menu.createdNewCharacter(true);
 
+            // difficultyModifier MUST be set AFTER createdNewCharacter() because loadForNewGame()
+            // (called internally by createdNewCharacter) resets it to 1.0 — JunimoServer ref note
+            Game1.player.difficultyModifier = cfg.ProfitMargin switch
+            {
+                "75%"  => 0.75f,
+                "50%"  => 0.50f,
+                "25%"  => 0.25f,
+                _      => 1.00f,
+            };
+
             // Persist cabin count + stack mode so they survive restart
             try
             {
@@ -902,6 +1218,21 @@ namespace StardropHostDependencies
                     new { cabinCount = cfg.CabinCount, cabinStack = _useCabinStack }));
             }
             catch { }
+
+            // Persist automation config so it survives across restarts (new-farm.json is deleted below)
+            try
+            {
+                var autoCfg = new AutomationConfig
+                {
+                    PurchaseJojaMembership = cfg.PurchaseJojaMembership,
+                    AcceptPet              = cfg.AcceptPet,
+                    PetName                = cfg.PetName,
+                    MushroomsOrBats        = cfg.MushroomsOrBats,
+                };
+                File.WriteAllText(AutomationConfigPath, JsonSerializer.Serialize(autoCfg));
+                _auto = autoCfg;
+            }
+            catch (Exception ex) { Monitor.Log($"[Automation] Failed to write automation.json: {ex.Message}", LogLevel.Warn); }
 
             File.Delete(NewFarmConfigPath);
             Monitor.Log("[GameLoader] Farm creation initiated. new-farm.json removed.", LogLevel.Info);
@@ -1932,6 +2263,18 @@ namespace StardropHostDependencies
 
         [JsonPropertyName("value")]
         public string Value { get; set; } = "";
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // AUTOMATION CONFIG — persisted from new-farm.json to automation.json
+    // ════════════════════════════════════════════════════════════════════════
+
+    internal sealed class AutomationConfig
+    {
+        public bool   PurchaseJojaMembership { get; set; } = false;
+        public bool   AcceptPet              { get; set; } = true;
+        public string PetName                { get; set; } = "Stella";
+        public string MushroomsOrBats        { get; set; } = "mushrooms";
     }
 
     // ════════════════════════════════════════════════════════════════════════
