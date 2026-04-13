@@ -2172,7 +2172,7 @@ namespace StardropHostDependencies
                     .Where(rc =>
                     {
                         var rcRect = new Rectangle(
-                            (int)rc.tile.X * Game1.tileSize, (int)rc.tile.Y * Game1.tileSize,
+                            rc.tileX.Value * Game1.tileSize, rc.tileY.Value * Game1.tileSize,
                             rc.width.Value * Game1.tileSize, rc.height.Value * Game1.tileSize);
                         return rcRect.Intersects(areaRect);
                     })
