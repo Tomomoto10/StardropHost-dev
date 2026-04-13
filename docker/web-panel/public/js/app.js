@@ -2394,6 +2394,78 @@ async function farmTypeConfirmApply() {
 
 // ─── World Controls ───────────────────────────────────────────────
 
+// ─── Farm Controls ────────────────────────────────────────────────
+
+function setBuildPermissionCmd(btn) {
+  const v = document.getElementById('worldBuildPermission').value;
+  const labels = { off: 'Host Only', owned: 'Own Buildings', on: 'Everyone' };
+  worldCmd('say', `/movebuildingpermission ${v}`, null, btn, `Success: Build permissions → ${labels[v] || v}`);
+}
+
+async function upgradeHouseCmd(btn) {
+  btn.disabled = true;
+  btn.style.opacity = '0.4';
+  const r = await API.post('/api/players/admin-command', { command: 'debug upgradehouse' }).catch(() => null);
+  if (r?.success) {
+    await API.post('/api/players/admin-command', { command: 'debug crib 0' }).catch(() => null);
+    showToast('Success: House upgraded', 'success');
+  } else {
+    showToast(r?.error || 'Failed — is the server running?', 'error');
+  }
+  btn.disabled = false;
+  btn.style.opacity = '';
+}
+
+function onGrowTypeChange() {
+  const type = document.getElementById('farmGrowType').value;
+  const el = document.getElementById('farmGrowDays');
+  el.style.display = ['growwildtrees', 'fruittrees'].includes(type) ? 'none' : '';
+}
+
+function growCmd(btn) {
+  const type = document.getElementById('farmGrowType').value;
+  const n = parseInt(document.getElementById('farmGrowDays').value, 10);
+  const noParam = ['growwildtrees', 'fruittrees'];
+  const labels = { growcrops: 'Crops', growgrass: 'Grass', growwildtrees: 'Wild Trees', fruittrees: 'Fruit Trees' };
+  const label = labels[type] || type;
+  if (noParam.includes(type)) {
+    worldCmd('debug', type, null, btn, `Success: ${label} grown`);
+  } else {
+    if (!n || n < 1) { showToast('Enter a number of days', 'error'); return; }
+    worldCmd('debug', `${type} ${n}`, null, btn, `Success: ${label} grown ${n} day${n === 1 ? '' : 's'}`);
+  }
+}
+
+// ─── World Controls ─ set helpers ────────────────────────────────
+
+function setMoneyCmd(btn) {
+  const v = document.getElementById('worldSetMoney').value;
+  worldCmd('player_setmoney', v, 'worldSetMoney', btn, `Success: Money set to ${Number(v).toLocaleString()}g`);
+}
+function setTimeCmd(btn) {
+  const v = document.getElementById('worldSetTime').value;
+  worldCmd('world_settime', v, 'worldSetTime', btn, `Success: Time set to ${v}`);
+}
+function setDayCmd(btn) {
+  const v = document.getElementById('worldSetDay').value;
+  worldCmd('world_setday', v, 'worldSetDay', btn, `Success: Day set to ${v}`);
+}
+function setSeasonCmd(btn) {
+  const v = document.getElementById('worldSetSeason').value;
+  const label = v.charAt(0).toUpperCase() + v.slice(1);
+  worldCmd('world_setseason', v, null, btn, `Success: Season set to ${label}`);
+}
+function setYearCmd(btn) {
+  const v = document.getElementById('worldSetYear').value;
+  worldCmd('world_setyear', v, 'worldSetYear', btn, `Success: Year set to ${v}`);
+}
+function endDayCmd(btn) {
+  btn.disabled = true;
+  btn.style.opacity = '0.4';
+  setTimeout(() => { btn.disabled = false; btn.style.opacity = ''; }, 10000);
+  worldCmd('world_settime', '2600', null, null, 'Success: End day — night cycle started');
+}
+
 let _worldFrozen = false;
 let _worldPaused = false;
 
@@ -2459,17 +2531,25 @@ function selectFreezeMsgColor(name, css, el) {
   if (picker) picker.style.display = 'none';
 }
 
-async function worldCmd(base, value, clearId) {
+async function worldCmd(base, value, clearId, btn, successMsg) {
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
   const command = value !== '' ? `${base} ${value}` : base;
   const data = await API.post('/api/players/admin-command', { command }).catch(() => null);
+  if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   if (data?.success && clearId) { const inp = document.getElementById(clearId); if (inp) inp.value = ''; }
   const el = document.getElementById('worldCmdResult');
-  if (!el) return;
-  el.textContent    = data?.success ? `✓ Sent: ${command}` : `✗ ${data?.error || 'Failed — is the server running?'}`;
-  el.style.color    = data?.success ? 'var(--accent)' : '#ef4444';
-  el.style.background = data?.success ? 'rgba(167,139,250,0.08)' : 'rgba(239,68,68,0.08)';
-  el.style.display  = '';
-  setTimeout(() => { el.style.display = 'none'; }, 4000);
+  if (data?.success) {
+    if (successMsg) showToast(successMsg, 'success');
+    if (el) el.style.display = 'none';
+  } else {
+    if (el) {
+      el.textContent      = `✗ ${data?.error || 'Failed — is the server running?'}`;
+      el.style.color      = '#ef4444';
+      el.style.background = 'rgba(239,68,68,0.08)';
+      el.style.display    = '';
+      setTimeout(() => { el.style.display = 'none'; }, 4000);
+    }
+  }
 }
 
 const CABIN_LEVEL_NAMES = ['Basic', 'Kitchen', 'Kids Room', 'Full Upgrade'];

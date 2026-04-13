@@ -537,77 +537,16 @@
             </div>
           </details>
 
-          <details class="card admin-cred-details" id="farm-admin-card">
-            <summary>World Controls</summary>
+          <details class="card admin-cred-details" id="farm-controls-card">
+            <summary>Farm Controls</summary>
             <div style="padding-top:10px">
-              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px">Commands sent directly to the running game via SMAPI.</p>
+              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px">Farm-level commands sent directly to the running game via SMAPI.</p>
               <div style="display:flex;flex-direction:column;gap:0">
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Shared Money</span>
-                  <input type="number" id="worldSetMoney" class="form-input" placeholder="Amount" min="0" style="width:150px">
-                  <button class="btn btn-sm btn-primary" onclick="worldCmd('player_setmoney', document.getElementById('worldSetMoney').value, 'worldSetMoney')">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Set Time</span>
-                  <input type="number" id="worldSetTime" class="form-input" placeholder="6am–2am = 0600–2600" min="600" max="2600" style="width:150px">
-                  <button class="btn btn-sm btn-primary" onclick="worldCmd('world_settime', document.getElementById('worldSetTime').value, 'worldSetTime')">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Time Shortcuts</span>
-                  <button class="btn btn-sm" onclick="worldCmd('debug', 'addminute')">+10 Min</button>
-                  <button class="btn btn-sm" onclick="worldCmd('debug', 'addhour')">+1 Hour</button>
-                  <button class="btn btn-sm btn-warning" onclick="worldCmd('world_settime', '2600')">End Day</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Set Day</span>
-                  <input type="number" id="worldSetDay" class="form-input" placeholder="1 – 28" min="1" max="28" style="width:100px">
-                  <button class="btn btn-sm btn-primary" onclick="worldCmd('world_setday', document.getElementById('worldSetDay').value, 'worldSetDay')">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Set Season</span>
-                  <select id="worldSetSeason" class="form-input" style="width:150px">
-                    <option value="spring">Spring</option>
-                    <option value="summer">Summer</option>
-                    <option value="fall">Fall</option>
-                    <option value="winter">Winter</option>
-                  </select>
-                  <button class="btn btn-sm btn-primary" onclick="worldCmd('world_setseason', document.getElementById('worldSetSeason').value)">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Set Year</span>
-                  <input type="number" id="worldSetYear" class="form-input" placeholder="Year" min="1" style="width:100px">
-                  <button class="btn btn-sm btn-primary" onclick="worldCmd('world_setyear', document.getElementById('worldSetYear').value, 'worldSetYear')">Set</button>
-                </div>
 
                 <div class="admin-cmd-row">
                   <span class="admin-cmd-label">Crop Saver</span>
                   <button class="btn btn-sm" id="worldCropSaverBtn" onclick="toggleCropSaver()">--</button>
                   <span id="worldCropSaverState" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Pause the Game</span>
-                  <button class="btn btn-sm" id="worldPauseBtn" onclick="toggleWorldPause()">Pause</button>
-                  <span id="worldPauseState" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
-                </div>
-
-                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:8px">
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <span class="admin-cmd-label" style="margin:0">Freeze Time</span>
-                    <button class="btn btn-sm" id="worldFreezeBtn" onclick="toggleWorldFreeze()">Toggle Freeze</button>
-                    <span id="worldFreezeState" style="font-size:12px;color:var(--text-muted)"></span>
-                  </div>
-                  <div style="position:relative;display:flex;align-items:center;gap:6px;width:100%;max-width:340px">
-                    <input type="text" id="worldFreezeMsg" class="form-input" placeholder="Chat message on toggle (optional)" style="flex:1">
-                    <button id="worldFreezeMsgColorBtn" class="freeze-color-dot" onclick="toggleFreezeMsgColors(event)" title="Chat color"></button>
-                    <div id="worldFreezeMsgColorPicker" class="freeze-color-picker" style="display:none"></div>
-                  </div>
                 </div>
 
                 <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px">
@@ -618,7 +557,7 @@
                       <option value="owned">Own Buildings (owned)</option>
                       <option value="on">Everyone (on)</option>
                     </select>
-                    <button class="btn btn-sm btn-primary" onclick="worldCmd('say', '/movebuildingpermission ' + document.getElementById('worldBuildPermission').value)">Set</button>
+                    <button class="btn btn-sm btn-primary" onclick="setBuildPermissionCmd(this)">Set</button>
                   </div>
                   <div style="font-size:11px;color:var(--text-muted)">
                     Set to <em>owned</em> or <em>on</em> to allow players to use <code>move_cabin [types]</code>
@@ -648,6 +587,117 @@
                       <option value="">— level —</option>
                     </select>
                     <button id="upgradeCabinBtn" class="btn btn-sm btn-primary" onclick="upgradeCabin()" disabled>Upgrade</button>
+                  </div>
+                </div>
+
+                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+                  <span class="admin-cmd-label" style="margin:0">Upgrade House</span>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <button class="btn btn-sm btn-primary" onclick="upgradeHouseCmd(this)">Upgrade</button>
+                    <span style="font-size:11px;color:var(--text-muted)">Upgrades host farmhouse one level (max 3). Crib is automatically removed.</span>
+                  </div>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Water Crops</span>
+                  <button class="btn btn-sm btn-primary" onclick="worldCmd('debug', 'water', null, this, 'Success: All tilled soil watered')">Water All</button>
+                  <span style="font-size:11px;color:var(--text-muted);margin-left:4px">Waters host's current map</span>
+                </div>
+
+                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+                  <span class="admin-cmd-label" style="margin:0">Grow</span>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    <select id="farmGrowType" class="form-input" style="width:auto" onchange="onGrowTypeChange()">
+                      <option value="growcrops">Crops</option>
+                      <option value="growgrass">Grass</option>
+                      <option value="growwildtrees">Wild Trees</option>
+                      <option value="fruittrees">Fruit Trees</option>
+                    </select>
+                    <input type="number" id="farmGrowDays" class="form-input" placeholder="Days / times" min="1" style="width:120px">
+                    <button class="btn btn-sm btn-primary" onclick="growCmd(this)">Grow</button>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-muted)">Wild Trees and Fruit Trees do not use a day count.</div>
+                </div>
+
+                <div class="admin-cmd-row" style="opacity:0.45;cursor:not-allowed">
+                  <span class="admin-cmd-label">Build</span>
+                  <span style="font-size:12px;color:var(--text-muted);font-style:italic">Coming soon — requires farm map coordinate tracking</span>
+                </div>
+
+                <div class="admin-cmd-row" style="opacity:0.45;cursor:not-allowed;border-bottom:none">
+                  <span class="admin-cmd-label">Move Building</span>
+                  <span style="font-size:12px;color:var(--text-muted);font-style:italic">Coming soon — requires farm map coordinate tracking</span>
+                </div>
+
+              </div>
+              <div id="farmControlsResult" style="display:none;margin-top:10px;font-size:13px;padding:8px;border-radius:6px"></div>
+            </div>
+          </details>
+
+          <details class="card admin-cred-details" id="farm-admin-card">
+            <summary>World Controls</summary>
+            <div style="padding-top:10px">
+              <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px">Commands sent directly to the running game via SMAPI.</p>
+              <div style="display:flex;flex-direction:column;gap:0">
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Shared Money</span>
+                  <input type="number" id="worldSetMoney" class="form-input" placeholder="Amount" min="0" style="width:150px">
+                  <button class="btn btn-sm btn-primary" onclick="setMoneyCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Set Time</span>
+                  <input type="number" id="worldSetTime" class="form-input" placeholder="6am–2am = 0600–2600" min="600" max="2600" style="width:150px">
+                  <button class="btn btn-sm btn-primary" onclick="setTimeCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Time Shortcuts</span>
+                  <button class="btn btn-sm" onclick="worldCmd('debug', 'addminute', null, null, 'Success: +10 min')">+10 Min</button>
+                  <button class="btn btn-sm" onclick="worldCmd('debug', 'addhour', null, null, 'Success: +1 hour')">+1 Hour</button>
+                  <button class="btn btn-sm btn-warning" onclick="endDayCmd(this)">End Day</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Set Day</span>
+                  <input type="number" id="worldSetDay" class="form-input" placeholder="1 – 28" min="1" max="28" style="width:100px">
+                  <button class="btn btn-sm btn-primary" onclick="setDayCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Set Season</span>
+                  <select id="worldSetSeason" class="form-input" style="width:150px">
+                    <option value="spring">Spring</option>
+                    <option value="summer">Summer</option>
+                    <option value="fall">Fall</option>
+                    <option value="winter">Winter</option>
+                  </select>
+                  <button class="btn btn-sm btn-primary" onclick="setSeasonCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Set Year</span>
+                  <input type="number" id="worldSetYear" class="form-input" placeholder="Year" min="1" style="width:100px">
+                  <button class="btn btn-sm btn-primary" onclick="setYearCmd(this)">Set</button>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Pause the Game</span>
+                  <button class="btn btn-sm" id="worldPauseBtn" onclick="toggleWorldPause()">Pause</button>
+                  <span id="worldPauseState" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
+                </div>
+
+                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span class="admin-cmd-label" style="margin:0">Freeze Time</span>
+                    <button class="btn btn-sm" id="worldFreezeBtn" onclick="toggleWorldFreeze()">Toggle Freeze</button>
+                    <span id="worldFreezeState" style="font-size:12px;color:var(--text-muted)"></span>
+                  </div>
+                  <div style="position:relative;display:flex;align-items:center;gap:6px;width:100%;max-width:340px">
+                    <input type="text" id="worldFreezeMsg" class="form-input" placeholder="Chat message on toggle (optional)" style="flex:1">
+                    <button id="worldFreezeMsgColorBtn" class="freeze-color-dot" onclick="toggleFreezeMsgColors(event)" title="Chat color"></button>
+                    <div id="worldFreezeMsgColorPicker" class="freeze-color-picker" style="display:none"></div>
                   </div>
                 </div>
 
@@ -2157,6 +2207,7 @@
 
   <!-- ── Toast ──────────────────────────────────────────────────── -->
   <div id="toast" class="toast"></div>
+
 
 <script src="/js/api.js"></script>
   <script src="/js/app.js"></script>
