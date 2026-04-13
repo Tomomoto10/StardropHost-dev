@@ -2169,13 +2169,7 @@ namespace StardropHostDependencies
 
                 // Remove resource clumps (stumps, boulders) overlapping the area
                 var clumpsToRemove = farm.resourceClumps
-                    .Where(rc =>
-                    {
-                        var rcRect = new Rectangle(
-                            rc.tileX.Value * Game1.tileSize, rc.tileY.Value * Game1.tileSize,
-                            rc.width.Value * Game1.tileSize, rc.height.Value * Game1.tileSize);
-                        return rcRect.Intersects(areaRect);
-                    })
+                    .Where(rc => rc.getBoundingBox().Intersects(areaRect))
                     .ToList();
                 foreach (var rc in clumpsToRemove)
                     farm.resourceClumps.Remove(rc);
