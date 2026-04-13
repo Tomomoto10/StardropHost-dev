@@ -22,7 +22,8 @@ const WIZARD_STATE_FILE = path.join(config.DATA_DIR, 'wizard-state.json');
 // These endpoints are intentionally unauthenticated during the wizard (no account exists yet).
 // Once setup is done they must not remain open — gate them with this check.
 function wizardCompleteGuard(req, res) {
-  if (auth.isSetupComplete()) {
+  const state = readState();
+  if (state.completed) {
     res.status(403).json({ error: 'Wizard already completed' });
     return true;
   }
@@ -725,7 +726,7 @@ function browseDir(req, res) {
 
   const hasGame = !!findGameDir(resolved);
   const parent  = resolved === '/host-parent' ? null
-    : ALLOWED.some(a => path.dirname(resolved) === a || path.dirname(resolved).startsWith(a + '/'))
+    : WIZARD_ALLOWED_ROOTS.some(a => path.dirname(resolved) === a || path.dirname(resolved).startsWith(a + '/'))
       ? path.dirname(resolved)
       : null;
 
