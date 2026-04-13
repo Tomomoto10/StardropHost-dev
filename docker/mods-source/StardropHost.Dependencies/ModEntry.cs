@@ -239,6 +239,7 @@ namespace StardropHostDependencies
             helper.ConsoleCommands.Add("stardrop_deletefarmhand", "Delete an offline farmhand and free their cabin. Usage: stardrop_deletefarmhand <name>", OnDeleteFarmhandCommand);
             helper.ConsoleCommands.Add("stardrop_upgradecabin",   "Set a farmhand's cabin upgrade level (0-3). Usage: stardrop_upgradecabin <name> <level>", OnUpgradeCabinCommand);
             helper.ConsoleCommands.Add("stardrop_cropsaver",      "Toggle CropSaver on or off. Usage: stardrop_cropsaver <on|off>",                        OnCropSaverCommand);
+            helper.ConsoleCommands.Add("stardrop_watercrops",     "Water all tilled soil on the Farm. Usage: stardrop_watercrops",                           OnWaterCropsCommand);
 
             // Player limit — read once at startup from env, enforced every tick in OnUpdateTicked
             var envLimit = Environment.GetEnvironmentVariable("PLAYER_LIMIT");
@@ -1392,6 +1393,22 @@ namespace StardropHostDependencies
             SchedulePrivateMessageAndKick(farmer.UniqueMultiplayerID, farmer.Name,
                 $"Your cabin has been upgraded to level {targetLevel} ({levelNames[targetLevel]}). " +
                 $"You will be disconnected in 10 seconds — log back in to see the changes.");
+        }
+
+        private void OnWaterCropsCommand(string cmd, string[] args)
+        {
+            if (!Context.IsWorldReady) { Monitor.Log("No active game session.", LogLevel.Warn); return; }
+            var farm = Game1.getFarm();
+            int count = 0;
+            foreach (var tf in farm.terrainFeatures.Values)
+            {
+                if (tf is StardewValley.TerrainFeatures.HoeDirt dirt)
+                {
+                    dirt.state.Value = StardewValley.TerrainFeatures.HoeDirt.watered;
+                    count++;
+                }
+            }
+            Monitor.Log($"[FarmControls] Watered {count} tilled soil tile(s) on the Farm.", LogLevel.Info);
         }
 
         private void OnCropSaverCommand(string cmd, string[] args)
