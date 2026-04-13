@@ -504,21 +504,28 @@ namespace StardropHostDependencies
         {
             if (_auto == null) return;
 
-            // Cave choice — inject event 65 and set caveChoice directly (no need for Demetrius event)
+            // Cave choice — inject event 65 and set caveChoice directly (no need for Demetrius event).
+            // For mushrooms: only mark event 65 seen after setUpMushroomHouse() succeeds, so we
+            // retry each second until FarmCave is ready (it may be null on the very first tick).
             if (!Game1.player.eventsSeen.Contains("65"))
             {
-                Game1.player.eventsSeen.Add("65");
                 if (_auto.MushroomsOrBats.Equals("mushrooms", StringComparison.OrdinalIgnoreCase))
                 {
-                    Game1.MasterPlayer.caveChoice.Value = 2;
                     if (Game1.getLocationFromName("FarmCave") is FarmCave fc)
+                    {
+                        Game1.MasterPlayer.caveChoice.Value = 2;
                         fc.setUpMushroomHouse();
+                        Game1.player.eventsSeen.Add("65");
+                        Monitor.Log("[Automation] Cave choice set: mushrooms.", LogLevel.Info);
+                    }
+                    // else: FarmCave not ready yet — will retry next second
                 }
                 else
                 {
                     Game1.MasterPlayer.caveChoice.Value = 1;
+                    Game1.player.eventsSeen.Add("65");
+                    Monitor.Log("[Automation] Cave choice set: bats.", LogLevel.Info);
                 }
-                Monitor.Log($"[Automation] Cave choice set: {_auto.MushroomsOrBats}.", LogLevel.Info);
             }
 
             // Pet — use AlwaysOnServer reflection pattern: namePet runs continuously until pet exists

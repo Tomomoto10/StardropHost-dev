@@ -442,6 +442,7 @@ function submitNewFarm(req, res) {
     FarmType:     ft,
     CabinCount:   cc,
     CabinLayout:  body.cabinLayout === 'nearby' ? 'nearby' : 'separate',
+    CabinStack:   body.cabinStack === true || body.cabinStack === 'true' || cc > 7,
 
     // Economy
     MoneyStyle:   body.moneyStyle === 'separate' ? 'separate' : 'shared',

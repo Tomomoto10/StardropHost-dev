@@ -1164,6 +1164,7 @@ async function wizRefreshSaveDropdown() {
 
 async function wizLoadFarmStep() {
   wizFarmTab('new');
+  wizPetBreedOptions();
 }
 
 function wizPetToggle() {
@@ -5201,7 +5202,12 @@ function frNextStep() {
   document.getElementById('frConfirmInput').focus();
 }
 
-function frCheckInput() {}
+function frCheckInput() {
+  const btn = document.getElementById('frConfirmBtn');
+  const hasValue = document.getElementById('frConfirmInput').value.trim().length > 0;
+  btn.style.opacity = hasValue ? '' : '0.4';
+  btn.style.pointerEvents = hasValue ? '' : 'none';
+}
 
 async function confirmFactoryReset() {
   const btn      = document.getElementById('frConfirmBtn');
