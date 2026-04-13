@@ -2226,16 +2226,12 @@ async function loadFarm() {
     const roomsHtml = Object.entries(cc.rooms).map(([room, info]) => {
       const done     = info.bundles.filter(b => b.complete).length;
       const total    = info.bundles.length;
-      const pct      = total ? Math.round(done / total * 100) : 100;
       const complete = info.complete;
+      const valueColor = complete ? 'var(--accent)' : 'var(--text-primary)';
       return `
-        <div class="cc-room-summary">
-          <span class="cc-room-name">${escapeHtml(room)}</span>
-          <span class="cc-room-meta">
-            <span style="color:${complete ? 'var(--accent)' : 'var(--text-muted)'};font-size:12px">${complete ? '✅ Complete' : `${done}/${total}`}</span>
-            <span class="cc-room-bar"><span class="cc-room-fill" style="width:${pct}%;${complete ? 'background:var(--accent)' : ''}"></span></span>
-            <span style="font-size:11px;color:var(--text-muted);min-width:30px;text-align:right">${pct}%</span>
-          </span>
+        <div class="detail-item">
+          <div class="detail-label">${escapeHtml(room)}</div>
+          <div class="detail-value" style="color:${valueColor}">${done}/${total}</div>
         </div>`;
     }).join('');
 
@@ -2248,7 +2244,7 @@ async function loadFarm() {
       summaryFill.style.background = cc.percentComplete === 100 ? 'var(--accent)' : '';
     }
     if (summaryPct) summaryPct.textContent = `${cc.percentComplete}%`;
-    ccEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:4px">${roomsHtml}</div>`;
+    ccEl.innerHTML = `<div class="details-grid">${roomsHtml}</div>`;
   } else {
     const summaryText = document.getElementById('farmCCSummaryText');
     const summaryPct2 = document.getElementById('farmCCSummaryPct');
@@ -2274,9 +2270,12 @@ async function loadFarm() {
           <svg class="icon" style="width:14px;height:14px"><use href="#icon-edit"></use></svg>
         </button>
       </div>
-      <div class="detail-item">
+      <div class="detail-item" style="position:relative">
         <div class="detail-label">Combined Money</div>
         <div class="detail-value">${data.money != null ? `${data.money.toLocaleString()}g` : '--'}</div>
+        <button class="btn-detail-edit" onclick="openSetMoneyModal(${data.money ?? 0})" title="Set shared money" style="position:absolute;top:10px;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px;line-height:1;border-radius:4px" onmouseenter="this.style.color='var(--text-primary)'" onmouseleave="this.style.color='var(--text-muted)'">
+          <svg class="icon" style="width:14px;height:14px"><use href="#icon-edit"></use></svg>
+        </button>
       </div>
       <div class="detail-item">
         <div class="detail-label">Combined Total Earned</div>
@@ -2528,9 +2527,23 @@ function ccBundleCmd(btn) {
 
 // ─── World Controls ─ set helpers ────────────────────────────────
 
-function setMoneyCmd(btn) {
-  const v = document.getElementById('worldSetMoney').value;
-  worldCmd('player_setmoney', v, 'worldSetMoney', btn, `Success: Money set to ${Number(v).toLocaleString()}g`);
+function openSetMoneyModal(current) {
+  const input = document.getElementById('setMoneyModalInput');
+  input.value = current ?? '';
+  document.getElementById('setMoneyModal').style.display = 'flex';
+  setTimeout(() => { input.select(); }, 50);
+}
+function closeSetMoneyModal() {
+  document.getElementById('setMoneyModal').style.display = 'none';
+}
+async function setMoneyModalSubmit() {
+  const input = document.getElementById('setMoneyModalInput');
+  const v = input.value.trim();
+  if (!v || isNaN(Number(v)) || Number(v) < 0) return;
+  closeSetMoneyModal();
+  const r = await API.post('/api/players/admin-command', { command: `player_setmoney ${v}` });
+  if (r?.success) showToast(`Success: Shared wallet set to ${Number(v).toLocaleString()}g`, 'success');
+  else showToast('Failed to set money', 'error');
 }
 function setTimeCmd(btn) {
   const v = document.getElementById('worldSetTime').value;
@@ -5280,6 +5293,8 @@ let _updateLogLines      = [];
 let _updateSteps         = [];  // accumulated step messages (trailing dots stripped)
 let _updateDotInterval   = null;
 let _updateDotCount      = 1;
+let _updateAll           = false; // stored for auto-retry
+let _lastStepChangedAt   = 0;    // timestamp of last new step — drives stuck detection
 
 function showUpdateScreen(startedAt) {
   const ts = startedAt || Date.now();
@@ -5295,7 +5310,8 @@ function showUpdateScreen(startedAt) {
   _updateLogLines      = [];
   _updateSteps         = [];
   if (_updateDotInterval) { clearInterval(_updateDotInterval); _updateDotInterval = null; }
-  _updateDotCount = 1;
+  _updateDotCount      = 1;
+  _lastStepChangedAt   = Date.now();
   _setUpdateStatus('Starting update...');
 
   // Start elapsed timer
@@ -5348,6 +5364,11 @@ function _startUpdateStatusPoll() {
           _setUpdateStatus(d.message);
         }
       } catch {}
+      // Stuck detection — if no new step in 100s, retry the update
+      if (_lastStepChangedAt && Date.now() - _lastStepChangedAt > 100000) {
+        _setUpdateStatus('Something went wrong — retrying');
+        API.post('/api/server/update', { updateAll: _updateAll }).catch(() => {});
+      }
     } else {
       if (!_updatePanelWentDown) {
         _updatePanelWentDown = true;
@@ -5382,6 +5403,9 @@ function _setUpdateStatus(msg) {
   if (!base) return;
   // Deduplicate consecutive identical steps
   if (_updateSteps.length && _updateSteps[_updateSteps.length - 1] === base) return;
+
+  // New step arrived — reset stuck timer
+  _lastStepChangedAt = Date.now();
 
   // Clear previous dot animation
   if (_updateDotInterval) { clearInterval(_updateDotInterval); _updateDotInterval = null; }
@@ -5837,6 +5861,7 @@ async function confirmSelfUpdate() {
   const data = await API.post('/api/server/update', { updateAll }).catch(() => null);
   if (data?.success || data?.action === 'update') {
     closeSelfUpdateModal();
+    _updateAll = updateAll; // stored so auto-retry can reuse the same flag
     showUpdateScreen(Date.now());
   } else {
     showToast(data?.error || 'Update failed', 'error');

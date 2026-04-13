@@ -527,12 +527,6 @@
               <div style="display:flex;flex-direction:column;gap:0">
 
                 <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Shared Money</span>
-                  <input type="number" id="worldSetMoney" class="form-input" placeholder="Amount" min="0" style="width:150px">
-                  <button class="btn btn-sm btn-primary" onclick="setMoneyCmd(this)">Set</button>
-                </div>
-
-                <div class="admin-cmd-row">
                   <span class="admin-cmd-label">Set Time</span>
                   <input type="number" id="worldSetTime" class="form-input" placeholder="6am–2am = 0600–2600" min="600" max="2600" style="width:150px">
                   <button class="btn btn-sm btn-primary" onclick="setTimeCmd(this)">Set</button>
@@ -2149,6 +2143,22 @@
       <div class="modal-actions">
         <button class="btn btn-sm btn-secondary" type="button" onclick="farmTypeConfirmCancel()">Cancel</button>
         <button class="btn btn-sm btn-warning" type="button" onclick="farmTypeConfirmApply()">I understand, change it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Set Shared Money Modal ───────────────────────────────── -->
+  <div id="setMoneyModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeSetMoneyModal()">
+    <div class="modal-dialog" style="max-width:400px">
+      <h3>Set Shared Money</h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin:10px 0 4px">Enter the new total for the shared wallet.</p>
+      <p style="font-size:12px;color:var(--accent-warn);margin:0 0 16px;line-height:1.5">Note: this sets the total money, it does not add on top of what is there. e.g. if the shared wallet is 50,000g and you enter 1,000 — your shared wallet will then be 1,000g.</p>
+      <input type="number" id="setMoneyModalInput" class="input" style="width:100%;margin-bottom:20px"
+             placeholder="Amount (g)" min="0"
+             onkeydown="if(event.key==='Enter')setMoneyModalSubmit();if(event.key==='Escape')closeSetMoneyModal()">
+      <div class="modal-actions">
+        <button class="btn btn-sm btn-secondary" type="button" onclick="closeSetMoneyModal()">Cancel</button>
+        <button class="btn btn-sm btn-primary" type="button" onclick="setMoneyModalSubmit()">Set</button>
       </div>
     </div>
   </div>
