@@ -734,15 +734,16 @@ namespace StardropHostDependencies
         {
             try
             {
-                var now = StardewModdingAPI.Utilities.SDate.Now();
-                return now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(13, "spring")) ||
-                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(24, "spring")) ||
-                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(11, "summer")) ||
-                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(28, "summer")) ||
-                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(16, "fall"))   ||
-                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(27, "fall"))   ||
-                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(8,  "winter")) ||
-                       now.EqualsIgnoreYear(new StardewModdingAPI.Utilities.SDate(25, "winter"));
+                int d = Game1.dayOfMonth;
+                string s = Game1.currentSeason;
+                return (d == 13 && s == "spring") ||
+                       (d == 24 && s == "spring") ||
+                       (d == 11 && s == "summer") ||
+                       (d == 28 && s == "summer") ||
+                       (d == 16 && s == "fall")   ||
+                       (d == 27 && s == "fall")   ||
+                       (d ==  8 && s == "winter") ||
+                       (d == 25 && s == "winter");
             }
             catch { return false; }
         }
