@@ -1177,7 +1177,7 @@ function wizPetBreedOptions() {
   const species  = document.getElementById('wiz-pet-species')?.value || 'cat';
   const breedSel = document.getElementById('wiz-pet-breed');
   if (!breedSel) return;
-  const cats = ['Tabby (orange)', 'Black cat', 'Calico', 'Siamese', 'Grey'];
+  const cats = ['Tabby', 'Black cat', 'Calico', 'Siamese', 'Grey'];
   const dogs = ['Corgi', 'Pitbull', 'Poodle', 'Shiba Inu', 'Dalmatian'];
   const breeds = species === 'dog' ? dogs : cats;
   const current = breedSel.value;

@@ -1178,8 +1178,6 @@ namespace StardropHostDependencies
             Game1.player.farmName.Value      = cfg.FarmName;
             Game1.player.favoriteThing.Value = string.IsNullOrWhiteSpace(cfg.FavoriteThing) ? "Farming" : cfg.FavoriteThing;
             Game1.player.isCustomized.Value  = true;
-            Game1.player.whichPetType        = cfg.PetSpecies.Equals("dog", StringComparison.OrdinalIgnoreCase) ? "Dog" : "Cat";
-            Game1.player.whichPetBreed       = cfg.PetBreed.ToString();
             Game1.startingCabins             = Math.Clamp(cfg.CabinCount, 1, 16);
             Game1.cabinsSeparate             = cfg.CabinLayout.Equals("separate", StringComparison.OrdinalIgnoreCase);
 
@@ -1209,8 +1207,10 @@ namespace StardropHostDependencies
             Game1.multiplayerMode = 2;
             menu.createdNewCharacter(true);
 
-            // difficultyModifier MUST be set AFTER createdNewCharacter() because loadForNewGame()
-            // (called internally by createdNewCharacter) resets it to 1.0 — JunimoServer ref note
+            // These MUST be set AFTER createdNewCharacter() because loadForNewGame()
+            // (called internally by createdNewCharacter) resets them — JunimoServer ref note
+            Game1.player.whichPetType  = cfg.PetSpecies.Equals("dog", StringComparison.OrdinalIgnoreCase) ? "Dog" : "Cat";
+            Game1.player.whichPetBreed = cfg.PetBreed.ToString();
             Game1.player.difficultyModifier = cfg.ProfitMargin switch
             {
                 "75%"  => 0.75f,
