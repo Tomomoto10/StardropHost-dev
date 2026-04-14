@@ -2339,8 +2339,8 @@ namespace StardropHostDependencies
             Monitor.Log($"[CabinStack] {farmer.Name} set cabin position to ({x},{y}){typeMsg}.", LogLevel.Info);
 
             SchedulePrivateMessageAndKick(farmerId, farmer.Name,
-                $"Your cabin has been moved to ({x}, {y}){typeMsg}. " +
-                $"You will be disconnected in 5 seconds — log back in to see your cabin in the new location.");
+                $"Your cabin has been placed to your right{typeMsg}. " +
+                $"You will be disconnected in 10 seconds — log back in to see your cabin in the new location.");
         }
 
         private void WriteCabinLevels()

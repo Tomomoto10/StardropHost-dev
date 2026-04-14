@@ -2745,7 +2745,7 @@ function populateUpgradeCabinDropdown() {
   for (const name of [..._cabinUpgradePending])
     if (onlineNames.has(name)) _cabinUpgradePending.delete(name);
 
-  const prev = sel.value;
+  const prev = onlineNames.has(sel.value) ? sel.value : '';
   sel.innerHTML = '<option value="">— Select player —</option>' +
     named.map(c => {
       const lvl     = c.upgradeLevel ?? 0;
@@ -2821,7 +2821,7 @@ function populateMoveCabinDropdown() {
   const cabins = lastStatusData?.live?.cabins || [];
   const online = new Set((lastStatusData?.live?.players || []).filter(p => p.isOnline && !p.isHost).map(p => p.name));
   const named  = cabins.filter(c => c.ownerName && c.ownerName !== 'Farmhouse');
-  const prev   = sel.value;
+  const prev   = online.has(sel.value) ? sel.value : '';
   sel.innerHTML = '<option value="">Select player…</option>' +
     named.map(c => {
       const isOnline = online.has(c.ownerName);
@@ -2843,6 +2843,8 @@ async function moveCabinCmd(_btn) {
   const command = cabinType ? `stardrop_movecabin ${playerName} ${cabinType}` : `stardrop_movecabin ${playerName}`;
   const data = await API.post('/api/players/admin-command', { command }).catch(() => null);
   if (data?.success) {
+    const moveSel = document.getElementById('moveCabinPlayer');
+    if (moveSel) { moveSel.value = ''; onMoveCabinSelect(); }
     showToast(`${playerName}'s cabin moved — they will be kicked and need to reconnect`, 'success');
   } else {
     showToast(data?.error || 'Failed — is the server running and the player on the Farm?', 'error');
