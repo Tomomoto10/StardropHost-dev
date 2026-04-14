@@ -320,6 +320,17 @@ namespace StardropHostDependencies
                         fh.objects.Remove(key);
                     if (giftKeys.Count > 0)
                         Monitor.Log($"[StardropHost] Removed {giftKeys.Count} starter chest(s) from FarmHouse.", LogLevel.Info);
+
+                    // At level 0, place a placeable BedFurniture if none exists yet.
+                    // Only runs on the very first load — once placed it persists in the save.
+                    // CollectItemsToChest on the first upgrade collects it naturally.
+                    if (Game1.player.HouseUpgradeLevel == 0 &&
+                        !fh.furniture.OfType<BedFurniture>().Any())
+                    {
+                        var (bx, by) = GetBedCoords();
+                        fh.furniture.Add(new BedFurniture("2052", new Vector2(bx, by)));
+                        Monitor.Log($"[StardropHost] Placed placeable bed at ({bx},{by}).", LogLevel.Info);
+                    }
                 }
 
                 // Cabin Stack — restore mode and ensure correct cabin count
@@ -2080,6 +2091,20 @@ namespace StardropHostDependencies
             }
 
             var farmHouse = Game1.getLocationFromName("FarmHouse") as StardewValley.Locations.FarmHouse;
+
+            // Warp pet out of FarmHouse before upgrade — layout change leaves it stuck inside walls
+            if (Game1.player.hasPet() &&
+                Game1.getCharacterFromName(Game1.player.getPetName()) is Pet upgradePet &&
+                upgradePet.currentLocation?.Name == "FarmHouse")
+            {
+                var farm = Game1.getFarm();
+                upgradePet.currentLocation.characters.Remove(upgradePet);
+                upgradePet.currentLocation = farm;
+                farm.characters.Add(upgradePet);
+                var safeTile = farm.getRandomTile();
+                upgradePet.setTilePosition((int)safeTile.X, (int)safeTile.Y);
+                Monitor.Log($"[Admin] Warped pet '{upgradePet.Name}' to farm before FarmHouse upgrade.", LogLevel.Info);
+            }
 
             // Only collect items on the first upgrade (0→1). The "Moved Items" chest is placed
             // at a safe tile after level 1 and must not be scooped into itself on later upgrades.
