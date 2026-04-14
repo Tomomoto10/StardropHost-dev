@@ -1831,26 +1831,20 @@ namespace StardropHostDependencies
 
         private void PlaceInCabinChest(Farmer farmer, Item item)
         {
-            // Use direct building scan — reliable for online and offline farmers
-            var cabin = Game1.getFarm().buildings
-                .Select(b => b.GetIndoors() as Cabin)
-                .FirstOrDefault(c => c != null && c.owner?.UniqueMultiplayerID == farmer.UniqueMultiplayerID);
-
-            if (cabin == null)
+            if (Utility.getHomeOfFarmer(farmer) is not Cabin home)
             {
                 Monitor.Log($"[Admin] stardrop_giveitem: no cabin found for '{farmer.Name}'.", LogLevel.Warn);
                 return;
             }
 
             // Re-use existing gift chest anywhere in the cabin, or create at fixed tile
-            var chest = cabin.objects.Values.OfType<Chest>()
+            var chest = home.objects.Values.OfType<Chest>()
                 .FirstOrDefault(c => c.Name == GiftChestName);
 
             if (chest == null)
             {
                 chest = new Chest(true) { Name = GiftChestName };
-                cabin.objects[GiftChestTile] = chest;
-                Monitor.Log($"[Admin] Created gift chest in {farmer.Name}'s cabin at ({GiftChestTile.X},{GiftChestTile.Y}).", LogLevel.Info);
+                home.objects[GiftChestTile] = chest;
             }
 
             chest.addItem(item);
