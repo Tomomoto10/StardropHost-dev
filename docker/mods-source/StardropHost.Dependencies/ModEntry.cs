@@ -308,6 +308,19 @@ namespace StardropHostDependencies
                 _isSleepInProgress = false;
                 _handledReadyCheck = false;
 
+                // Remove the new-game starter gift chest from the FarmHouse on every load
+                if (Game1.getLocationFromName("FarmHouse") is StardewValley.Locations.FarmHouse fh)
+                {
+                    var giftKeys = fh.objects
+                        .Where(kv => kv.Value is Chest)
+                        .Select(kv => kv.Key)
+                        .ToList();
+                    foreach (var key in giftKeys)
+                        fh.objects.Remove(key);
+                    if (giftKeys.Count > 0)
+                        Monitor.Log($"[StardropHost] Removed {giftKeys.Count} starter chest(s) from FarmHouse.", LogLevel.Info);
+                }
+
                 // Cabin Stack — restore mode and ensure correct cabin count
                 var (cabinTarget, cabinStack) = ReadCabinConfigFromFile();
                 _useCabinStack = cabinStack;
@@ -1779,7 +1792,7 @@ namespace StardropHostDependencies
         }
 
         private const string GiftChestName = "Stardrop Gifts";
-        private static readonly Vector2 GiftChestTile = new(5, 5);
+        private static readonly Vector2 GiftChestTile = new(4, 3);
 
         private void OnGiveItemCommand(string cmd, string[] args)
         {
@@ -1818,26 +1831,30 @@ namespace StardropHostDependencies
 
         private void PlaceInCabinChest(Farmer farmer, Item item)
         {
-            if (Utility.getHomeOfFarmer(farmer) is not Cabin home)
+            // Use direct building scan — reliable for online and offline farmers
+            var cabin = Game1.getFarm().buildings
+                .Select(b => b.GetIndoors() as Cabin)
+                .FirstOrDefault(c => c != null && c.owner?.UniqueMultiplayerID == farmer.UniqueMultiplayerID);
+
+            if (cabin == null)
             {
                 Monitor.Log($"[Admin] stardrop_giveitem: no cabin found for '{farmer.Name}'.", LogLevel.Warn);
                 return;
             }
 
-            // Re-use existing gift chest anywhere in the cabin, or create at centre
-            var chest = home.objects.Values.OfType<Chest>()
+            // Re-use existing gift chest anywhere in the cabin, or create at fixed tile
+            var chest = cabin.objects.Values.OfType<Chest>()
                 .FirstOrDefault(c => c.Name == GiftChestName);
 
             if (chest == null)
             {
-                var centre = new Vector2(home.map.Layers[0].LayerWidth / 2, home.map.Layers[0].LayerHeight / 2);
                 chest = new Chest(true) { Name = GiftChestName };
-                home.objects[centre] = chest;
+                cabin.objects[GiftChestTile] = chest;
+                Monitor.Log($"[Admin] Created gift chest in {farmer.Name}'s cabin at ({GiftChestTile.X},{GiftChestTile.Y}).", LogLevel.Info);
             }
 
             chest.addItem(item);
 
-            // Notify online players
             if (farmer.isActive())
                 Game1.chatBox?.textBoxEnter($"/message {farmer.Name} The host has placed {item.Stack}x {item.DisplayName} in your cabin chest.");
 
@@ -1879,9 +1896,10 @@ namespace StardropHostDependencies
 
             var farmHouse = Game1.getLocationFromName("FarmHouse") as StardewValley.Locations.FarmHouse;
 
-            // Clear furniture first — setUpHouse adds items but doesn't remove old ones,
-            // leaving level 0/1 furniture stranded outside the expanded walls.
+            // Clear furniture and objects — setUpHouse adds items but doesn't remove old ones,
+            // leaving level 0/1 items stranded outside the expanded walls.
             farmHouse?.furniture.Clear();
+            farmHouse?.objects.Clear();
 
             Game1.player.houseUpgradeLevel.Value = targetLevel;
 

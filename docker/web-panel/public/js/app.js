@@ -2957,9 +2957,11 @@ function populateGiveItemPlayerDropdown() {
   const players = (lastStatusData?.live?.players || []).filter(p => !p.isHost);
   const prev = sel.value;
   sel.innerHTML = '<option value="">Select player…</option>' +
+    (players.length ? '<option value="__all__">— All Players —</option>' : '') +
     players.map(p =>
       `<option value="${escapeHtml(p.name)}"${p.name === prev ? ' selected' : ''}>${escapeHtml(p.name)}${p.isOnline ? '' : ' (offline)'}</option>`
     ).join('');
+  if (prev && (prev === '__all__' || players.some(p => p.name === prev))) sel.value = prev;
   _updateGiveItemBtn();
 }
 
@@ -2991,6 +2993,19 @@ async function giveItemCmd(_btn) {
   if (!player || !itemId) return;
 
   const itemLabel = document.querySelector(`#giveItemId option[value="${CSS.escape(itemId)}"]`)?.textContent || itemId;
+
+  if (player === '__all__') {
+    const targets = (lastStatusData?.live?.players || []).filter(p => !p.isHost);
+    if (!targets.length) { showToast('No farmhands found', 'error'); return; }
+    const results = await Promise.all(targets.map(p =>
+      API.post('/api/players/admin-command', { command: `stardrop_giveitem ${p.name} ${qty} ${quality} ${itemId}` }).catch(() => null)
+    ));
+    const failed = results.filter(r => !r?.success).length;
+    if (failed === 0) showToast(`${qty}x ${itemLabel} → all cabin chests`, 'success');
+    else showToast(`${qty}x ${itemLabel} sent — ${failed} failed`, failed < results.length ? 'info' : 'error');
+    return;
+  }
+
   const command = `stardrop_giveitem ${player} ${qty} ${quality} ${itemId}`;
   const data    = await API.post('/api/players/admin-command', { command }).catch(() => null);
   if (data?.success) {
