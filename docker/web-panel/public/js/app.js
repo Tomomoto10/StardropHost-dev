@@ -2737,9 +2737,8 @@ const _cabinUpgradePending = new Set();
 function populateUpgradeCabinDropdown() {
   const sel = document.getElementById('upgradeCabinPlayer');
   if (!sel) return;
-  const cabins      = lastStatusData?.live?.cabins  || [];
-  const onlineNames = new Set((lastStatusData?.live?.players || []).filter(p => p.isOnline && !p.isHost).map(p => p.name));
-  const named       = cabins.filter(c => c.ownerName && c.ownerName !== 'Farmhouse');
+  const named       = _lastFarmhandCabins.filter(c => c.ownerName && c.ownerName !== 'Farmhouse');
+  const onlineNames = new Set(named.filter(c => c.isOwnerOnline).map(c => c.ownerName));
 
   // Clear pending flag for anyone who has reconnected
   for (const name of [..._cabinUpgradePending])
@@ -2816,11 +2815,10 @@ async function upgradeCabin() {
 }
 
 function populateMoveCabinDropdown() {
-  const sel = document.getElementById('moveCabinPlayer');
+  const sel   = document.getElementById('moveCabinPlayer');
   if (!sel) return;
-  const cabins = lastStatusData?.live?.cabins || [];
-  const online = new Set((lastStatusData?.live?.players || []).filter(p => p.isOnline && !p.isHost).map(p => p.name));
-  const named  = cabins.filter(c => c.ownerName && c.ownerName !== 'Farmhouse');
+  const named  = _lastFarmhandCabins.filter(c => c.ownerName && c.ownerName !== 'Farmhouse');
+  const online = new Set(named.filter(c => c.isOwnerOnline).map(c => c.ownerName));
   const prev   = online.has(sel.value) ? sel.value : '';
   sel.innerHTML = '<option value="">Select player…</option>' +
     named.map(c => {
@@ -5126,6 +5124,12 @@ async function downloadChatLog() {
 }
 
 // ─── Saves ───────────────────────────────────────────────────────
+function downloadActiveSave() {
+  const a = document.createElement('a');
+  a.href = `/api/saves/download?token=${encodeURIComponent(API.token || '')}`;
+  a.click();
+}
+
 async function loadSaves() {
   const [savesData, backupsData] = await Promise.all([
     API.get('/api/saves'),

@@ -1076,6 +1076,10 @@
             <div class="section-header">
               <h3>Save Files</h3>
               <div class="action-group">
+                <button class="btn btn-secondary btn-sm" type="button" onclick="downloadActiveSave()" title="Download active save as .zip">
+                  <svg class="icon"><use href="#icon-download"></use></svg>
+                  Download Save
+                </button>
                 <button class="btn btn-primary btn-sm" type="button" onclick="document.getElementById('saveFileInput').click()">
                   <svg class="icon"><use href="#icon-package"></use></svg>
                   Upload Save
@@ -1090,7 +1094,7 @@
             <div class="save-upload-panel">
               <input type="file" id="saveFileInput" accept=".zip" style="display:none" onchange="handleSaveUpload(this)">
               <label class="save-upload-option">
-                <input type="checkbox" id="saveUploadSetDefault" checked>
+                <input type="checkbox" id="saveUploadSetDefault">
                 <span>Set imported save as default after upload</span>
               </label>
               <div id="saveUploadStatus" class="save-upload-status"></div>

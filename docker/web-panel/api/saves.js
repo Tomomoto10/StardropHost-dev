@@ -678,6 +678,30 @@ function selectSave(req, res) {
   }
 }
 
+function downloadSave(req, res) {
+  const saveName = getSelectedSaveName();
+  if (!saveName) return res.status(404).json({ error: 'No active save selected' });
+
+  const saveDir = path.join(config.SAVES_DIR, saveName);
+  if (!fs.existsSync(saveDir)) return res.status(404).json({ error: 'Save folder not found' });
+
+  const slug    = getFarmSlug() || saveName;
+  const ts      = makeTimestamp();
+  const zipName = `save-${slug}-${ts}.zip`;
+  const tempZip = path.join(os.tmpdir(), `stardrop-save-dl-${Date.now()}.zip`);
+
+  try {
+    runCommand('zip', ['-r', tempZip, saveName], { cwd: config.SAVES_DIR, timeout: 30000 });
+    res.download(tempZip, zipName, err => {
+      try { fs.unlinkSync(tempZip); } catch {}
+      if (err && !res.headersSent) res.status(500).json({ error: 'Download failed' });
+    });
+  } catch (e) {
+    try { fs.unlinkSync(tempZip); } catch {}
+    res.status(500).json({ error: 'Failed to zip save', details: e.message });
+  }
+}
+
 function downloadBackup(req, res) {
   const { filename } = req.params;
 
@@ -829,6 +853,7 @@ module.exports = {
   uploadBackup,
   restoreBackup,
   selectSave,
+  downloadSave,
   downloadBackup,
   deleteBackup,
   deleteSave,

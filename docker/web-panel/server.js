@@ -120,6 +120,7 @@ app.post(  '/api/saves/backups',                      auth.verifyMiddleware, sav
 app.post(  '/api/saves/backups/upload',               auth.verifyMiddleware, savesAPI.uploadBackup);
 app.get(   '/api/saves/backups/status',               auth.verifyMiddleware, savesAPI.getBackupStatus);
 app.post(  '/api/saves/backups/:filename/restore',    auth.verifyMiddleware, savesAPI.restoreBackup);
+app.get(   '/api/saves/download',                     auth.verifyMiddleware, savesAPI.downloadSave);
 app.get(   '/api/saves/backups/:filename',            auth.verifyMiddleware, savesAPI.downloadBackup);
 app.delete('/api/saves/backups/:filename',            auth.verifyMiddleware, savesAPI.deleteBackup);
 app.delete('/api/saves/:name',               auth.verifyMiddleware, savesAPI.deleteSave);
