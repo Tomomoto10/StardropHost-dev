@@ -1792,7 +1792,7 @@ namespace StardropHostDependencies
         }
 
         private const string GiftChestName = "Stardrop Gifts";
-        private static readonly Vector2 GiftChestTile = new(4, 3);
+        private static readonly Vector2 GiftChestTile = new(5, 5);
 
         private void OnGiveItemCommand(string cmd, string[] args)
         {
