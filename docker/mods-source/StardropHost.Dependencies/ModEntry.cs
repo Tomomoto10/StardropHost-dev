@@ -1814,22 +1814,27 @@ namespace StardropHostDependencies
         private static readonly Vector2 GiftChestTile = new(5, 5);
 
         /// <summary>
-        /// Scan the Back layer for the first open floor tile, avoiding occupied tiles.
+        /// Find the first open, reachable floor tile in a FarmHouse/Cabin interior.
+        /// Scans bottom-up (door is at the bottom) and skips tiles that have a Buildings-layer
+        /// tile (walls, impassable decorations) so we don't land inside a wall.
         /// </summary>
         private static Vector2 FindSafeTile(GameLocation location)
         {
-            var back = location.map?.GetLayer("Back");
-            if (back != null)
+            var backLayer  = location.map?.GetLayer("Back");
+            var buildLayer = location.map?.GetLayer("Buildings");
+            if (backLayer == null) return new Vector2(5, 5);
+
+            // Bottom-up scan: door/entry is at the bottom of FarmHouse/Cabin maps,
+            // so the first open tile we find is near the entrance — the best place for a chest.
+            for (int y = backLayer.LayerHeight - 2; y >= 1; y--)
+            for (int x = 1; x < backLayer.LayerWidth - 1; x++)
             {
-                for (int y = 2; y < back.LayerHeight - 1; y++)
-                for (int x = 2; x < back.LayerWidth  - 1; x++)
-                {
-                    if (back.Tiles[x, y] == null) continue;
-                    var v = new Vector2(x, y);
-                    if (!location.objects.ContainsKey(v) &&
-                        !location.furniture.Any(f => f.TileLocation == v))
-                        return v;
-                }
+                if (backLayer.Tiles[x, y] == null) continue;        // no floor tile
+                if (buildLayer?.Tiles[x, y] != null) continue;      // wall / impassable decor
+                var v = new Vector2(x, y);
+                if (!location.objects.ContainsKey(v) &&
+                    !location.furniture.Any(f => f.TileLocation == v))
+                    return v;
             }
             return new Vector2(5, 5);
         }
