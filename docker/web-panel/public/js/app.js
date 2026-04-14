@@ -2418,7 +2418,8 @@ async function farmTypeConfirmApply() {
   const newName = _FARM_TYPE_NAMES[parseInt(val, 10)] || 'Standard';
   _pendingFarmType = null;
   document.getElementById('farmTypeConfirmModal').style.display = 'none';
-  const data = await API.post('/api/players/admin-command', { command: `set_farm_type ${val}` }).catch(() => null);
+  const farmTypeArg = parseInt(val, 10) === 7 ? 'MeadowLandsFarm' : val;
+  const data = await API.post('/api/players/admin-command', { command: `set_farm_type ${farmTypeArg}` }).catch(() => null);
   if (data?.success) {
     const editBtn = document.querySelector('[onclick^="openFarmTypeModal"]');
     if (editBtn) {

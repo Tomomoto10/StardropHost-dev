@@ -1206,8 +1206,25 @@ namespace StardropHostDependencies
             Game1.player.team.useSeparateWallets.Value =
                 cfg.MoneyStyle.Equals("separate", StringComparison.OrdinalIgnoreCase);
 
-            Game1.whichFarm     = Math.Clamp(cfg.FarmType, 0, 7);
-            Game1.whichModFarm  = null; // explicit reset — no mod farm support
+            Game1.whichFarm = Math.Clamp(cfg.FarmType, 0, 7);
+            if (cfg.FarmType == 7)
+            {
+                // Meadowlands uses the AdditionalFarms system — whichModFarm must be set
+                // BEFORE loadForNewGame() (via createdNewCharacter) so Farm.getMapNameFromTypeInt()
+                // picks up the correct map when whichFarm is 7.
+                var additionalFarms = DataLoader.AdditionalFarms(Game1.content);
+                Game1.whichModFarm = additionalFarms?.FirstOrDefault(f =>
+                    string.Equals(f.Id, "MeadowlandsFarm", StringComparison.OrdinalIgnoreCase));
+                if (Game1.whichModFarm == null)
+                {
+                    Monitor.Log("[GameLoader] Could not find MeadowlandsFarm data, falling back to Standard farm.", LogLevel.Warn);
+                    Game1.whichFarm = 0;
+                }
+            }
+            else
+            {
+                Game1.whichModFarm = null;
+            }
             Game1.bundleType = cfg.CommunityCenterBundles.Equals("remixed", StringComparison.OrdinalIgnoreCase)
                                ? Game1.BundleType.Remixed : Game1.BundleType.Default;
 
@@ -1754,8 +1771,9 @@ namespace StardropHostDependencies
             // Get cabin interior for item collection
             var cabinForItems = cabinBuilding?.indoors.Value as Cabin;
 
-            // Collect all items (except gift chest) before upgrading so they aren't lost
-            Chest? movedChest = cabinForItems != null ? CollectItemsToChest(cabinForItems) : null;
+            // Only collect items on the first upgrade (0→1). The "Moved Items" chest is placed
+            // at a safe tile after level 1 and must not be scooped into itself on later upgrades.
+            Chest? movedChest = (cabinForItems != null && current == 0) ? CollectItemsToChest(cabinForItems) : null;
 
             // Apply upgrades sequentially from current+1 up to targetLevel
             for (int l = current + 1; l <= targetLevel; l++)
@@ -1767,9 +1785,12 @@ namespace StardropHostDependencies
                 try { Helper.Reflection.GetMethod(cabinForItems, "updateLayout").Invoke(); }
                 catch (Exception ex) { Monitor.Log($"[Admin] cabin updateLayout failed: {ex.Message}", LogLevel.Warn); }
 
-                // Relocate gift chest and place moved-items chest at safe tiles
-                RelocateGiftChest(cabinForItems);
-                if (movedChest != null) PlaceChestSafe(cabinForItems, movedChest);
+                // Only place/relocate chests on the first upgrade — leave them alone after that
+                if (current == 0)
+                {
+                    RelocateGiftChest(cabinForItems);
+                    if (movedChest != null) PlaceChestSafe(cabinForItems, movedChest);
+                }
             }
 
             WriteCabinLevels();
@@ -2044,8 +2065,9 @@ namespace StardropHostDependencies
 
             var farmHouse = Game1.getLocationFromName("FarmHouse") as StardewValley.Locations.FarmHouse;
 
-            // Collect ALL items (except gift chest) before upgrading so nothing gets lost
-            Chest? movedChest = farmHouse != null ? CollectItemsToChest(farmHouse) : null;
+            // Only collect items on the first upgrade (0→1). The "Moved Items" chest is placed
+            // at a safe tile after level 1 and must not be scooped into itself on later upgrades.
+            Chest? movedChest = (farmHouse != null && current == 0) ? CollectItemsToChest(farmHouse) : null;
 
             for (int lvl = current + 1; lvl <= targetLevel; lvl++)
             {
@@ -2061,9 +2083,12 @@ namespace StardropHostDependencies
             {
                 farmHouse.cribStyle.Value = 0;
 
-                // Relocate gift chest and place moved-items chest at safe tiles in the new layout
-                RelocateGiftChest(farmHouse);
-                if (movedChest != null) PlaceChestSafe(farmHouse, movedChest);
+                // Only place/relocate chests on the first upgrade — leave them alone after that
+                if (current == 0)
+                {
+                    RelocateGiftChest(farmHouse);
+                    if (movedChest != null) PlaceChestSafe(farmHouse, movedChest);
+                }
             }
 
             // Reset sleep point to the new bed position for the upgraded level
