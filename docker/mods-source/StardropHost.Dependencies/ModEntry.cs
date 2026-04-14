@@ -30,6 +30,7 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Buildings;
+using StardewValley.Characters;
 using StardewValley.Locations;
 using StardewValley.TerrainFeatures;
 using StardewValley.Menus;
@@ -321,16 +322,11 @@ namespace StardropHostDependencies
                     if (giftKeys.Count > 0)
                         Monitor.Log($"[StardropHost] Removed {giftKeys.Count} starter chest(s) from FarmHouse.", LogLevel.Info);
 
-                    // At level 0, place a placeable BedFurniture if none exists yet.
-                    // Only runs on the very first load — once placed it persists in the save.
-                    // CollectItemsToChest on the first upgrade collects it naturally.
-                    if (Game1.player.HouseUpgradeLevel == 0 &&
-                        !fh.furniture.OfType<BedFurniture>().Any())
-                    {
-                        var (bx, by) = GetBedCoords();
-                        fh.furniture.Add(new BedFurniture("2052", new Vector2(bx, by)));
-                        Monitor.Log($"[StardropHost] Placed placeable bed at ({bx},{by}).", LogLevel.Info);
-                    }
+                    var beds = fh.furniture.OfType<BedFurniture>().ToList();
+                    foreach (var b in beds)
+                        fh.furniture.Remove(b);
+                    if (beds.Count > 0)
+                        Monitor.Log($"[StardropHost] Removed {beds.Count} bed(s) from FarmHouse.", LogLevel.Info);
                 }
 
                 // Cabin Stack — restore mode and ensure correct cabin count

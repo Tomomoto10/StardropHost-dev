@@ -2831,6 +2831,11 @@ function populateMoveCabinDropdown() {
   if (btn) btn.disabled = !sel.value;
 }
 
+function onMoveCabinSelect() {
+  const btn = document.getElementById('moveCabinBtn');
+  if (btn) btn.disabled = !document.getElementById('moveCabinPlayer')?.value;
+}
+
 async function moveCabinCmd(_btn) {
   const playerName = document.getElementById('moveCabinPlayer')?.value;
   const cabinType  = document.getElementById('moveCabinType')?.value;
@@ -4068,7 +4073,7 @@ async function loadFarmhands() {
 
   const cabins = data?.cabins || [];
 
-  if (cabins.length) { _lastKnownCabinCount = cabins.length; _lastFarmhandCabins = cabins; populateGiveItemPlayerDropdown(); }
+  if (cabins.length) { _lastKnownCabinCount = cabins.length; _lastFarmhandCabins = cabins; populateGiveItemPlayerDropdown(); populateMoveCabinDropdown(); populateUpgradeCabinDropdown(); }
 
   if (!cabins.length) {
     card.style.display = '';
