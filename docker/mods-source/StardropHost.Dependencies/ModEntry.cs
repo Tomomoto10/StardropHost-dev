@@ -1783,11 +1783,22 @@ namespace StardropHostDependencies
 
             Game1.player.houseUpgradeLevel.Value = targetLevel;
 
-            // Remove the crib if the FarmHouse interior exposes it
             if (Game1.getLocationFromName("FarmHouse") is StardewValley.Locations.FarmHouse farmHouse)
-                farmHouse.cribStyle.Value = 0;
+            {
+                // Reload the interior layout so the bed is placed at the correct position
+                try { Helper.Reflection.GetMethod(farmHouse, "setUpHouse").Invoke(); }
+                catch (Exception ex) { Monitor.Log($"[Admin] setUpHouse failed: {ex.Message}", LogLevel.Warn); }
 
-            Monitor.Log($"[Admin] Upgraded farmhouse from level {current} to {targetLevel}.", LogLevel.Info);
+                // Remove crib
+                farmHouse.cribStyle.Value = 0;
+            }
+
+            // Reset sleep point to the new bed position for the upgraded level
+            var (bx, by) = GetBedCoords();
+            Game1.player.lastSleepLocation.Value = "FarmHouse";
+            Game1.player.lastSleepPoint.Value    = new Point(bx, by);
+
+            Monitor.Log($"[Admin] Upgraded farmhouse from level {current} to {targetLevel}. Bed at ({bx},{by}).", LogLevel.Info);
         }
 
         private GameLocation? ResolveLocation(string[] args, int argIndex)

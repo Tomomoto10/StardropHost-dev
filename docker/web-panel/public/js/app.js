@@ -1715,7 +1715,7 @@ function navigateTo(page) {
     case 'farm':
       loadFarm();
       initCropSaverState();
-      if (!farmInterval) farmInterval = setInterval(loadFarm, 5000);
+      if (!farmInterval) farmInterval = setInterval(loadFarm, 60000);
       break;
     case 'players':
       loadPlayers();
@@ -2542,8 +2542,10 @@ async function setMoneyModalSubmit() {
   if (!v || isNaN(Number(v)) || Number(v) < 0) return;
   closeSetMoneyModal();
   const r = await API.post('/api/players/admin-command', { command: `player_setmoney ${v}` });
-  if (r?.success) showToast(`Success: Shared wallet set to ${Number(v).toLocaleString()}g`, 'success');
-  else showToast('Failed to set money', 'error');
+  if (r?.success) {
+    showToast(`Success: Shared wallet set to ${Number(v).toLocaleString()}g`, 'success');
+    setTimeout(loadFarm, 500);
+  } else showToast('Failed to set money', 'error');
 }
 function setTimeCmd(btn) {
   const v = document.getElementById('worldSetTime').value;
@@ -2644,6 +2646,7 @@ async function worldCmd(base, value, clearId, btn, successMsg) {
   if (data?.success) {
     if (successMsg) showToast(successMsg, 'success');
     if (el) el.style.display = 'none';
+    setTimeout(loadFarm, 800);
   } else {
     if (el) {
       el.textContent      = `✗ ${data?.error || 'Failed — is the server running?'}`;

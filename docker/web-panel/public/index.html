@@ -528,7 +528,7 @@
 
                 <div class="admin-cmd-row">
                   <span class="admin-cmd-label">Set Time</span>
-                  <input type="number" id="worldSetTime" class="form-input" placeholder="6am–2am = 0600–2600" min="600" max="2600" style="width:150px">
+                  <input type="number" id="worldSetTime" class="form-input" placeholder="0600–2600" min="600" max="2600" style="width:150px">
                   <button class="btn btn-sm btn-primary" onclick="setTimeCmd(this)">Set</button>
                 </div>
 
@@ -625,6 +625,33 @@
               <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px">Farm-level commands sent directly to the running game via SMAPI.</p>
               <div style="display:flex;flex-direction:column;gap:0">
 
+                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+                  <span class="admin-cmd-label" style="margin:0">Water/Grow Location</span>
+                  <select id="farmCmdLocation" class="form-input" style="width:auto">
+                    <option value="Farm">Farm</option>
+                    <option value="Greenhouse">Greenhouse</option>
+                    <option value="IslandWest">Ginger Island Farm</option>
+                    <option value="IslandNorth">Island North</option>
+                  </select>
+                </div>
+
+                <div class="admin-cmd-row">
+                  <span class="admin-cmd-label">Water Crops</span>
+                  <button class="btn btn-sm btn-primary" onclick="waterCropsCmd(this)">Water All</button>
+                </div>
+
+                <div class="admin-cmd-row" style="align-items:center;gap:6px">
+                  <span class="admin-cmd-label">Grow</span>
+                  <select id="farmGrowType" class="form-input" style="width:auto" onchange="onGrowTypeChange()">
+                    <option value="growcrops">Crops</option>
+                    <option value="growgrass">Grass</option>
+                    <option value="growwildtrees">Wild Trees</option>
+                    <option value="fruittrees">Fruit Trees</option>
+                  </select>
+                  <input type="number" id="farmGrowDays" class="form-input" placeholder="Days / times" min="1" style="width:120px">
+                  <button class="btn btn-sm btn-primary" onclick="growCmd(this)">Grow</button>
+                </div>
+
                 <div class="admin-cmd-row">
                   <span class="admin-cmd-label">Crop Saver</span>
                   <button class="btn btn-sm" id="worldCropSaverBtn" onclick="toggleCropSaver()">--</button>
@@ -680,36 +707,6 @@
                     </select>
                     <button id="upgradeHouseBtn" class="btn btn-sm btn-primary" onclick="upgradeHouseCmd(this)" disabled>Upgrade</button>
                   </div>
-                </div>
-
-                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:8px">
-                  <span class="admin-cmd-label" style="margin:0">Location</span>
-                  <select id="farmCmdLocation" class="form-input" style="width:auto">
-                    <option value="Farm">Farm</option>
-                    <option value="Greenhouse">Greenhouse</option>
-                    <option value="IslandWest">Ginger Island Farm</option>
-                    <option value="IslandNorth">Island North</option>
-                  </select>
-                </div>
-
-                <div class="admin-cmd-row">
-                  <span class="admin-cmd-label">Water Crops</span>
-                  <button class="btn btn-sm btn-primary" onclick="waterCropsCmd(this)">Water All</button>
-                </div>
-
-                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px">
-                  <span class="admin-cmd-label" style="margin:0">Grow</span>
-                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                    <select id="farmGrowType" class="form-input" style="width:auto" onchange="onGrowTypeChange()">
-                      <option value="growcrops">Crops</option>
-                      <option value="growgrass">Grass</option>
-                      <option value="growwildtrees">Wild Trees</option>
-                      <option value="fruittrees">Fruit Trees</option>
-                    </select>
-                    <input type="number" id="farmGrowDays" class="form-input" placeholder="Days / times" min="1" style="width:120px">
-                    <button class="btn btn-sm btn-primary" onclick="growCmd(this)">Grow</button>
-                  </div>
-                  <div style="font-size:11px;color:var(--text-muted)">Wild Trees and Fruit Trees do not use a day count.</div>
                 </div>
 
                 <div class="admin-cmd-row" style="opacity:0.45;cursor:not-allowed">
