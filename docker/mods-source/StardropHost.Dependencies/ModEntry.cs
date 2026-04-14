@@ -252,6 +252,8 @@ namespace StardropHostDependencies
 
             helper.ConsoleCommands.Add("stardrop_deletefarmhand", "Delete an offline farmhand and free their cabin. Usage: stardrop_deletefarmhand <name>", OnDeleteFarmhandCommand);
             helper.ConsoleCommands.Add("stardrop_upgradecabin",   "Set a farmhand's cabin upgrade level (0-3). Usage: stardrop_upgradecabin <name> <level>", OnUpgradeCabinCommand);
+            helper.ConsoleCommands.Add("stardrop_movecabin",     "Move a farmhand's cabin to their current position. Usage: stardrop_movecabin <name> [type]", OnMoveCabinCommand);
+            helper.ConsoleCommands.Add("stardrop_giveitem",      "Give an item to an online player. Usage: stardrop_giveitem <playerName> <quantity> <quality> <itemId>", OnGiveItemCommand);
             helper.ConsoleCommands.Add("stardrop_cropsaver",      "Toggle CropSaver on or off. Usage: stardrop_cropsaver <on|off>",                        OnCropSaverCommand);
             helper.ConsoleCommands.Add("stardrop_upgradehouse",    "Upgrade the host farmhouse one level (max 3). Usage: stardrop_upgradehouse [targetLevel]", OnUpgradeHouseCommand);
             helper.ConsoleCommands.Add("stardrop_watercrops",     "Water all tilled soil on the Farm. Usage: stardrop_watercrops [location]",                OnWaterCropsCommand);
@@ -1746,6 +1748,85 @@ namespace StardropHostDependencies
             SchedulePrivateMessageAndKick(farmer.UniqueMultiplayerID, farmer.Name,
                 $"Your cabin has been upgraded to level {targetLevel} ({levelNames[targetLevel]}). " +
                 $"You will be disconnected in 10 seconds — log back in to see the changes.");
+        }
+
+        private void OnMoveCabinCommand(string cmd, string[] args)
+        {
+            if (!Context.IsWorldReady || !Context.IsMainPlayer)
+            {
+                Monitor.Log("[Admin] stardrop_movecabin requires an active hosted session.", LogLevel.Warn);
+                return;
+            }
+            if (args.Length < 1) { Monitor.Log("Usage: stardrop_movecabin <playerName> [type]", LogLevel.Info); return; }
+
+            string playerName = args[0];
+            string? typeArg   = args.Length > 1 ? args[1] : null;
+
+            var farmer = Game1.getAllFarmhands().FirstOrDefault(f =>
+                f.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase));
+
+            if (farmer == null)
+            {
+                Monitor.Log($"[Admin] stardrop_movecabin: farmhand '{playerName}' not found.", LogLevel.Warn);
+                return;
+            }
+
+            // Temporarily override permission check — host-initiated move always allowed
+            var savedPerm = _buildingMovePermission;
+            _buildingMovePermission = "on";
+            HandleCabinCommand(farmer.UniqueMultiplayerID, typeArg);
+            _buildingMovePermission = savedPerm;
+        }
+
+        private void OnGiveItemCommand(string cmd, string[] args)
+        {
+            if (!Context.IsWorldReady || !Context.IsMainPlayer)
+            {
+                Monitor.Log("[Admin] stardrop_giveitem requires an active hosted session.", LogLevel.Warn);
+                return;
+            }
+            if (args.Length < 4) { Monitor.Log("Usage: stardrop_giveitem <playerName> <quantity> <quality> <itemId>", LogLevel.Info); return; }
+
+            string playerName = args[0];
+            int    quantity   = int.TryParse(args[1], out int q)  ? Math.Max(1, q)  : 1;
+            int    quality    = int.TryParse(args[2], out int ql) ? ql               : 0;
+            string itemId     = string.Join(" ", args.Skip(3));
+
+            // Find farmer — host or active farmhand
+            Farmer? farmer = Game1.player.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase)
+                ? Game1.player
+                : Game1.getAllFarmhands().FirstOrDefault(f =>
+                    f.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase));
+
+            if (farmer == null)
+            {
+                Monitor.Log($"[Admin] stardrop_giveitem: player '{playerName}' not found.", LogLevel.Warn);
+                return;
+            }
+
+            if (!farmer.IsLocalPlayer && !farmer.isActive())
+            {
+                Monitor.Log($"[Admin] stardrop_giveitem: '{playerName}' is not online.", LogLevel.Warn);
+                return;
+            }
+
+            Item? item = ItemRegistry.Create(itemId, quantity, quality);
+            if (item == null)
+            {
+                Monitor.Log($"[Admin] stardrop_giveitem: unknown item ID '{itemId}'.", LogLevel.Warn);
+                return;
+            }
+
+            Item? overflow = farmer.addItemToInventory(item);
+            if (overflow != null)
+            {
+                Game1.createItemDebris(overflow, farmer.getStandingPosition(), farmer.FacingDirection, farmer.currentLocation);
+                Monitor.Log($"[Admin] Gave {quantity}x {item.DisplayName} to {farmer.Name} (inventory full — dropped at feet).", LogLevel.Info);
+            }
+            else
+            {
+                Monitor.Log($"[Admin] Gave {quantity}x {item.DisplayName} to {farmer.Name}.", LogLevel.Info);
+            }
         }
 
         private void OnUpgradeHouseCommand(string cmd, string[] args)

@@ -570,8 +570,8 @@ const ALLOWED_ADMIN_COMMANDS = new Set([
   'say',
   'stardrop_deletefarmhand', 'stardrop_upgradehouse', 'stardrop_watercrops',
   'stardrop_growcrops', 'stardrop_growgrass', 'stardrop_growwildtrees', 'stardrop_fruittrees',
-  'stardrop_upgradecabin',
-  'stardrop_cropsaver',
+  'stardrop_upgradecabin', 'stardrop_movecabin',
+  'stardrop_cropsaver', 'stardrop_giveitem',
 ]);
 
 function adminCommand(req, res) {

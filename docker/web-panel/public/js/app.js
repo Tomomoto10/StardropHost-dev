@@ -1993,6 +1993,8 @@ function updateDashboardUI(data) {
   }
 
   populateUpgradeCabinDropdown();
+  populateMoveCabinDropdown();
+  populateGiveItemPlayerDropdown();
   populateUpgradeHouseDropdown();
   renderQuickActions();
   if (data.sysCores)              _populateCpuOptions(data.sysCores);
@@ -2795,6 +2797,206 @@ async function upgradeCabin() {
     showToast(`Success: ${ownerName}'s cabin upgraded to level ${targetLevel} — reconnecting in ~10s`, 'success');
   } else {
     showToast(data?.error || 'Failed — is the server running?', 'error');
+  }
+}
+
+function populateMoveCabinDropdown() {
+  const sel = document.getElementById('moveCabinPlayer');
+  if (!sel) return;
+  const cabins = lastStatusData?.live?.cabins || [];
+  const online = new Set((lastStatusData?.live?.players || []).filter(p => p.isOnline && !p.isHost).map(p => p.name));
+  const named  = cabins.filter(c => c.ownerName && c.ownerName !== 'Farmhouse');
+  const prev   = sel.value;
+  sel.innerHTML = '<option value="">Select player…</option>' +
+    named.map(c => {
+      const isOnline = online.has(c.ownerName);
+      return `<option value="${c.ownerName}"${c.ownerName === prev ? ' selected' : ''}>${escapeHtml(c.ownerName)}${isOnline ? '' : ' (offline)'}</option>`;
+    }).join('');
+  const btn = document.getElementById('moveCabinBtn');
+  if (btn) btn.disabled = !sel.value;
+}
+
+async function moveCabinCmd(_btn) {
+  const playerName = document.getElementById('moveCabinPlayer')?.value;
+  const cabinType  = document.getElementById('moveCabinType')?.value;
+  if (!playerName) return;
+  const command = cabinType ? `stardrop_movecabin ${playerName} ${cabinType}` : `stardrop_movecabin ${playerName}`;
+  const data = await API.post('/api/players/admin-command', { command }).catch(() => null);
+  if (data?.success) {
+    showToast(`${playerName}'s cabin moved — they will be kicked and need to reconnect`, 'success');
+  } else {
+    showToast(data?.error || 'Failed — is the server running and the player on the Farm?', 'error');
+  }
+}
+
+// ── Give Item ───────────────────────────────────────────────────────────────
+
+const GIVE_ITEMS = {
+  books: [
+    { label: 'Animal Catalogue',          id: '(O)Book_AnimalCatalogue' },
+    { label: 'Treasure Appraisal Guide',  id: '(O)Book_Artifact' },
+    { label: 'Dwarvish Safety Manual',    id: '(O)Book_Bombs' },
+    { label: 'The Art O\'Crabbing',       id: '(O)Book_Crabbing' },
+    { label: 'Jack Be Nimble, Jack Be Thick', id: '(O)Book_Defense' },
+    { label: 'The Diamond Hunter',        id: '(O)Book_Diamonds' },
+    { label: 'Friendship 101',            id: '(O)Book_Friendship' },
+    { label: 'Ol\' Slitherlegs',          id: '(O)Book_Grass' },
+    { label: 'Horse: The Book',           id: '(O)Book_Horse' },
+    { label: 'Mapping Cave Systems',      id: '(O)Book_Marlon' },
+    { label: 'Book of Mysteries',         id: '(O)Book_Mystery' },
+    { label: 'Price Catalogue',           id: '(O)Book_PriceCatalogue' },
+    { label: 'Queen of Sauce Cookbook',   id: '(O)Book_QueenOfSauce' },
+    { label: 'Jewels of the Sea',         id: '(O)Book_Roe' },
+    { label: 'Way of the Wind pt. 1',     id: '(O)Book_Speed' },
+    { label: 'Way of the Wind pt. 2',     id: '(O)Book_Speed2' },
+    { label: 'The Alleyway Buffet',       id: '(O)Book_Trash' },
+    { label: 'Monster Compendium',        id: '(O)Book_Void' },
+    { label: 'Raccoon Journal',           id: '(O)Book_WildSeeds' },
+    { label: 'Woody\'s Secret',           id: '(O)Book_Woodcutting' },
+    { label: 'Book of Stars',             id: '(O)PurpleBook' },
+    { label: 'Stardew Valley Almanac',    id: '(O)SkillBook_0' },
+    { label: 'Bait and Bobber',           id: '(O)SkillBook_1' },
+    { label: 'Woodcutter\'s Weekly',      id: '(O)SkillBook_2' },
+    { label: 'Mining Monthly',            id: '(O)SkillBook_3' },
+    { label: 'Combat Quarterly',          id: '(O)SkillBook_4' },
+  ],
+  mining: [
+    { label: 'Prismatic Shard',  id: '(O)74' },
+    { label: 'Diamond',          id: '(O)72' },
+    { label: 'Ruby',             id: '(O)64' },
+    { label: 'Emerald',          id: '(O)60' },
+    { label: 'Aquamarine',       id: '(O)62' },
+    { label: 'Amethyst',         id: '(O)66' },
+    { label: 'Topaz',            id: '(O)68' },
+    { label: 'Jade',             id: '(O)70' },
+    { label: 'Fire Quartz',      id: '(O)82' },
+    { label: 'Earth Crystal',    id: '(O)86' },
+    { label: 'Frozen Tear',      id: '(O)84' },
+    { label: 'Quartz',           id: '(O)80' },
+    { label: 'Iridium Bar',      id: '(O)337' },
+    { label: 'Gold Bar',         id: '(O)336' },
+    { label: 'Iron Bar',         id: '(O)335' },
+    { label: 'Copper Bar',       id: '(O)334' },
+    { label: 'Radioactive Bar',  id: '(O)910' },
+    { label: 'Refined Quartz',   id: '(O)338' },
+    { label: 'Iridium Ore',      id: '(O)386' },
+    { label: 'Gold Ore',         id: '(O)384' },
+    { label: 'Iron Ore',         id: '(O)380' },
+    { label: 'Copper Ore',       id: '(O)378' },
+    { label: 'Coal',             id: '(O)382' },
+    { label: 'Radioactive Ore',  id: '(O)909' },
+    { label: 'Cinder Shard',     id: '(O)848' },
+    { label: 'Omni Geode',       id: '(O)749' },
+    { label: 'Magma Geode',      id: '(O)537' },
+    { label: 'Frozen Geode',     id: '(O)536' },
+    { label: 'Geode',            id: '(O)535' },
+    { label: 'Calico Egg',       id: '(O)CalicoEgg' },
+  ],
+  farming: [
+    { label: 'Ancient Fruit',       id: '(O)454' },
+    { label: 'Starfruit',           id: '(O)268' },
+    { label: 'Melon',               id: '(O)254' },
+    { label: 'Strawberry',          id: '(O)400' },
+    { label: 'Truffle',             id: '(O)430' },
+    { label: 'Truffle Oil',         id: '(O)432' },
+    { label: 'Rabbit\'s Foot',      id: '(O)447' },
+    { label: 'Golden Walnut',       id: '(O)73' },
+    { label: 'Rare Seed',           id: '(O)347' },
+    { label: 'Mahogany Seed',       id: '(O)292' },
+    { label: 'Mystic Tree Seed',    id: '(O)MysticTreeSeed' },
+    { label: 'Mixed Flower Seeds',  id: '(O)MixedFlowerSeeds' },
+    { label: 'Carrot Seeds',        id: '(O)CarrotSeeds' },
+    { label: 'Grass Starter',       id: '(O)297' },
+    { label: 'Blue Grass Starter',  id: '(O)Blue Grass Starter' },
+    { label: 'Powdermelon',         id: '(O)Powdermelon' },
+    { label: 'Iridium Milk',        id: '(O)803' },
+    { label: 'Ostrich Egg',         id: '(O)289' },
+    { label: 'Banana',              id: '(O)91' },
+    { label: 'Dried Fruit',         id: '(O)DriedFruit' },
+    { label: 'Dried Mushrooms',     id: '(O)DriedMushrooms' },
+    { label: 'Wool',                id: '(O)440' },
+    { label: 'Duck Feather',        id: '(O)444' },
+  ],
+  fishing: [
+    { label: 'Bait',          id: '(O)SpecificBait' },
+    { label: 'Deluxe Bait',   id: '(O)DeluxeBait' },
+    { label: 'Challenge Bait', id: '(O)ChallengeBait' },
+    { label: 'Golden Bobber', id: '(O)GoldenBobber' },
+    { label: 'Sonar Bobber',  id: '(O)SonarBobber' },
+    { label: 'Golden Tag',    id: '(O)TroutDerbyTag' },
+    { label: 'Cave Jelly',    id: '(O)CaveJelly' },
+    { label: 'River Jelly',   id: '(O)RiverJelly' },
+    { label: 'Sea Jelly',     id: '(O)SeaJelly' },
+    { label: 'Smoked Fish',   id: '(O)SmokedFish' },
+    { label: 'Goby',          id: '(O)Goby' },
+  ],
+  misc: [
+    { label: 'Stardrop Tea',            id: '(O)Stardrop Tea' },
+    { label: 'Golden Animal Cracker',   id: '(O)Golden Animal Cracker' },
+    { label: 'Golden Mystery Box',      id: '(O)Golden Mystery Box' },
+    { label: 'Prize Ticket',            id: '(O)Prize Ticket' },
+    { label: 'Treasure Totem',          id: '(O)Treasure Totem' },
+    { label: 'Tent Kit',                id: '(O)Tent Kit' },
+    { label: 'Butterfly Powder',        id: '(O)Butterfly Powder' },
+    { label: 'Moss',                    id: '(O)Moss' },
+    { label: 'Pet License',             id: '(O)Pet License' },
+    { label: 'Warp Totem: Desert',      id: '(O)261' },
+    { label: 'Artifact Trove',          id: '(O)275' },
+    { label: 'Treasure Chest',          id: '(O)166' },
+    { label: 'Dwarvish Translation Guide', id: '(O)326' },
+    { label: 'Tea Set',                 id: '(O)341' },
+    { label: 'Trimmed Lucky Purple Shorts', id: '(O)71' },
+    { label: 'Far Away Stone',          id: '(O)Far Away Stone' },
+    { label: 'Gold Coin',               id: '(O)Gold Coin' },
+  ],
+};
+
+function populateGiveItemPlayerDropdown() {
+  const sel = document.getElementById('giveItemPlayer');
+  if (!sel) return;
+  const players = (lastStatusData?.live?.players || []).filter(p => p.isOnline);
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Select player…</option>' +
+    players.map(p =>
+      `<option value="${escapeHtml(p.name)}"${p.name === prev ? ' selected' : ''}>${escapeHtml(p.name)}${p.isHost ? ' (host)' : ''}</option>`
+    ).join('');
+  _updateGiveItemBtn();
+}
+
+function onGiveItemPlayerChange() { _updateGiveItemBtn(); }
+
+function onGiveItemCategoryChange() {
+  const cat  = document.getElementById('giveItemCategory')?.value;
+  const sel  = document.getElementById('giveItemId');
+  if (!sel) return;
+  const items = GIVE_ITEMS[cat] || [];
+  sel.innerHTML = '<option value="">Item…</option>' +
+    items.map(i => `<option value="${escapeHtml(i.id)}">${escapeHtml(i.label)}</option>`).join('');
+  sel.disabled = !cat;
+  _updateGiveItemBtn();
+}
+
+function _updateGiveItemBtn() {
+  const btn    = document.getElementById('giveItemBtn');
+  const player = document.getElementById('giveItemPlayer')?.value;
+  const itemId = document.getElementById('giveItemId')?.value;
+  if (btn) btn.disabled = !player || !itemId;
+}
+
+async function giveItemCmd(_btn) {
+  const player  = document.getElementById('giveItemPlayer')?.value;
+  const itemId  = document.getElementById('giveItemId')?.value;
+  const qty     = Math.max(1, parseInt(document.getElementById('giveItemQty')?.value || '1', 10));
+  const quality = document.getElementById('giveItemQuality')?.value || '0';
+  if (!player || !itemId) return;
+
+  const itemLabel = document.querySelector(`#giveItemId option[value="${CSS.escape(itemId)}"]`)?.textContent || itemId;
+  const command   = `stardrop_giveitem ${player} ${qty} ${quality} ${itemId}`;
+  const data      = await API.post('/api/players/admin-command', { command }).catch(() => null);
+  if (data?.success) {
+    showToast(`Gave ${qty}x ${itemLabel} to ${player}`, 'success');
+  } else {
+    showToast(data?.error || 'Failed — is the server running and player online?', 'error');
   }
 }
 

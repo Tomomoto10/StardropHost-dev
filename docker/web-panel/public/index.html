@@ -659,6 +659,27 @@
                 </div>
 
                 <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+                  <span class="admin-cmd-label" style="margin:0">Move Cabin</span>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    <select id="moveCabinPlayer" class="form-input" style="width:auto">
+                      <option value="">Select player…</option>
+                    </select>
+                    <select id="moveCabinType" class="form-input" style="width:auto">
+                      <option value="">Keep current skin</option>
+                      <option value="stone">Stone Cabin</option>
+                      <option value="plank">Plank Cabin</option>
+                      <option value="log">Log Cabin</option>
+                      <option value="neighbor">Neighbor Cabin</option>
+                      <option value="rustic">Rustic Cabin</option>
+                      <option value="beach">Beach Cabin</option>
+                      <option value="trailer">Trailer Cabin</option>
+                    </select>
+                    <button id="moveCabinBtn" class="btn btn-sm btn-primary" onclick="moveCabinCmd(this)">Place</button>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-muted)">Player must be standing on the Farm. Cabin moves to their current position. They will be kicked and need to reconnect.</div>
+                </div>
+
+                <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px">
                   <div style="display:flex;align-items:center;gap:6px">
                     <span class="admin-cmd-label" style="margin:0">Build Permissions</span>
                     <select id="worldBuildPermission" class="form-input" style="width:170px">
@@ -668,7 +689,7 @@
                     </select>
                     <button class="btn btn-sm btn-primary" onclick="setBuildPermissionCmd(this)">Set</button>
                   </div>
-                  <div style="font-size:11px;color:var(--text-muted)">
+                  <div style="font-size:13px;color:var(--text-muted)">
                     Set to <em>owned</em> or <em>on</em> to allow players to use <code>move_cabin [types]</code>
                   </div>
                   <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px">
@@ -852,6 +873,44 @@
               <div class="empty-state">Loading...</div>
             </div>
           </div>
+          <details class="card admin-cred-details" id="player-commands-card">
+            <summary>Player Commands</summary>
+            <div style="padding-top:10px">
+
+              <div class="admin-cmd-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+                <span class="admin-cmd-label" style="margin:0">Give Item</span>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <select id="giveItemPlayer" class="form-input" style="width:auto" onchange="onGiveItemPlayerChange()">
+                    <option value="">Select player…</option>
+                  </select>
+                  <select id="giveItemCategory" class="form-input" style="width:auto" onchange="onGiveItemCategoryChange()">
+                    <option value="">Category…</option>
+                    <option value="books">Books</option>
+                    <option value="mining">Mining &amp; Gems</option>
+                    <option value="farming">Farming</option>
+                    <option value="fishing">Fishing</option>
+                    <option value="misc">Misc / Special</option>
+                  </select>
+                  <select id="giveItemId" class="form-input" style="width:auto" disabled onchange="_updateGiveItemBtn()">
+                    <option value="">Item…</option>
+                  </select>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <input id="giveItemQty" type="number" class="form-input" style="width:70px" value="1" min="1" max="999" placeholder="Qty">
+                  <select id="giveItemQuality" class="form-input" style="width:auto">
+                    <option value="0">Normal</option>
+                    <option value="1">Silver</option>
+                    <option value="2">Gold</option>
+                    <option value="4">Iridium</option>
+                  </select>
+                  <button id="giveItemBtn" class="btn btn-sm btn-primary" onclick="giveItemCmd(this)" disabled>Give</button>
+                </div>
+                <div style="font-size:11px;color:var(--text-muted)">Online players only. Drops at their feet if inventory is full.</div>
+              </div>
+
+            </div>
+          </details>
+
           <div class="card" id="recentPlayersCard" style="display:none">
             <h3>Recent Players</h3>
             <div id="recentPlayersList" class="players-list"></div>
