@@ -2243,13 +2243,6 @@ namespace StardropHostDependencies
                 return;
             }
 
-            // Block when /moveBuildingPermission is set to off (host only)
-            if (_buildingMovePermission == "off")
-            {
-                Game1.chatBox?.textBoxEnter("The host has disabled cabin moving. Ask them to change Build Permissions in the world settings.");
-                return;
-            }
-
             var farmer = Game1.getFarmerMaybeOffline(farmerId);
             if (farmer == null) return;
 

@@ -1992,6 +1992,14 @@ function updateDashboardUI(data) {
     else       { farmNameEl.style.display = 'none'; }
   }
 
+  // Hydrate gift chest set from live data so Remove Chest button survives page reloads
+  for (const cabin of (data.live?.cabins || [])) {
+    if (cabin.ownerName && cabin.ownerName !== 'Farmhouse') {
+      if (cabin.hasGiftChest) _playersWithGiftChests.add(cabin.ownerName);
+      else _playersWithGiftChests.delete(cabin.ownerName);
+    }
+  }
+
   populateUpgradeCabinDropdown();
   populateMoveCabinDropdown();
   populateGiveItemPlayerDropdown();

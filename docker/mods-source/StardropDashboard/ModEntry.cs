@@ -136,6 +136,11 @@ namespace StardropDashboard
                             if (f.UniqueMultiplayerID == owner.UniqueMultiplayerID)
                                 { isOnline = true; break; }
 
+                    bool hasGiftChest = false;
+                    foreach (var obj in cabin.objects.Values)
+                        if (obj is StardewValley.Objects.Chest ch && ch.Name == "Stardrop Gifts")
+                            { hasGiftChest = true; break; }
+
                     cabins.Add(new CabinData
                     {
                         OwnerName     = owner?.Name ?? "",
@@ -143,6 +148,7 @@ namespace StardropDashboard
                         TileX         = building.tileX.Value,
                         TileY         = building.tileY.Value,
                         IsUpgraded    = building.daysOfConstructionLeft.Value <= 0,
+                        HasGiftChest  = hasGiftChest,
                     });
                 }
             }

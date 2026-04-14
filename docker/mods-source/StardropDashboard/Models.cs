@@ -60,5 +60,6 @@ namespace StardropDashboard
         public int    TileX         { get; set; }
         public int    TileY         { get; set; }
         public bool   IsUpgraded    { get; set; }
+        public bool   HasGiftChest  { get; set; }
     }
 }
