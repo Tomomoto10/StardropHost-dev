@@ -1831,7 +1831,10 @@ namespace StardropHostDependencies
 
         private void PlaceInCabinChest(Farmer farmer, Item item)
         {
-            if (Utility.getHomeOfFarmer(farmer) is not Cabin home)
+            var cabinBuilding = Game1.getFarm().buildings
+                .FirstOrDefault(b => b.indoors.Value is Cabin c && c.owner.UniqueMultiplayerID == farmer.UniqueMultiplayerID);
+
+            if (cabinBuilding?.indoors.Value is not Cabin home)
             {
                 Monitor.Log($"[Admin] stardrop_giveitem: no cabin found for '{farmer.Name}'.", LogLevel.Warn);
                 return;
@@ -1843,8 +1846,12 @@ namespace StardropHostDependencies
 
             if (chest == null)
             {
+                var layer  = home.map?.Layers[0];
+                var centre = layer != null
+                    ? new Vector2(layer.LayerWidth / 2, layer.LayerHeight / 2)
+                    : GiftChestTile;
                 chest = new Chest(true) { Name = GiftChestName };
-                home.objects[GiftChestTile] = chest;
+                home.objects[centre] = chest;
             }
 
             chest.addItem(item);
