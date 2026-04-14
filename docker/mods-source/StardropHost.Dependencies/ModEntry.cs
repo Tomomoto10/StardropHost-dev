@@ -253,7 +253,8 @@ namespace StardropHostDependencies
             helper.ConsoleCommands.Add("stardrop_deletefarmhand", "Delete an offline farmhand and free their cabin. Usage: stardrop_deletefarmhand <name>", OnDeleteFarmhandCommand);
             helper.ConsoleCommands.Add("stardrop_upgradecabin",   "Set a farmhand's cabin upgrade level (0-3). Usage: stardrop_upgradecabin <name> <level>", OnUpgradeCabinCommand);
             helper.ConsoleCommands.Add("stardrop_movecabin",     "Move a farmhand's cabin to their current position. Usage: stardrop_movecabin <name> [type]", OnMoveCabinCommand);
-            helper.ConsoleCommands.Add("stardrop_giveitem",      "Give an item to an online player. Usage: stardrop_giveitem <playerName> <quantity> <quality> <itemId>", OnGiveItemCommand);
+            helper.ConsoleCommands.Add("stardrop_giveitem",        "Give an item to a player. Usage: stardrop_giveitem <playerName> <quantity> <quality> <itemId>", OnGiveItemCommand);
+            helper.ConsoleCommands.Add("stardrop_removegiftchest", "Remove the Stardrop gift chest from a farmhand's cabin. Usage: stardrop_removegiftchest <playerName>", OnRemoveGiftChestCommand);
             helper.ConsoleCommands.Add("stardrop_cropsaver",      "Toggle CropSaver on or off. Usage: stardrop_cropsaver <on|off>",                        OnCropSaverCommand);
             helper.ConsoleCommands.Add("stardrop_upgradehouse",    "Upgrade the host farmhouse one level (max 3). Usage: stardrop_upgradehouse [targetLevel]", OnUpgradeHouseCommand);
             helper.ConsoleCommands.Add("stardrop_watercrops",     "Water all tilled soil on the Farm. Usage: stardrop_watercrops [location]",                OnWaterCropsCommand);
@@ -1860,6 +1861,39 @@ namespace StardropHostDependencies
                 Game1.chatBox?.textBoxEnter($"/message {farmer.Name} The host has placed {item.Stack}x {item.DisplayName} in your cabin chest.");
 
             Monitor.Log($"[Admin] Placed {item.Stack}x {item.DisplayName} in {farmer.Name}'s cabin chest.", LogLevel.Info);
+        }
+
+        private void OnRemoveGiftChestCommand(string cmd, string[] args)
+        {
+            if (!Context.IsWorldReady || !Context.IsMainPlayer)
+            {
+                Monitor.Log("[Admin] stardrop_removegiftchest requires an active hosted session.", LogLevel.Warn);
+                return;
+            }
+            if (args.Length < 1) { Monitor.Log("Usage: stardrop_removegiftchest <playerName>", LogLevel.Info); return; }
+
+            string playerName = args[0];
+            var cabinBuilding = Game1.getFarm().buildings
+                .FirstOrDefault(b => b.indoors.Value is Cabin c &&
+                    c.owner.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase));
+
+            if (cabinBuilding?.indoors.Value is not Cabin home)
+            {
+                Monitor.Log($"[Admin] stardrop_removegiftchest: no cabin found for '{playerName}'.", LogLevel.Warn);
+                return;
+            }
+
+            var chestKey = home.objects.Keys.Cast<Vector2?>()
+                .FirstOrDefault(k => k.HasValue && home.objects[k.Value] is Chest ch && ch.Name == GiftChestName);
+
+            if (chestKey == null)
+            {
+                Monitor.Log($"[Admin] stardrop_removegiftchest: no gift chest found in '{playerName}'s cabin.", LogLevel.Info);
+                return;
+            }
+
+            home.objects.Remove(chestKey.Value);
+            Monitor.Log($"[Admin] Removed gift chest from {playerName}'s cabin.", LogLevel.Info);
         }
 
         private void OnUpgradeHouseCommand(string cmd, string[] args)

@@ -42,6 +42,12 @@ while true; do
         sleep 2
     done
 
+    # Clear categorized logs so stale entries from previous sessions don't persist.
+    for f in /home/steam/.local/share/stardrop/logs/categorized/*.log; do
+        [ -f "$f" ] && > "$f"
+    done
+    rm -f /home/steam/.local/share/stardrop/logs/categorized/.last_line
+
     # Create named pipe so the web panel can send console commands to SMAPI.
     # The <> redirect opens it for both read and write — SMAPI reads commands
     # from stdin, and the shell holding the write end prevents EOF.

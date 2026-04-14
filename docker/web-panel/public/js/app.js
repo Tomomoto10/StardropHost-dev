@@ -2954,14 +2954,20 @@ const GIVE_ITEMS = {
 function populateGiveItemPlayerDropdown() {
   const sel = document.getElementById('giveItemPlayer');
   if (!sel) return;
-  const players = (lastStatusData?.live?.players || []).filter(p => !p.isHost);
+  const onlineNames = new Set(
+    (lastStatusData?.live?.players || []).filter(p => !p.isHost && p.isOnline).map(p => p.name)
+  );
+  // All claimed cabin owners (online + offline)
+  const farmhands = _lastFarmhandCabins
+    .map(c => c.ownerName || c.OwnerName)
+    .filter(n => n && n !== 'Unclaimed');
   const prev = sel.value;
   sel.innerHTML = '<option value="">Select player…</option>' +
-    (players.length ? '<option value="__all__">— All Players —</option>' : '') +
-    players.map(p =>
-      `<option value="${escapeHtml(p.name)}"${p.name === prev ? ' selected' : ''}>${escapeHtml(p.name)}${p.isOnline ? '' : ' (offline)'}</option>`
+    (farmhands.length ? '<option value="__all__">— All Players —</option>' : '') +
+    farmhands.map(name =>
+      `<option value="${escapeHtml(name)}"${name === prev ? ' selected' : ''}>${escapeHtml(name)}${onlineNames.has(name) ? '' : ' (offline)'}</option>`
     ).join('');
-  if (prev && (prev === '__all__' || players.some(p => p.name === prev))) sel.value = prev;
+  if (prev && (prev === '__all__' || farmhands.includes(prev))) sel.value = prev;
   _updateGiveItemBtn();
 }
 
@@ -3010,6 +3016,17 @@ async function giveItemCmd(_btn) {
   const data    = await API.post('/api/players/admin-command', { command }).catch(() => null);
   if (data?.success) {
     showToast(`${qty}x ${itemLabel} → ${player}'s cabin chest`, 'success');
+  } else {
+    showToast(data?.error || 'Failed — is the server running?', 'error');
+  }
+}
+
+async function removeGiftChestCmd(_btn) {
+  const player = document.getElementById('giveItemPlayer')?.value;
+  if (!player || player === '__all__') { showToast('Select a specific player first', 'error'); return; }
+  const data = await API.post('/api/players/admin-command', { command: `stardrop_removegiftchest ${player}` }).catch(() => null);
+  if (data?.success) {
+    showToast(`Gift chest removed from ${player}'s cabin`, 'success');
   } else {
     showToast(data?.error || 'Failed — is the server running?', 'error');
   }
@@ -3456,7 +3473,7 @@ async function loadFarmhands() {
 
   const cabins = data?.cabins || [];
 
-  if (cabins.length) _lastKnownCabinCount = cabins.length;
+  if (cabins.length) { _lastKnownCabinCount = cabins.length; _lastFarmhandCabins = cabins; }
 
   if (!cabins.length) {
     card.style.display = '';
@@ -3912,6 +3929,7 @@ function filterAdminItems() {}
 
 let _lastPlayersData = { players: [] };
 let _lastKnownCabinCount = 0;
+let _lastFarmhandCabins = [];
 let _adminPlayer     = null;
 
 function openAdminModal(player) {
