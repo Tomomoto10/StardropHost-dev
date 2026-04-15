@@ -187,10 +187,12 @@ async function extractGogInstaller() {
 
     proc.on('close', async () => {
       // Installer puts game files in <installpath>/game/
-      const gameDataPath = path.join(extractDir, 'game');
-      const gameDataPathAlt = path.join(extractDir, 'data', 'noarch');
-      const actualGamePath = fs.existsSync(gameDataPath)    ? gameDataPath :
-                             fs.existsSync(gameDataPathAlt) ? gameDataPathAlt : null;
+      const gameDataPath     = path.join(extractDir, 'game');
+      const gameDataPathAlt  = path.join(extractDir, 'data', 'noarch', 'game');
+      const gameDataPathAlt2 = path.join(extractDir, 'data', 'noarch');
+      const actualGamePath   = fs.existsSync(gameDataPath)     ? gameDataPath :
+                               fs.existsSync(gameDataPathAlt)  ? gameDataPathAlt :
+                               fs.existsSync(gameDataPathAlt2) ? gameDataPathAlt2 : null;
 
       if (actualGamePath) {
         appendLog('[GOG] Copying game files…');
