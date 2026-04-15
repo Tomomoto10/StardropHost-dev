@@ -1243,7 +1243,6 @@ async function wizCreateNewFarm() {
   const cabinStack    = document.getElementById('wiz-cabin-stack')?.checked ?? false;
   const moneyStyle    = val('wiz-money-style') || 'shared';
   const profitMargin  = val('wiz-profit-margin')|| 'normal';
-  const moveBuild     = val('wiz-move-build')  || 'off';
   const ccBundles     = val('wiz-cc-bundles')  || 'normal';
   const mineRewards   = val('wiz-mine-rewards')|| 'normal';
   const monsters      = val('wiz-monsters')    || 'false';
@@ -1256,8 +1255,6 @@ async function wizCreateNewFarm() {
   const petName       = petNameInput.value.trim();
   const cave          = val('wiz-cave')        || 'mushrooms';
   const joja          = val('wiz-joja')        || 'false';
-  const cropSaver     = document.getElementById('wiz-crop-saver')?.checked ?? false;
-
   // Validate required fields
   let invalid = false;
   if (!farmName) {
@@ -1282,7 +1279,7 @@ async function wizCreateNewFarm() {
     await API.post('/api/wizard/new-farm', {
       farmName, farmerName, favoriteThing,
       farmType, cabinCount, cabinLayout, cabinStack,
-      moneyStyle, profitMargin, moveBuildPermission: moveBuild,
+      moneyStyle, profitMargin,
       communityCenterBundles: ccBundles, mineRewards,
       spawnMonstersAtNight: monsters === 'true',
       guaranteeYear1Completable: year1 === 'true',
@@ -1291,7 +1288,6 @@ async function wizCreateNewFarm() {
       petSpecies, petBreed: parseInt(petBreed, 10) || 0, petName,
       mushroomsOrBats: cave,
       purchaseJojaMembership: joja === 'true',
-      cropSaverEnabled: cropSaver,
     });
     statusEl.style.color = 'var(--accent)';
     statusEl.textContent = '✅ Farm config saved';
@@ -6936,18 +6932,45 @@ async function _pollInstall() {
     clearInterval(_installPollTimer); _installPollTimer = null;
     _installRunning = false;
     if (label) label.textContent = 'Installation complete — detecting new instance…';
-    // Poll instances until a new peer appears, then refresh and close
+    // Actively scan sibling ports until a new instance responds, then close.
+    // The quick-start.sh announce curl runs inside a container without host
+    // network so it can never reach the existing panel — we scan directly
+    // from the browser instead.
+    const selfHost = _cachedLanIp || window.location.hostname;
+    const selfPort = parseInt(window.location.port || '18642', 10);
     let attempts = 0;
     const detectTimer = setInterval(async () => {
       attempts++;
       const inst = await API.get('/api/instances').catch(() => null);
-      const peerCount = inst?.peers?.length || 0;
-      if (peerCount > _installKnownPeerCount || attempts > 15) {
+      const knownPorts = new Set([selfPort, ...(inst?.peers || []).map(p => p.port)]);
+      // Probe any unregistered sibling ports directly from the browser
+      let found = false;
+      const probes = [];
+      for (let p = 18642; p <= 18651; p++) {
+        if (knownPorts.has(p)) continue;
+        probes.push((async () => {
+          try {
+            const r = await fetch(`http://${selfHost}:${p}/api/instances`,
+              { signal: AbortSignal.timeout(1500) });
+            if (!r.ok) return;
+            const d = await r.json();
+            if (!d?.self) return;
+            await API.post('/api/instances/peer', {
+              name: d.self.name || 'Connect to Setup',
+              host: d.self.host || selfHost,
+              port: p, autoDiscovered: true,
+            }).catch(() => null);
+            found = true;
+          } catch {}
+        })());
+      }
+      await Promise.all(probes);
+      if (found || attempts > 10) {
         clearInterval(detectTimer);
         closeInstallModal();
         _serversEditMode = false;
         loadServersPage();
-        if (peerCount > _installKnownPeerCount) showToast('New instance detected', 'success');
+        if (found) showToast('New instance detected', 'success');
       }
     }, 2000);
   } else if (data.status === 'error') {

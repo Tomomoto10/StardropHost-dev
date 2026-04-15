@@ -1886,14 +1886,6 @@
                 </select>
               </div>
             </div>
-            <div>
-              <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px">Move Build Permission <span style="color:var(--text-muted)">(farmhands moving buildings)</span></label>
-              <select id="wiz-move-build" class="input" style="width:100%">
-                <option value="off" selected>Off — only host can move buildings</option>
-                <option value="owned">Owned — farmhands move their own buildings</option>
-                <option value="on">On — all farmhands can move any building</option>
-              </select>
-            </div>
 
             <!-- World options -->
             <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">World</div>
@@ -1988,15 +1980,6 @@
               </div>
             </div>
 
-            <!-- Server features -->
-            <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Server Features</div>
-            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px;background:var(--bg-tertiary);border-radius:8px;border:1px solid var(--border)">
-              <input type="checkbox" id="wiz-crop-saver" style="margin-top:2px;flex-shrink:0">
-              <div>
-                <div style="font-size:13px;font-weight:500;color:var(--text-primary)">Crop Saver</div>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Preserves farmhand crops when the owner is offline. Each day they're absent and their plot is unwatered, the crop earns an extra day of life.</div>
-              </div>
-            </label>
 
           </div>
           <button class="btn btn-success" style="width:100%;margin-top:16px" onclick="wizCreateNewFarm()">Save Farm Config</button>

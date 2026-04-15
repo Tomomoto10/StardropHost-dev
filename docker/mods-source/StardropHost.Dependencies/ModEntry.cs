@@ -1009,6 +1009,12 @@ namespace StardropHostDependencies
                 string? name = GetActiveReadyCheckName();
                 if (string.IsNullOrEmpty(name)) return;
 
+                // Festival ready checks are handled exclusively by HandleFestivalStart /
+                // HandleFestivalLeave, which also warp the host. Auto-accepting here would
+                // complete the check and dismiss the farmhand's dialog without ever
+                // moving the host to the festival location.
+                if (name == "festivalStart" || name == "festivalEnd") return;
+
                 var method = Helper.Reflection.GetMethod(Game1.player.team, "SetLocalReady", required: false);
                 if (method != null)
                 {
