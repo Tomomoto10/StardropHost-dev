@@ -4566,9 +4566,6 @@ function filterItemPicker(query) {
   list.innerHTML = html;
 }
 
-// Legacy stubs — kept so openAdminModal still compiles
-function initAdminItemSelect() {}
-function filterAdminItems() {}
 
 // ─── Admin Controls Modal ─────────────────────────────────────────
 
