@@ -1810,7 +1810,7 @@ function setupWebSocket() {
   if (ws) ws.close();
   ws = new WebSocket(API.getWsUrl());
 
-  ws.onopen    = ()  => { console.log('[WS] Connected'); wsSend({ type: 'subscribe', channel: 'status' }); };
+  ws.onopen    = ()  => console.log('[WS] Connected');
   ws.onclose   = ()  => { console.log('[WS] Disconnected, reconnecting in 5s...'); setTimeout(setupWebSocket, 5000); };
   ws.onerror   = ()  => {};
   ws.onmessage = (e) => {
