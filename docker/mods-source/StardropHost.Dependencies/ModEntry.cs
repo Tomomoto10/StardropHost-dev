@@ -553,11 +553,10 @@ namespace StardropHostDependencies
 
         private void HandleMinigame()
         {
-            // Minigames (e.g. the intro bus ride on a new save) block isGameAvailable()
-            // and prevent farmhands from connecting. Force-quit any active minigame.
-            // Festival minigames are handled separately and should not be cleared here.
+            // Minigames block isGameAvailable() and prevent farmhands from connecting.
+            // Force-quit any active minigame, including festival minigames — the host
+            // doesn't participate, and quitting on the host side unblocks the ready check.
             if (Game1.currentMinigame == null) return;
-            if (Game1.CurrentEvent?.isFestival == true) return;
 
             Monitor.Log($"[Automation] Clearing minigame: {Game1.currentMinigame.GetType().Name}.", LogLevel.Info);
             Game1.currentMinigame.forceQuit();
@@ -1003,16 +1002,18 @@ namespace StardropHostDependencies
 
         private void HandleReadyCheck()
         {
-            if (Game1.player?.team == null || _handledReadyCheck) return;
+            if (Game1.player?.team == null) return;
+            // During a festival, never suppress ready checks — the minigame start check
+            // must be accepted to unblock farmhands even if we already handled one earlier.
+            bool atFestival = Game1.CurrentEvent?.isFestival == true;
+            if (_handledReadyCheck && !atFestival) return;
             try
             {
                 string? name = GetActiveReadyCheckName();
                 if (string.IsNullOrEmpty(name)) return;
 
-                // Festival ready checks are handled exclusively by HandleFestivalStart /
-                // HandleFestivalLeave, which also warp the host. Auto-accepting here would
-                // complete the check and dismiss the farmhand's dialog without ever
-                // moving the host to the festival location.
+                // festivalStart / festivalEnd are handled by HandleFestivalStart /
+                // HandleFestivalLeave (which also warp the host) — skip them here.
                 if (name == "festivalStart" || name == "festivalEnd") return;
 
                 var method = Helper.Reflection.GetMethod(Game1.player.team, "SetLocalReady", required: false);
