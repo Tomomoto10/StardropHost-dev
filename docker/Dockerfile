@@ -40,8 +40,8 @@ RUN dpkg --add-architecture i386 && \
            /tmp/* /var/tmp/*
 
 # -- Install Node.js 20 LTS via official binary tarball (faster + smaller than nodesource) --
-RUN curl -fsSL https://nodejs.org/dist/v20.19.1/node-v20.19.1-linux-x64.tar.xz \
-        | tar -xJ -C /usr/local --strip-components=1 --no-same-owner \
+RUN curl -fsSL https://nodejs.org/dist/v20.19.1/node-v20.19.1-linux-x64.tar.gz \
+        | tar -xz -C /usr/local --strip-components=1 --no-same-owner \
         && node --version
 
 # -- Create user and directories --
